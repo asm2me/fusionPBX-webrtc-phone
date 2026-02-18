@@ -11,14 +11,35 @@
 	  <?php if (file_exists($_SERVER['DOCUMENT_ROOT'].'/app/webrtc_phone/webrtc_phone_inc.php')) { include $_SERVER['DOCUMENT_ROOT'].'/app/webrtc_phone/webrtc_phone_inc.php'; } ?>
 */
 
+// -----------------------------------------------------------------------
+// DEBUG MODE  –  set to true temporarily to trace what this file detects.
+// Set back to false (or remove) before going to production.
+$_webrtc_debug = false;
+// -----------------------------------------------------------------------
+
 // Skip injection on pages where the phone scripts may conflict with native FusionPBX UI
-$_webrtc_script = $_SERVER['SCRIPT_FILENAME'] ?? '';
+$_webrtc_script      = $_SERVER['SCRIPT_FILENAME'] ?? '';
+$_webrtc_uri         = $_SERVER['REQUEST_URI']      ?? '';
 $_webrtc_excluded_apps = ['extensions', 'extension_edit', 'xml_cdr', 'operator_panel'];
 $_webrtc_current_app = basename(dirname($_webrtc_script));
-if (in_array($_webrtc_current_app, $_webrtc_excluded_apps)) {
+$_webrtc_excluded    = in_array($_webrtc_current_app, $_webrtc_excluded_apps);
+
+if ($_webrtc_debug) {
+	echo "<!-- [webrtc_phone_inc] SCRIPT_FILENAME=" . htmlspecialchars($_webrtc_script) . " -->\n";
+	echo "<!-- [webrtc_phone_inc] REQUEST_URI=" . htmlspecialchars($_webrtc_uri) . " -->\n";
+	echo "<!-- [webrtc_phone_inc] current_app=" . htmlspecialchars($_webrtc_current_app) . " -->\n";
+	echo "<!-- [webrtc_phone_inc] excluded=" . ($_webrtc_excluded ? 'YES – phone will NOT be injected' : 'NO – phone WILL be injected') . " -->\n";
+	echo "<!-- [webrtc_phone_inc] has_permission=" . (permission_exists('webrtc_phone_view') ? 'YES' : 'NO') . " -->\n";
+}
+
+if ($_webrtc_excluded) {
+	if ($_webrtc_debug) {
+		echo "<!-- [webrtc_phone_inc] Skipping injection on this page -->\n";
+	}
+	unset($_webrtc_debug, $_webrtc_script, $_webrtc_uri, $_webrtc_excluded_apps, $_webrtc_current_app, $_webrtc_excluded);
 	return;
 }
-unset($_webrtc_script, $_webrtc_excluded_apps, $_webrtc_current_app);
+unset($_webrtc_debug, $_webrtc_script, $_webrtc_uri, $_webrtc_excluded_apps, $_webrtc_current_app, $_webrtc_excluded);
 
 if (isset($_SESSION['user_uuid']) && permission_exists('webrtc_phone_view')) {
 	$webrtc_enabled = $_SESSION['webrtc_phone']['enabled']['boolean'] ?? 'true';
