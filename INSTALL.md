@@ -117,7 +117,84 @@ You can modify this in **Advanced > Group Manager**.
 - Dark mode support
 - Floating overlay that stays on top of all FusionPBX pages
 
+## Clearing Cache
+
+If the phone button doesn't appear or changes aren't taking effect, clear all caches:
+
+### Browser Cache
+
+**Hard Refresh (quickest):**
+- **Windows/Linux:** `Ctrl + Shift + R` or `Ctrl + F5`
+- **Mac:** `Cmd + Shift + R`
+
+**Full Cache Clear:**
+1. **Chrome:** `Ctrl + Shift + Delete` > Select "Cached images and files" > Clear data
+2. **Firefox:** `Ctrl + Shift + Delete` > Select "Cache" > Clear Now
+3. **Edge:** `Ctrl + Shift + Delete` > Select "Cached images and files" > Clear now
+4. **Safari:** Develop menu > Empty Caches (enable Develop menu in Preferences > Advanced)
+
+**Chrome DevTools (for development):**
+1. Press `F12` to open DevTools
+2. Right-click the browser Refresh button
+3. Select **"Empty Cache and Hard Reload"**
+
+**Disable cache during development:**
+1. Open DevTools (`F12`)
+2. Go to the **Network** tab
+3. Check **"Disable cache"** (only active while DevTools is open)
+
+### FusionPBX Session Cache
+
+Log out and log back in to FusionPBX. This forces the session to reload default settings (including `webrtc_phone` settings).
+
+### Server-Side Cache (if using a reverse proxy)
+
+If you use Nginx or Apache as a reverse proxy with caching:
+
+**Nginx:**
+```bash
+# Clear proxy cache
+rm -rf /var/cache/nginx/*
+systemctl reload nginx
+```
+
+**Apache:**
+```bash
+# If mod_cache is enabled
+htcacheclean -r -l 0 /var/cache/apache2/mod_cache_disk
+systemctl reload apache2
+```
+
+### PHP OPcache
+
+If PHP OPcache is caching the old PHP files:
+
+```bash
+# Restart PHP-FPM to clear OPcache
+systemctl restart php8.2-fpm    # adjust version as needed
+```
+
+Or add this temporarily to force a reset:
+```bash
+php -r "opcache_reset();"
+```
+
+### After Updating Module Files
+
+After copying new files to the server, always:
+1. Clear PHP OPcache: `systemctl restart php8.2-fpm`
+2. Hard refresh the browser: `Ctrl + Shift + R`
+3. If the phone still doesn't appear, log out and log back in
+
 ## Troubleshooting
+
+### Phone button doesn't appear at all
+- Verify the include line was added to your theme's `template.php` before `</body>`
+- Check the user has `webrtc_phone_view` permission (Advanced > Group Manager)
+- Verify `webrtc_phone` > `enabled` is set to `true` in Advanced > Default Settings
+- Log out and back in to refresh the session
+- Clear browser cache with `Ctrl + Shift + R`
+- Check browser console (`F12`) for JavaScript errors
 
 ### Phone shows "Connecting..." but never registers
 - Check that WSS port (7443) is open in your firewall
