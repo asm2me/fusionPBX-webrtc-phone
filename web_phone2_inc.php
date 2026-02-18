@@ -41,6 +41,25 @@ if ($_webrtc_excluded) {
 }
 unset($_webrtc_debug, $_webrtc_script, $_webrtc_uri, $_webrtc_excluded_apps, $_webrtc_current_app, $_webrtc_excluded);
 
+// Skip the floating overlay for admin and superadmin groups.
+// These users access the phone via the standalone page (/app/web_phone2/web_phone2.php).
+// Injecting the overlay on admin pages (extensions, operator panel, etc.) causes SIP
+// registration conflicts that break the extension online status display.
+$_webrtc_is_admin = false;
+if (!empty($_SESSION['groups'])) {
+	foreach ($_SESSION['groups'] as $_webrtc_group) {
+		if (isset($_webrtc_group['group_name']) && in_array($_webrtc_group['group_name'], ['admin', 'superadmin'], true)) {
+			$_webrtc_is_admin = true;
+			break;
+		}
+	}
+}
+if ($_webrtc_is_admin) {
+	unset($_webrtc_is_admin, $_webrtc_group);
+	return;
+}
+unset($_webrtc_is_admin, $_webrtc_group);
+
 if (isset($_SESSION['user_uuid']) && permission_exists('web_phone2_view')) {
 	$webrtc_enabled = $_SESSION['web_phone2']['enabled']['boolean'] ?? 'true';
 	if ($webrtc_enabled === 'true') {
