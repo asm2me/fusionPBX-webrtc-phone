@@ -9,9 +9,9 @@
 */
 
 //includes
-require_once "root.php";
-require_once "resources/require.php";
-require_once "resources/check_auth.php";
+$document_root = dirname(__DIR__, 2);
+require_once $document_root."/resources/require.php";
+require_once $document_root."/resources/check_auth.php";
 
 //check permissions
 if (permission_exists('webrtc_phone_view')) {

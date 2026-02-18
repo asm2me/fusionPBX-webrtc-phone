@@ -119,18 +119,18 @@ var WebRTCPhone = (function () {
 
 			state.ua.on('registered', function () {
 				state.registered = true;
-				updateStatus('registered');
+				renderPhone();
 			});
 
 			state.ua.on('unregistered', function () {
 				state.registered = false;
-				updateStatus('unregistered');
+				renderPhone();
 			});
 
 			state.ua.on('registrationFailed', function (e) {
 				state.registered = false;
 				console.error('WebRTC Phone: Registration failed', e.cause);
-				updateStatus('error');
+				renderPhone();
 			});
 
 			state.ua.on('newRTCSession', function (data) {
@@ -141,7 +141,7 @@ var WebRTCPhone = (function () {
 
 			state.ua.on('disconnected', function () {
 				state.registered = false;
-				updateStatus('unregistered');
+				renderPhone();
 			});
 
 			state.ua.start();

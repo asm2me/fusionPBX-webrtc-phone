@@ -9,9 +9,9 @@
 */
 
 //includes
-require_once "root.php";
-require_once "resources/require.php";
-require_once "resources/check_auth.php";
+$document_root = dirname(__DIR__, 2);
+require_once $document_root."/resources/require.php";
+require_once $document_root."/resources/check_auth.php";
 
 //check permissions
 if (!permission_exists('webrtc_phone_view')) {
@@ -31,7 +31,7 @@ echo "<div id='webrtc-phone-standalone'>\n";
 echo "	<div id='webrtc-phone-mount'></div>\n";
 echo "</div>\n";
 
-$v = '1.0.1';
+$v = '1.0.2';
 echo "<script src='/app/webrtc_phone/resources/js/jssip.min.js?v=".$v."'></script>\n";
 echo "<script src='/app/webrtc_phone/resources/js/webrtc_phone.js?v=".$v."'></script>\n";
 echo "<link rel='stylesheet' href='/app/webrtc_phone/resources/css/webrtc_phone.css?v=".$v."'>\n";
