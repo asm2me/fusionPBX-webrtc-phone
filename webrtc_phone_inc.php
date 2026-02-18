@@ -11,6 +11,15 @@
 	  <?php if (file_exists($_SERVER['DOCUMENT_ROOT'].'/app/webrtc_phone/webrtc_phone_inc.php')) { include $_SERVER['DOCUMENT_ROOT'].'/app/webrtc_phone/webrtc_phone_inc.php'; } ?>
 */
 
+// Skip injection on pages where the phone scripts may conflict with native FusionPBX UI
+$_webrtc_script = $_SERVER['SCRIPT_FILENAME'] ?? '';
+$_webrtc_excluded_apps = ['extensions', 'extension_edit', 'xml_cdr', 'operator_panel'];
+$_webrtc_current_app = basename(dirname($_webrtc_script));
+if (in_array($_webrtc_current_app, $_webrtc_excluded_apps)) {
+	return;
+}
+unset($_webrtc_script, $_webrtc_excluded_apps, $_webrtc_current_app);
+
 if (isset($_SESSION['user_uuid']) && permission_exists('webrtc_phone_view')) {
 	$webrtc_enabled = $_SESSION['webrtc_phone']['enabled']['boolean'] ?? 'true';
 	if ($webrtc_enabled === 'true') {
