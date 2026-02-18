@@ -26,7 +26,8 @@ var WebRTCPhone = (function () {
 		remoteAudio: null,
 		ringtoneAudio: null,
 		localStream: null,
-		mountEl: null
+		mountEl: null,
+		incomingNotification: null
 	};
 
 	// --- Initialization ---
@@ -50,7 +51,20 @@ var WebRTCPhone = (function () {
 		document.body.appendChild(state.ringtoneAudio);
 
 		state.initialized = true;
+
+		// Request notification permission early
+		requestNotificationPermission();
+
 		fetchConfig();
+	}
+
+	function requestNotificationPermission() {
+		if (!('Notification' in window)) return;
+		if (Notification.permission === 'default') {
+			Notification.requestPermission().then(function (perm) {
+				console.log('WebRTC Phone: Notification permission:', perm);
+			});
+		}
 	}
 
 	function fetchConfig() {
@@ -276,6 +290,7 @@ var WebRTCPhone = (function () {
 		showPanel();
 		playRingtone();
 		showFABBadge('!');
+		showIncomingNotification(session);
 
 		setupSessionListeners(session);
 		renderPhone();
@@ -286,6 +301,7 @@ var WebRTCPhone = (function () {
 
 		stopRingtone();
 		hideFABBadge();
+		closeIncomingNotification();
 
 		var options = {
 			mediaConstraints: { audio: true, video: false },
@@ -306,6 +322,7 @@ var WebRTCPhone = (function () {
 		if (!state.currentSession || state.callState !== 'ringing_in') return;
 		stopRingtone();
 		hideFABBadge();
+		closeIncomingNotification();
 
 		try {
 			state.currentSession.terminate({ status_code: 486, reason_phrase: 'Busy Here' });
@@ -444,6 +461,57 @@ var WebRTCPhone = (function () {
 		} catch (e) {}
 	}
 
+	// --- Browser Notifications ---
+
+	function showIncomingNotification(session) {
+		if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+		closeIncomingNotification();
+
+		var caller = 'Unknown';
+		try {
+			var remote = session.remote_identity;
+			if (remote) {
+				var name = remote.display_name || '';
+				var num = remote.uri ? remote.uri.user : '';
+				caller = name ? name + ' (' + num + ')' : (num || 'Unknown');
+			}
+		} catch (e) {}
+
+		var extLabel = state.selectedExtension ? state.selectedExtension.extension : '';
+
+		try {
+			state.incomingNotification = new Notification('Incoming Call', {
+				body: caller + (extLabel ? '\nTo: Extension ' + extLabel : ''),
+				icon: '/app/webrtc_phone/resources/images/phone-icon.svg',
+				tag: 'webrtc-incoming-call',
+				requireInteraction: true,
+				silent: false
+			});
+
+			state.incomingNotification.onclick = function () {
+				// Focus the browser window and answer
+				window.focus();
+				showPanel();
+				answerCall();
+				closeIncomingNotification();
+			};
+
+			state.incomingNotification.onclose = function () {
+				state.incomingNotification = null;
+			};
+		} catch (e) {
+			console.error('WebRTC Phone: Notification error', e);
+		}
+	}
+
+	function closeIncomingNotification() {
+		if (state.incomingNotification) {
+			try { state.incomingNotification.close(); } catch (e) {}
+			state.incomingNotification = null;
+		}
+	}
+
 	function endCall() {
 		state.currentSession = null;
 		state.callState = 'idle';
@@ -452,6 +520,7 @@ var WebRTCPhone = (function () {
 		stopCallTimer();
 		stopRingtone();
 		hideFABBadge();
+		closeIncomingNotification();
 		if (state.remoteAudio) {
 			state.remoteAudio.srcObject = null;
 		}
