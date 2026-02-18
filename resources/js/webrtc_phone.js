@@ -100,6 +100,10 @@ var WebRTCPhone = (function () {
 		var wssUrl = 'wss://' + domain + ':' + wssPort;
 		var sipUri = 'sip:' + ext.extension + '@' + domain;
 
+		// Enable JsSIP debug logging
+		JsSIP.debug.enable('JsSIP:*');
+
+		console.log('WebRTC Phone: Connecting to', wssUrl, 'as', sipUri);
 		updateStatus('connecting');
 
 		try {
@@ -134,6 +138,7 @@ var WebRTCPhone = (function () {
 			});
 
 			state.ua.on('newRTCSession', function (data) {
+				console.log('WebRTC Phone: newRTCSession', data.originator, data.request ? data.request.method : '');
 				if (data.originator === 'remote') {
 					handleIncomingCall(data.session);
 				}
@@ -180,7 +185,59 @@ var WebRTCPhone = (function () {
 		var domain = state.config.domain;
 		var targetURI = 'sip:' + target + '@' + domain;
 
+		console.log('WebRTC Phone: Calling', targetURI);
+
+		var eventHandlers = {
+			'peerconnection': function (data) {
+				console.log('WebRTC Phone: peerconnection event', data);
+				data.peerconnection.ontrack = function (event) {
+					console.log('WebRTC Phone: remote track received', event);
+					if (event.streams && event.streams[0]) {
+						state.remoteAudio.srcObject = event.streams[0];
+						state.remoteAudio.play().catch(function () {});
+					}
+				};
+			},
+			'connecting': function (data) {
+				console.log('WebRTC Phone: call connecting', data);
+			},
+			'sending': function (data) {
+				console.log('WebRTC Phone: call sending INVITE', data);
+			},
+			'progress': function (data) {
+				console.log('WebRTC Phone: call progress (ringing)', data);
+			},
+			'accepted': function (data) {
+				console.log('WebRTC Phone: call accepted', data);
+				state.callState = 'in_call';
+				stopRingtone();
+				hideFABBadge();
+				startCallTimer();
+				renderPhone();
+			},
+			'confirmed': function (data) {
+				console.log('WebRTC Phone: call confirmed', data);
+				state.callState = 'in_call';
+				stopRingtone();
+				hideFABBadge();
+				renderPhone();
+			},
+			'ended': function (data) {
+				console.log('WebRTC Phone: call ended', data.cause);
+				endCall();
+			},
+			'failed': function (data) {
+				console.error('WebRTC Phone: call failed', data.cause, data.message);
+				endCall();
+			},
+			'getusermediafailed': function (data) {
+				console.error('WebRTC Phone: getUserMedia failed', data);
+				endCall();
+			}
+		};
+
 		var options = {
+			eventHandlers: eventHandlers,
 			mediaConstraints: { audio: true, video: false },
 			pcConfig: {
 				iceServers: getICEServers()
@@ -192,15 +249,14 @@ var WebRTCPhone = (function () {
 		};
 
 		try {
-			var session = state.ua.call(targetURI, options);
-			state.currentSession = session;
+			state.currentSession = state.ua.call(targetURI, options);
 			state.callState = 'ringing_out';
 			state.muted = false;
 			state.held = false;
-			setupSessionListeners(session);
 			renderPhone();
+			console.log('WebRTC Phone: call initiated, session:', state.currentSession);
 		} catch (e) {
-			console.error('WebRTC Phone: Call failed', e);
+			console.error('WebRTC Phone: Call exception', e);
 			endCall();
 		}
 	}
