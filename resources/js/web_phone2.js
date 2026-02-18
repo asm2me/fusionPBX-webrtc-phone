@@ -127,8 +127,10 @@ var WebPhone2 = (function () {
 				sockets: [socket],
 				uri: sipUri,
 				password: ext.password,
-				display_name: ext.caller_id_name || ext.extension,
+				authorization_user: (ext.auth_username || ext.extension),
+				display_name: (ext.caller_id_name || ext.extension),
 				register: true,
+				register_expires: 300,
 				session_timers: false,
 				user_agent: 'FusionPBX-Web-Phone2/1.0'
 			};
