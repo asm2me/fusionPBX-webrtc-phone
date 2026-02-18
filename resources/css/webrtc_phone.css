@@ -1,0 +1,540 @@
+/* ============================================
+   FusionPBX WebRTC Phone - Floating Dialer UI
+   ============================================ */
+
+/* --- Floating Action Button (FAB) --- */
+#webrtc-phone-floating-container {
+	position: fixed;
+	bottom: 24px;
+	right: 24px;
+	z-index: 99999;
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+}
+
+#webrtc-phone-fab {
+	width: 56px;
+	height: 56px;
+	border-radius: 50%;
+	background: #1a73e8;
+	color: #fff;
+	border: none;
+	cursor: pointer;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+	position: relative;
+}
+
+#webrtc-phone-fab:hover {
+	background: #1557b0;
+	transform: scale(1.08);
+	box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+
+#webrtc-phone-fab:active {
+	transform: scale(0.95);
+}
+
+#webrtc-phone-fab svg {
+	width: 24px;
+	height: 24px;
+}
+
+/* Badge */
+.webrtc-badge {
+	position: absolute;
+	top: -4px;
+	right: -4px;
+	background: #e53935;
+	color: #fff;
+	font-size: 11px;
+	font-weight: 700;
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	animation: webrtc-pulse 1.5s infinite;
+}
+
+@keyframes webrtc-pulse {
+	0%, 100% { box-shadow: 0 0 0 0 rgba(229, 57, 53, 0.5); }
+	50% { box-shadow: 0 0 0 8px rgba(229, 57, 53, 0); }
+}
+
+/* --- Phone Panel --- */
+.webrtc-phone-panel {
+	position: absolute;
+	bottom: 68px;
+	right: 0;
+	width: 320px;
+	background: #fff;
+	border-radius: 12px;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+	overflow: hidden;
+	transition: opacity 0.2s, transform 0.2s;
+}
+
+.webrtc-phone-panel.hidden {
+	display: none;
+}
+
+/* --- Phone Inner --- */
+.webrtc-phone-inner {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+/* --- Header --- */
+.webrtc-phone-header {
+	background: #1a73e8;
+	color: #fff;
+	padding: 12px 16px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.webrtc-phone-title {
+	font-size: 14px;
+	font-weight: 600;
+	flex: 1;
+}
+
+.webrtc-status {
+	font-size: 11px;
+	padding: 2px 8px;
+	border-radius: 10px;
+	font-weight: 500;
+}
+
+.webrtc-status-registered {
+	background: rgba(76, 175, 80, 0.9);
+}
+
+.webrtc-status-unregistered {
+	background: rgba(255, 152, 0, 0.9);
+}
+
+.webrtc-status-connecting {
+	background: rgba(255, 193, 7, 0.9);
+	color: #333;
+}
+
+.webrtc-status-error {
+	background: rgba(244, 67, 54, 0.9);
+}
+
+.webrtc-close-btn {
+	background: none;
+	border: none;
+	color: #fff;
+	font-size: 20px;
+	cursor: pointer;
+	padding: 0 4px;
+	line-height: 1;
+	opacity: 0.8;
+}
+
+.webrtc-close-btn:hover {
+	opacity: 1;
+}
+
+/* --- Body --- */
+.webrtc-phone-body {
+	padding: 16px;
+}
+
+/* --- Extension Selector --- */
+.webrtc-ext-selector {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.webrtc-ext-selector label {
+	font-size: 13px;
+	font-weight: 600;
+	color: #333;
+}
+
+.webrtc-ext-switch {
+	margin-bottom: 12px;
+}
+
+.webrtc-select {
+	width: 100%;
+	padding: 8px 12px;
+	border: 1px solid #ddd;
+	border-radius: 6px;
+	font-size: 13px;
+	background: #fff;
+	color: #333;
+	cursor: pointer;
+	outline: none;
+}
+
+.webrtc-select:focus {
+	border-color: #1a73e8;
+	box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+}
+
+.webrtc-select-sm {
+	padding: 4px 8px;
+	font-size: 12px;
+}
+
+/* --- Input --- */
+.webrtc-input {
+	width: 100%;
+	padding: 10px 14px;
+	border: 1px solid #ddd;
+	border-radius: 8px;
+	font-size: 18px;
+	text-align: center;
+	letter-spacing: 2px;
+	outline: none;
+	box-sizing: border-box;
+	color: #222;
+	background: #f8f9fa;
+}
+
+.webrtc-input:focus {
+	border-color: #1a73e8;
+	box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+}
+
+.webrtc-input-sm {
+	font-size: 13px;
+	padding: 6px 10px;
+	letter-spacing: 0;
+	text-align: left;
+	flex: 1;
+}
+
+/* --- Dial Pad --- */
+.webrtc-dialpad {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.webrtc-dialpad-grid {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 8px;
+}
+
+.webrtc-dialpad-sm {
+	gap: 4px;
+	margin-top: 8px;
+}
+
+.webrtc-key {
+	padding: 12px;
+	font-size: 20px;
+	font-weight: 500;
+	border: 1px solid #e0e0e0;
+	border-radius: 8px;
+	background: #f8f9fa;
+	color: #333;
+	cursor: pointer;
+	transition: background 0.15s, transform 0.1s;
+	user-select: none;
+}
+
+.webrtc-key:hover {
+	background: #e8eaed;
+}
+
+.webrtc-key:active {
+	background: #d2d5db;
+	transform: scale(0.95);
+}
+
+.webrtc-key-sm {
+	padding: 6px;
+	font-size: 14px;
+}
+
+.webrtc-key-main {
+	display: block;
+	font-size: 20px;
+	line-height: 1.2;
+}
+
+.webrtc-key-sub {
+	display: block;
+	font-size: 9px;
+	color: #999;
+	letter-spacing: 1px;
+	margin-top: 1px;
+}
+
+/* --- Call Icon --- */
+.webrtc-call-icon {
+	font-size: 36px;
+	line-height: 1;
+	color: #666;
+}
+
+.webrtc-call-icon-incoming {
+	color: #4caf50;
+	animation: webrtc-ring 0.8s infinite alternate;
+}
+
+.webrtc-call-icon-active {
+	color: #1a73e8;
+}
+
+@keyframes webrtc-ring {
+	0% { transform: rotate(-15deg); }
+	100% { transform: rotate(15deg); }
+}
+
+/* --- Backspace Button --- */
+.webrtc-btn-backspace {
+	background: #eee;
+	color: #666;
+	padding: 10px 14px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.webrtc-btn-backspace:hover {
+	background: #ddd;
+	color: #333;
+}
+
+/* --- Buttons --- */
+.webrtc-btn {
+	padding: 10px 16px;
+	border: none;
+	border-radius: 8px;
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background 0.2s, transform 0.1s;
+}
+
+.webrtc-btn:active {
+	transform: scale(0.96);
+}
+
+.webrtc-btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.webrtc-btn-primary {
+	background: #1a73e8;
+	color: #fff;
+}
+
+.webrtc-btn-primary:hover:not(:disabled) {
+	background: #1557b0;
+}
+
+.webrtc-btn-call {
+	background: #4caf50;
+	color: #fff;
+	flex: 1;
+}
+
+.webrtc-btn-call:hover:not(:disabled) {
+	background: #43a047;
+}
+
+.webrtc-btn-hangup {
+	background: #e53935;
+	color: #fff;
+}
+
+.webrtc-btn-hangup:hover {
+	background: #c62828;
+}
+
+.webrtc-btn-answer {
+	background: #4caf50;
+	color: #fff;
+}
+
+.webrtc-btn-answer:hover {
+	background: #43a047;
+}
+
+.webrtc-btn-reject {
+	background: #e53935;
+	color: #fff;
+}
+
+.webrtc-btn-reject:hover {
+	background: #c62828;
+}
+
+.webrtc-btn-clear {
+	background: #9e9e9e;
+	color: #fff;
+	padding: 10px 14px;
+}
+
+.webrtc-btn-clear:hover {
+	background: #757575;
+}
+
+.webrtc-btn-sm {
+	padding: 6px 12px;
+	font-size: 12px;
+}
+
+.webrtc-btn-active {
+	background: #ff9800 !important;
+	color: #fff;
+}
+
+/* --- Dial Actions --- */
+.webrtc-dial-actions {
+	display: flex;
+	gap: 8px;
+}
+
+/* --- Call Info --- */
+.webrtc-call-info {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 0;
+}
+
+.webrtc-call-label {
+	font-size: 12px;
+	color: #666;
+	text-transform: uppercase;
+	letter-spacing: 1px;
+	font-weight: 600;
+}
+
+.webrtc-call-number {
+	font-size: 20px;
+	font-weight: 600;
+	color: #222;
+}
+
+.webrtc-call-timer {
+	font-size: 16px;
+	color: #1a73e8;
+	font-weight: 500;
+	font-variant-numeric: tabular-nums;
+}
+
+.webrtc-call-actions {
+	display: flex;
+	gap: 10px;
+	margin-top: 8px;
+}
+
+/* --- In-call DTMF --- */
+.webrtc-incall-dtmf {
+	width: 100%;
+	margin-top: 4px;
+}
+
+/* --- Transfer --- */
+.webrtc-transfer {
+	display: flex;
+	gap: 6px;
+	align-items: center;
+	margin-top: 8px;
+	width: 100%;
+}
+
+/* --- Error --- */
+.webrtc-error {
+	text-align: center;
+	color: #e53935;
+	padding: 20px;
+	font-size: 14px;
+}
+
+/* --- Hidden utility --- */
+.hidden {
+	display: none !important;
+}
+
+/* --- Standalone page mount --- */
+#webrtc-phone-standalone {
+	max-width: 360px;
+	margin: 40px auto;
+}
+
+#webrtc-phone-standalone .webrtc-phone-inner {
+	border: 1px solid #ddd;
+	border-radius: 12px;
+	overflow: hidden;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+#webrtc-phone-standalone .webrtc-close-btn {
+	display: none;
+}
+
+/* --- Responsive --- */
+@media (max-width: 400px) {
+	.webrtc-phone-panel {
+		width: 290px;
+	}
+
+	.webrtc-key {
+		padding: 10px;
+		font-size: 18px;
+	}
+}
+
+/* --- Dark theme support (FusionPBX dark mode) --- */
+@media (prefers-color-scheme: dark) {
+	.webrtc-phone-panel,
+	#webrtc-phone-standalone .webrtc-phone-inner {
+		background: #2d2d2d;
+		border-color: #444;
+	}
+
+	.webrtc-input {
+		background: #3a3a3a;
+		border-color: #555;
+		color: #eee;
+	}
+
+	.webrtc-key {
+		background: #3a3a3a;
+		border-color: #555;
+		color: #eee;
+	}
+
+	.webrtc-key:hover {
+		background: #4a4a4a;
+	}
+
+	.webrtc-select {
+		background: #3a3a3a;
+		border-color: #555;
+		color: #eee;
+	}
+
+	.webrtc-call-number {
+		color: #eee;
+	}
+
+	.webrtc-call-label {
+		color: #aaa;
+	}
+
+	.webrtc-ext-selector label {
+		color: #ccc;
+	}
+}

@@ -1,0 +1,155 @@
+# FusionPBX WebRTC Phone - Installation Guide
+
+## Prerequisites
+
+1. **FusionPBX** installed and running
+2. **FreeSWITCH** configured with WebSocket support (WSS on port 7443)
+3. **Valid SSL certificate** on your domain (WebRTC requires HTTPS/WSS)
+4. Users must have **extensions assigned** to their FusionPBX accounts
+
+## Installation Steps
+
+### 1. Copy the Module
+
+Copy the `fusionPBX-webrtc-phone` folder to your FusionPBX apps directory:
+
+```bash
+cp -r fusionPBX-webrtc-phone /var/www/fusionpbx/app/webrtc_phone
+```
+
+### 2. Set Permissions
+
+```bash
+chown -R www-data:www-data /var/www/fusionpbx/app/webrtc_phone
+chmod -R 755 /var/www/fusionpbx/app/webrtc_phone
+```
+
+### 3. Run the Upgrade Script
+
+In FusionPBX, go to **Advanced > Upgrade** and click:
+- **App Defaults** - registers the module and applies default settings
+- **Menu Defaults** - adds the WebRTC Phone menu entry
+- **Permission Defaults** - sets up permissions
+
+Alternatively, run from the command line:
+```bash
+cd /var/www/fusionpbx && php core/upgrade/upgrade.php
+```
+
+### 4. Enable the Floating Phone (All Pages)
+
+To make the phone available as a floating button on every FusionPBX page, add this line to your theme's footer file.
+
+Edit `/var/www/fusionpbx/themes/default/template.php` (or your active theme), and add the following **before** the closing `</body>` tag:
+
+```php
+<?php if (file_exists($_SERVER['DOCUMENT_ROOT'].'/app/webrtc_phone/webrtc_phone_inc.php')) { include $_SERVER['DOCUMENT_ROOT'].'/app/webrtc_phone/webrtc_phone_inc.php'; } ?>
+```
+
+### 5. Configure FreeSWITCH for WebSocket
+
+Ensure FreeSWITCH has WSS enabled. Edit the internal SIP profile:
+
+```bash
+nano /etc/freeswitch/sip_profiles/internal.xml
+```
+
+Ensure these parameters are present:
+
+```xml
+<param name="ws-binding" value=":5066"/>
+<param name="wss-binding" value=":7443"/>
+```
+
+Restart FreeSWITCH:
+```bash
+systemctl restart freeswitch
+```
+
+### 6. Verify SSL
+
+WebRTC requires WSS (secure WebSocket). Make sure your SSL certificate is configured in FreeSWITCH:
+
+```bash
+# The certificate should be at:
+/etc/freeswitch/tls/wss.pem
+# It should contain both the certificate and private key
+```
+
+## Configuration
+
+### Default Settings (FusionPBX Admin)
+
+Go to **Advanced > Default Settings** and look for the `webrtc_phone` category:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `wss_port` | `7443` | WebSocket Secure port |
+| `enabled` | `true` | Enable/disable globally |
+| `stun_server` | `stun:stun.l.google.com:19302` | STUN server for NAT traversal |
+
+### User Permissions
+
+The `webrtc_phone_view` permission is assigned to:
+- `superadmin`
+- `admin`
+- `user`
+
+You can modify this in **Advanced > Group Manager**.
+
+## How It Works
+
+1. When a user logs in, the floating phone button appears (bottom-right corner)
+2. Clicking it opens the phone dialer panel
+3. The phone fetches the user's assigned extensions from FusionPBX
+4. **Single extension**: Automatically connects and registers via WSS
+5. **Multiple extensions**: Shows a dropdown to select which extension to use
+6. Once registered, the user can make/receive calls directly in the browser
+
+## Features
+
+- Make and receive calls via WebRTC
+- Full dial pad with DTMF support
+- In-call controls: Mute, Hold, Transfer
+- Incoming call notifications with ringtone
+- Extension switching for multi-extension users
+- Call duration timer
+- Dark mode support
+- Floating overlay that stays on top of all FusionPBX pages
+
+## Troubleshooting
+
+### Phone shows "Connecting..." but never registers
+- Check that WSS port (7443) is open in your firewall
+- Verify FreeSWITCH WSS binding is active: `fs_cli -x "sofia status"`
+- Check browser console for WebSocket errors
+- Ensure SSL certificate is valid and not expired
+
+### No audio during calls
+- Check browser microphone permissions
+- Verify STUN server is reachable
+- Check if ICE candidates are being exchanged (browser console)
+
+### "No extensions assigned" error
+- Go to **Accounts > Extensions** and assign extensions to the user
+- The extension must be enabled and linked via **Extension Users**
+
+## File Structure
+
+```
+webrtc_phone/
+├── app_config.php          # Module registration
+├── app_defaults.php        # Default settings installer
+├── app_menu.php            # Menu entry
+├── app_languages.php       # Language strings
+├── webrtc_phone.php        # Standalone phone page
+├── webrtc_phone_api.php    # JSON API for extension data
+├── webrtc_phone_inc.php    # Include file for floating overlay
+├── INSTALL.md              # This file
+└── resources/
+    ├── css/
+    │   └── webrtc_phone.css    # Phone UI styles
+    └── js/
+        ├── jssip.min.js        # JsSIP library (SIP over WebSocket)
+        └── webrtc_phone.js     # Phone application logic
+```
