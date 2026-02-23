@@ -7,6 +7,15 @@
 var WebPhone2 = (function () {
 	'use strict';
 
+	// Available ringtones
+	var ringtones = [
+		{ name: 'Classic US' },
+		{ name: 'Classic Bell' },
+		{ name: 'Digital Beep' },
+		{ name: 'Soft Ring' },
+		{ name: 'UK Ring' }
+	];
+
 	// State
 	var state = {
 		initialized: false,
@@ -27,7 +36,20 @@ var WebPhone2 = (function () {
 		ringtoneAudio: null,
 		localStream: null,
 		mountEl: null,
-		incomingNotification: null
+		incomingNotification: null,
+		// Audio settings
+		audioSettings: {
+			ringtoneIndex: 0,
+			ringVolume: 0.7,
+			speakerVolume: 1.0,
+			ringDeviceId: 'default',
+			speakerDeviceId: 'default',
+			micDeviceId: 'default'
+		},
+		showSettings: false,
+		audioDevices: { inputs: [], outputs: [] },
+		previewingRingtone: false,
+		previewTimeout: null
 	};
 
 	// --- Initialization ---
@@ -37,18 +59,24 @@ var WebPhone2 = (function () {
 		state.mountEl = document.getElementById(mountId);
 		if (!state.mountEl) return;
 
+		loadAudioSettings();
+
 		// Create hidden audio element for remote audio
 		state.remoteAudio = document.createElement('audio');
 		state.remoteAudio.id = 'web-phone2-remote-audio';
 		state.remoteAudio.autoplay = true;
+		state.remoteAudio.volume = state.audioSettings.speakerVolume;
 		document.body.appendChild(state.remoteAudio);
 
 		// Create ringtone audio
 		state.ringtoneAudio = document.createElement('audio');
 		state.ringtoneAudio.id = 'web-phone2-ringtone';
 		state.ringtoneAudio.loop = true;
-		state.ringtoneAudio.src = generateRingtoneDataURI();
+		state.ringtoneAudio.volume = state.audioSettings.ringVolume;
+		state.ringtoneAudio.src = generateRingtoneByIndex(state.audioSettings.ringtoneIndex);
 		document.body.appendChild(state.ringtoneAudio);
+
+		applyOutputDevices();
 
 		state.initialized = true;
 
@@ -65,6 +93,180 @@ var WebPhone2 = (function () {
 				console.log('Web Phone 2: Notification permission:', perm);
 			});
 		}
+	}
+
+	// --- Audio Settings ---
+
+	function loadAudioSettings() {
+		try {
+			var saved = localStorage.getItem('web_phone2_audio_settings');
+			if (saved) {
+				var p = JSON.parse(saved);
+				var idx = parseInt(p.ringtoneIndex);
+				if (!isNaN(idx) && idx >= 0 && idx < ringtones.length) {
+					state.audioSettings.ringtoneIndex = idx;
+				}
+				var rv = parseFloat(p.ringVolume);
+				if (!isNaN(rv)) state.audioSettings.ringVolume = Math.max(0, Math.min(1, rv));
+				var sv = parseFloat(p.speakerVolume);
+				if (!isNaN(sv)) state.audioSettings.speakerVolume = Math.max(0, Math.min(1, sv));
+				if (p.ringDeviceId) state.audioSettings.ringDeviceId = p.ringDeviceId;
+				if (p.speakerDeviceId) state.audioSettings.speakerDeviceId = p.speakerDeviceId;
+				if (p.micDeviceId) state.audioSettings.micDeviceId = p.micDeviceId;
+			}
+		} catch (e) {
+			console.warn('Web Phone 2: Failed to load audio settings', e);
+		}
+	}
+
+	function saveAudioSettings() {
+		try {
+			localStorage.setItem('web_phone2_audio_settings', JSON.stringify(state.audioSettings));
+		} catch (e) {
+			console.warn('Web Phone 2: Failed to save audio settings', e);
+		}
+	}
+
+	function applyOutputDevices() {
+		if (state.remoteAudio && typeof state.remoteAudio.setSinkId === 'function') {
+			var sid = state.audioSettings.speakerDeviceId || 'default';
+			state.remoteAudio.setSinkId(sid).catch(function () {});
+		}
+		if (state.ringtoneAudio && typeof state.ringtoneAudio.setSinkId === 'function') {
+			var rid = state.audioSettings.ringDeviceId || 'default';
+			state.ringtoneAudio.setSinkId(rid).catch(function () {});
+		}
+	}
+
+	function enumerateAudioDevices(callback) {
+		if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+			callback({ inputs: [], outputs: [] });
+			return;
+		}
+		navigator.mediaDevices.enumerateDevices().then(function (devices) {
+			var inputs = [];
+			var outputs = [];
+			devices.forEach(function (device) {
+				if (device.kind === 'audioinput') {
+					inputs.push({ id: device.deviceId, label: device.label || ('Microphone ' + (inputs.length + 1)) });
+				} else if (device.kind === 'audiooutput') {
+					outputs.push({ id: device.deviceId, label: device.label || ('Speaker ' + (outputs.length + 1)) });
+				}
+			});
+			callback({ inputs: inputs, outputs: outputs });
+		}).catch(function () {
+			callback({ inputs: [], outputs: [] });
+		});
+	}
+
+	function openSettings() {
+		if (state.showSettings) {
+			closeSettings();
+			return;
+		}
+		state.showSettings = true;
+		enumerateAudioDevices(function (devices) {
+			state.audioDevices = devices;
+			renderPhone();
+		});
+	}
+
+	function closeSettings() {
+		stopPreview();
+		state.showSettings = false;
+		renderPhone();
+	}
+
+	function setRingtone(index) {
+		index = parseInt(index);
+		if (isNaN(index) || index < 0 || index >= ringtones.length) return;
+		stopPreview();
+		state.audioSettings.ringtoneIndex = index;
+		var oldSrc = state.ringtoneAudio.src;
+		var newUrl = generateRingtoneByIndex(index);
+		state.ringtoneAudio.src = newUrl;
+		if (oldSrc && oldSrc.indexOf('blob:') === 0) {
+			try { URL.revokeObjectURL(oldSrc); } catch (e) {}
+		}
+		saveAudioSettings();
+	}
+
+	function setRingVolume(vol) {
+		vol = parseFloat(vol);
+		if (isNaN(vol)) return;
+		vol = Math.max(0, Math.min(1, vol));
+		state.audioSettings.ringVolume = vol;
+		if (state.ringtoneAudio) state.ringtoneAudio.volume = vol;
+		saveAudioSettings();
+	}
+
+	function setSpeakerVolume(vol) {
+		vol = parseFloat(vol);
+		if (isNaN(vol)) return;
+		vol = Math.max(0, Math.min(1, vol));
+		state.audioSettings.speakerVolume = vol;
+		if (state.remoteAudio) state.remoteAudio.volume = vol;
+		saveAudioSettings();
+	}
+
+	function setRingDevice(deviceId) {
+		state.audioSettings.ringDeviceId = deviceId;
+		if (state.ringtoneAudio && typeof state.ringtoneAudio.setSinkId === 'function') {
+			state.ringtoneAudio.setSinkId(deviceId || 'default').catch(function () {});
+		}
+		saveAudioSettings();
+	}
+
+	function setSpeakerDevice(deviceId) {
+		state.audioSettings.speakerDeviceId = deviceId;
+		if (state.remoteAudio && typeof state.remoteAudio.setSinkId === 'function') {
+			state.remoteAudio.setSinkId(deviceId || 'default').catch(function () {});
+		}
+		saveAudioSettings();
+	}
+
+	function setMicDevice(deviceId) {
+		state.audioSettings.micDeviceId = deviceId;
+		saveAudioSettings();
+	}
+
+	function previewRingtone() {
+		if (state.callState !== 'idle') return;
+		if (state.previewingRingtone) {
+			stopPreview();
+		} else {
+			state.previewingRingtone = true;
+			state.ringtoneAudio.play().catch(function () {});
+			var btn = document.getElementById('web-phone2-preview-btn');
+			if (btn) btn.textContent = 'Stop';
+			state.previewTimeout = setTimeout(function () {
+				stopPreview();
+			}, 4000);
+		}
+	}
+
+	function stopPreview() {
+		if (state.previewTimeout) {
+			clearTimeout(state.previewTimeout);
+			state.previewTimeout = null;
+		}
+		if (state.previewingRingtone) {
+			try {
+				state.ringtoneAudio.pause();
+				state.ringtoneAudio.currentTime = 0;
+			} catch (e) {}
+			state.previewingRingtone = false;
+			var btn = document.getElementById('web-phone2-preview-btn');
+			if (btn) btn.textContent = 'Preview';
+		}
+	}
+
+	function getMicConstraints() {
+		var micId = state.audioSettings.micDeviceId;
+		if (micId && micId !== 'default') {
+			return { audio: { deviceId: { exact: micId } }, video: false };
+		}
+		return { audio: true, video: false };
 	}
 
 	function fetchConfig() {
@@ -254,7 +456,7 @@ var WebPhone2 = (function () {
 
 		var options = {
 			eventHandlers: eventHandlers,
-			mediaConstraints: { audio: true, video: false },
+			mediaConstraints: getMicConstraints(),
 			pcConfig: {
 				iceServers: getICEServers()
 			},
@@ -306,7 +508,7 @@ var WebPhone2 = (function () {
 		closeIncomingNotification();
 
 		var options = {
-			mediaConstraints: { audio: true, video: false },
+			mediaConstraints: getMicConstraints(),
 			pcConfig: {
 				iceServers: getICEServers()
 			}
@@ -562,7 +764,7 @@ var WebPhone2 = (function () {
 		return result;
 	}
 
-	// --- Ringtone ---
+	// --- Ringtone Playback ---
 
 	function playRingtone() {
 		try { state.ringtoneAudio.play().catch(function () {}); } catch (e) {}
@@ -573,43 +775,143 @@ var WebPhone2 = (function () {
 			state.ringtoneAudio.pause();
 			state.ringtoneAudio.currentTime = 0;
 		} catch (e) {}
+		stopPreview();
 	}
 
-	function generateRingtoneDataURI() {
-		var sampleRate = 8000;
-		var duration = 2.0;
-		var samples = Math.floor(sampleRate * duration);
-		var buffer = new ArrayBuffer(44 + samples * 2);
-		var view = new DataView(buffer);
+	// --- Ringtone Generators ---
 
-		// WAV header
+	function generateRingtoneByIndex(index) {
+		switch (index) {
+			case 1: return generateBellRingtone();
+			case 2: return generateDigitalRingtone();
+			case 3: return generateSoftRingtone();
+			case 4: return generateUKRingtone();
+			default: return generateUSRingtone();
+		}
+	}
+
+	function createWAVObjectURL(sampleRate, samples) {
+		var n = samples.length;
+		var buffer = new ArrayBuffer(44 + n * 2);
+		var view = new DataView(buffer);
 		writeString(view, 0, 'RIFF');
-		view.setUint32(4, 36 + samples * 2, true);
+		view.setUint32(4, 36 + n * 2, true);
 		writeString(view, 8, 'WAVE');
 		writeString(view, 12, 'fmt ');
 		view.setUint32(16, 16, true);
-		view.setUint16(20, 1, true);
-		view.setUint16(22, 1, true);
+		view.setUint16(20, 1, true);  // PCM
+		view.setUint16(22, 1, true);  // Mono
 		view.setUint32(24, sampleRate, true);
 		view.setUint32(28, sampleRate * 2, true);
 		view.setUint16(32, 2, true);
 		view.setUint16(34, 16, true);
 		writeString(view, 36, 'data');
-		view.setUint32(40, samples * 2, true);
-
-		// US ringtone pattern: 440+480Hz for 2s on, 4s off (we just do the on part)
-		for (var i = 0; i < samples; i++) {
-			var t = i / sampleRate;
-			var val = 0;
-			// Ring: 0-0.5s tone, 0.5-0.8s silence, 0.8-1.3s tone, 1.3-2.0s silence
-			if (t < 0.5 || (t >= 0.8 && t < 1.3)) {
-				val = (Math.sin(2 * Math.PI * 440 * t) + Math.sin(2 * Math.PI * 480 * t)) * 0.25;
-			}
-			view.setInt16(44 + i * 2, val * 32767, true);
+		view.setUint32(40, n * 2, true);
+		for (var i = 0; i < n; i++) {
+			var val = Math.max(-1, Math.min(1, samples[i]));
+			view.setInt16(44 + i * 2, Math.round(val * 32767), true);
 		}
-
 		var blob = new Blob([buffer], { type: 'audio/wav' });
 		return URL.createObjectURL(blob);
+	}
+
+	// Classic US Ring: 440+480 Hz dual tone, US pattern
+	function generateUSRingtone() {
+		var sr = 8000, dur = 2.0;
+		var n = Math.floor(sr * dur);
+		var s = new Float32Array(n);
+		for (var i = 0; i < n; i++) {
+			var t = i / sr;
+			if (t < 0.5 || (t >= 0.8 && t < 1.3)) {
+				s[i] = (Math.sin(2 * Math.PI * 440 * t) + Math.sin(2 * Math.PI * 480 * t)) * 0.25;
+			}
+		}
+		return createWAVObjectURL(sr, s);
+	}
+
+	// Classic Bell: 880 Hz bell with exponential decay, two strikes
+	function generateBellRingtone() {
+		var sr = 8000, dur = 2.0;
+		var n = Math.floor(sr * dur);
+		var s = new Float32Array(n);
+		var bellTimes = [0.0, 1.0];
+		for (var i = 0; i < n; i++) {
+			var t = i / sr;
+			var val = 0;
+			for (var b = 0; b < bellTimes.length; b++) {
+				var t0 = bellTimes[b];
+				if (t >= t0 && t < t0 + 0.85) {
+					var dt = t - t0;
+					var env = Math.exp(-4.5 * dt);
+					val += env * (
+						Math.sin(2 * Math.PI * 880 * t) * 0.30 +
+						Math.sin(2 * Math.PI * 1760 * t) * 0.15 +
+						Math.sin(2 * Math.PI * 2640 * t) * 0.05
+					);
+				}
+			}
+			s[i] = Math.max(-1, Math.min(1, val));
+		}
+		return createWAVObjectURL(sr, s);
+	}
+
+	// Digital Beep: 900 Hz sharp triple beep then silence
+	function generateDigitalRingtone() {
+		var sr = 8000, dur = 2.0;
+		var n = Math.floor(sr * dur);
+		var s = new Float32Array(n);
+		var beeps = [[0.0, 0.08], [0.15, 0.23], [0.30, 0.38]];
+		for (var i = 0; i < n; i++) {
+			var t = i / sr;
+			var inBeep = false;
+			for (var b = 0; b < beeps.length; b++) {
+				if (t >= beeps[b][0] && t < beeps[b][1]) { inBeep = true; break; }
+			}
+			if (inBeep) {
+				s[i] = Math.sin(2 * Math.PI * 900 * t) * 0.40;
+			}
+		}
+		return createWAVObjectURL(sr, s);
+	}
+
+	// Soft Ring: 350+440 Hz double ring with smooth fade envelope
+	function generateSoftRingtone() {
+		var sr = 8000, dur = 2.0;
+		var n = Math.floor(sr * dur);
+		var s = new Float32Array(n);
+		var rings = [[0.0, 0.55], [0.85, 1.4]];
+		var fadeTime = 0.05;
+		for (var i = 0; i < n; i++) {
+			var t = i / sr;
+			var val = 0;
+			for (var r = 0; r < rings.length; r++) {
+				var t0 = rings[r][0], t1 = rings[r][1];
+				if (t >= t0 && t < t1) {
+					var dt = t - t0;
+					var ringDur = t1 - t0;
+					var env = 1;
+					if (dt < fadeTime) env = dt / fadeTime;
+					else if (dt > ringDur - fadeTime) env = (ringDur - dt) / fadeTime;
+					val = env * (Math.sin(2 * Math.PI * 350 * t) + Math.sin(2 * Math.PI * 440 * t)) * 0.20;
+				}
+			}
+			s[i] = val;
+		}
+		return createWAVObjectURL(sr, s);
+	}
+
+	// UK Ring: 400+450 Hz, UK double-ring pattern (400ms on, 200ms off, 400ms on, 1s off)
+	function generateUKRingtone() {
+		var sr = 8000, dur = 2.0;
+		var n = Math.floor(sr * dur);
+		var s = new Float32Array(n);
+		for (var i = 0; i < n; i++) {
+			var t = i / sr;
+			if (t < 0.4 || (t >= 0.6 && t < 1.0)) {
+				s[i] = (Math.sin(2 * Math.PI * 400 * t) + Math.sin(2 * Math.PI * 450 * t)) * 0.25;
+			}
+		}
+		return createWAVObjectURL(sr, s);
 	}
 
 	function writeString(view, offset, string) {
@@ -671,71 +973,81 @@ var WebPhone2 = (function () {
 		html += '<span id="web-phone2-status" class="web-phone2-status web-phone2-status-' + (state.registered ? 'registered' : 'connecting') + '">';
 		html += state.registered ? 'Registered' : 'Connecting...';
 		html += '</span>';
+		// Settings gear button
+		html += '<button class="web-phone2-settings-btn' + (state.showSettings ? ' web-phone2-settings-btn-active' : '') + '" onclick="WebPhone2.openSettings()" title="Audio Settings">';
+		html += '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="currentColor">';
+		html += '<path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.63-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>';
+		html += '</svg>';
+		html += '</button>';
 		html += '<button class="web-phone2-close-btn" onclick="WebPhone2.toggle()" title="Minimize">&times;</button>';
 		html += '</div>';
 
 		// Body
 		html += '<div class="web-phone2-body">';
 
-		// Extension switcher (if multiple extensions)
-		if (state.extensions.length > 1) {
-			html += '<div class="web-phone2-ext-switch">';
-			html += '<select id="web-phone2-ext-switch-select" class="web-phone2-select web-phone2-select-sm" onchange="WebPhone2.switchExtension(this.value)">';
-			for (var i = 0; i < state.extensions.length; i++) {
-				var e = state.extensions[i];
-				var selected = (e.extension === ext.extension) ? ' selected' : '';
-				var lbl = e.extension;
-				if (e.description) lbl += ' - ' + e.description;
-				html += '<option value="' + i + '"' + selected + '>' + escapeHtml(lbl) + '</option>';
+		if (state.showSettings) {
+			html += renderSettingsPanel();
+		} else {
+			// Extension switcher (if multiple extensions)
+			if (state.extensions.length > 1) {
+				html += '<div class="web-phone2-ext-switch">';
+				html += '<select id="web-phone2-ext-switch-select" class="web-phone2-select web-phone2-select-sm" onchange="WebPhone2.switchExtension(this.value)">';
+				for (var i = 0; i < state.extensions.length; i++) {
+					var e = state.extensions[i];
+					var selected = (e.extension === ext.extension) ? ' selected' : '';
+					var lbl = e.extension;
+					if (e.description) lbl += ' - ' + e.description;
+					html += '<option value="' + i + '"' + selected + '>' + escapeHtml(lbl) + '</option>';
+				}
+				html += '</select>';
+				html += '</div>';
 			}
-			html += '</select>';
-			html += '</div>';
-		}
 
-		if (state.callState === 'idle') {
-			html += renderDialPad();
-		} else if (state.callState === 'ringing_in') {
-			html += '<div class="web-phone2-call-info">';
-			html += '<div class="web-phone2-call-icon web-phone2-call-icon-incoming">&#9742;</div>';
-			html += '<div class="web-phone2-call-label">Incoming Call</div>';
-			html += '<div class="web-phone2-call-number">' + getRemoteIdentity() + '</div>';
-			html += '<div class="web-phone2-call-actions">';
-			html += '<button class="web-phone2-btn web-phone2-btn-answer" onclick="WebPhone2.answer()">Answer</button>';
-			html += '<button class="web-phone2-btn web-phone2-btn-reject" onclick="WebPhone2.reject()">Reject</button>';
-			html += '</div>';
-			html += '</div>';
-		} else if (state.callState === 'ringing_out') {
-			html += '<div class="web-phone2-call-info">';
-			html += '<div class="web-phone2-call-icon">&#9742;</div>';
-			html += '<div class="web-phone2-call-label">Calling...</div>';
-			html += '<div class="web-phone2-call-number">' + escapeHtml(state.dialInput) + '</div>';
-			html += '<div class="web-phone2-call-actions">';
-			html += '<button class="web-phone2-btn web-phone2-btn-hangup" onclick="WebPhone2.hangup()">Cancel</button>';
-			html += '</div>';
-			html += '</div>';
-		} else if (state.callState === 'in_call') {
-			html += '<div class="web-phone2-call-info">';
-			html += '<div class="web-phone2-call-icon web-phone2-call-icon-active">&#9742;</div>';
-			html += '<div class="web-phone2-call-label">In Call</div>';
-			html += '<div class="web-phone2-call-number">' + getRemoteIdentity() + '</div>';
-			html += '<div id="web-phone2-call-timer" class="web-phone2-call-timer">' + formatDuration(state.callDuration) + '</div>';
-			html += '<div class="web-phone2-call-actions">';
-			html += '<button class="web-phone2-btn web-phone2-btn-sm ' + (state.muted ? 'web-phone2-btn-active' : '') + '" onclick="WebPhone2.toggleMute()">';
-			html += state.muted ? 'Unmute' : 'Mute';
-			html += '</button>';
-			html += '<button class="web-phone2-btn web-phone2-btn-sm ' + (state.held ? 'web-phone2-btn-active' : '') + '" onclick="WebPhone2.toggleHold()">';
-			html += state.held ? 'Resume' : 'Hold';
-			html += '</button>';
-			html += '<button class="web-phone2-btn web-phone2-btn-hangup" onclick="WebPhone2.hangup()">Hang Up</button>';
-			html += '</div>';
-			// In-call DTMF keypad
-			html += renderInCallDTMF();
-			// Transfer
-			html += '<div class="web-phone2-transfer">';
-			html += '<input type="text" id="web-phone2-transfer-input" class="web-phone2-input web-phone2-input-sm" placeholder="Transfer to...">';
-			html += '<button class="web-phone2-btn web-phone2-btn-sm web-phone2-btn-primary" onclick="WebPhone2.transfer()">Xfer</button>';
-			html += '</div>';
-			html += '</div>';
+			if (state.callState === 'idle') {
+				html += renderDialPad();
+			} else if (state.callState === 'ringing_in') {
+				html += '<div class="web-phone2-call-info">';
+				html += '<div class="web-phone2-call-icon web-phone2-call-icon-incoming">&#9742;</div>';
+				html += '<div class="web-phone2-call-label">Incoming Call</div>';
+				html += '<div class="web-phone2-call-number">' + getRemoteIdentity() + '</div>';
+				html += '<div class="web-phone2-call-actions">';
+				html += '<button class="web-phone2-btn web-phone2-btn-answer" onclick="WebPhone2.answer()">Answer</button>';
+				html += '<button class="web-phone2-btn web-phone2-btn-reject" onclick="WebPhone2.reject()">Reject</button>';
+				html += '</div>';
+				html += '</div>';
+			} else if (state.callState === 'ringing_out') {
+				html += '<div class="web-phone2-call-info">';
+				html += '<div class="web-phone2-call-icon">&#9742;</div>';
+				html += '<div class="web-phone2-call-label">Calling...</div>';
+				html += '<div class="web-phone2-call-number">' + escapeHtml(state.dialInput) + '</div>';
+				html += '<div class="web-phone2-call-actions">';
+				html += '<button class="web-phone2-btn web-phone2-btn-hangup" onclick="WebPhone2.hangup()">Cancel</button>';
+				html += '</div>';
+				html += '</div>';
+			} else if (state.callState === 'in_call') {
+				html += '<div class="web-phone2-call-info">';
+				html += '<div class="web-phone2-call-icon web-phone2-call-icon-active">&#9742;</div>';
+				html += '<div class="web-phone2-call-label">In Call</div>';
+				html += '<div class="web-phone2-call-number">' + getRemoteIdentity() + '</div>';
+				html += '<div id="web-phone2-call-timer" class="web-phone2-call-timer">' + formatDuration(state.callDuration) + '</div>';
+				html += '<div class="web-phone2-call-actions">';
+				html += '<button class="web-phone2-btn web-phone2-btn-sm ' + (state.muted ? 'web-phone2-btn-active' : '') + '" onclick="WebPhone2.toggleMute()">';
+				html += state.muted ? 'Unmute' : 'Mute';
+				html += '</button>';
+				html += '<button class="web-phone2-btn web-phone2-btn-sm ' + (state.held ? 'web-phone2-btn-active' : '') + '" onclick="WebPhone2.toggleHold()">';
+				html += state.held ? 'Resume' : 'Hold';
+				html += '</button>';
+				html += '<button class="web-phone2-btn web-phone2-btn-hangup" onclick="WebPhone2.hangup()">Hang Up</button>';
+				html += '</div>';
+				// In-call DTMF keypad
+				html += renderInCallDTMF();
+				// Transfer
+				html += '<div class="web-phone2-transfer">';
+				html += '<input type="text" id="web-phone2-transfer-input" class="web-phone2-input web-phone2-input-sm" placeholder="Transfer to...">';
+				html += '<button class="web-phone2-btn web-phone2-btn-sm web-phone2-btn-primary" onclick="WebPhone2.transfer()">Xfer</button>';
+				html += '</div>';
+				html += '</div>';
+			}
 		}
 
 		html += '</div>'; // body
@@ -748,6 +1060,102 @@ var WebPhone2 = (function () {
 		if (dialEl && state.dialInput && state.callState === 'idle') {
 			dialEl.value = state.dialInput;
 		}
+	}
+
+	function renderSettingsPanel() {
+		var as = state.audioSettings;
+		var devices = state.audioDevices;
+		var sinkIdSupported = typeof (document.createElement('audio').setSinkId) === 'function';
+		var ringVolPct = Math.round(as.ringVolume * 100);
+		var spkVolPct = Math.round(as.speakerVolume * 100);
+
+		var html = '<div class="web-phone2-settings-panel">';
+
+		// --- Ringtone Section ---
+		html += '<div class="web-phone2-settings-section">';
+		html += '<div class="web-phone2-settings-title">&#127925; Ringtone</div>';
+		html += '<div class="web-phone2-settings-row">';
+		html += '<select class="web-phone2-select web-phone2-select-sm" style="flex:1" onchange="WebPhone2.setRingtone(this.value)">';
+		for (var i = 0; i < ringtones.length; i++) {
+			var sel = (i === as.ringtoneIndex) ? ' selected' : '';
+			html += '<option value="' + i + '"' + sel + '>' + escapeHtml(ringtones[i].name) + '</option>';
+		}
+		html += '</select>';
+		html += '<button id="web-phone2-preview-btn" class="web-phone2-btn web-phone2-btn-sm web-phone2-btn-secondary" onclick="WebPhone2.previewRingtone()">';
+		html += state.previewingRingtone ? 'Stop' : 'Preview';
+		html += '</button>';
+		html += '</div>';
+		// Ring volume
+		html += '<div class="web-phone2-volume-row">';
+		html += '<span class="web-phone2-volume-label">Ring Vol</span>';
+		html += '<input type="range" class="web-phone2-volume-slider" min="0" max="1" step="0.05" value="' + as.ringVolume + '" ';
+		html += 'oninput="document.getElementById(\'web-phone2-ring-vol-pct\').textContent=Math.round(this.value*100)+\'%\';WebPhone2.setRingVolume(this.value)">';
+		html += '<span id="web-phone2-ring-vol-pct" class="web-phone2-volume-pct">' + ringVolPct + '%</span>';
+		html += '</div>';
+		html += '</div>';
+
+		// --- Ring Output Device Section ---
+		html += '<div class="web-phone2-settings-section">';
+		html += '<div class="web-phone2-settings-title">&#128276; Ring Device</div>';
+		if (sinkIdSupported) {
+			html += '<select class="web-phone2-select web-phone2-select-sm" onchange="WebPhone2.setRingDevice(this.value)">';
+			html += '<option value="default"' + (as.ringDeviceId === 'default' ? ' selected' : '') + '>Default</option>';
+			for (var j = 0; j < devices.outputs.length; j++) {
+				var dj = devices.outputs[j];
+				var djsel = (dj.id === as.ringDeviceId) ? ' selected' : '';
+				html += '<option value="' + escapeHtml(dj.id) + '"' + djsel + '>' + escapeHtml(dj.label) + '</option>';
+			}
+			html += '</select>';
+			if (devices.outputs.length === 0) {
+				html += '<div class="web-phone2-settings-note">No output devices found.</div>';
+			}
+		} else {
+			html += '<div class="web-phone2-settings-note">Requires Chrome or Edge for device selection.</div>';
+		}
+		html += '</div>';
+
+		// --- Speaker Section ---
+		html += '<div class="web-phone2-settings-section">';
+		html += '<div class="web-phone2-settings-title">&#128266; Speaker</div>';
+		if (sinkIdSupported) {
+			html += '<select class="web-phone2-select web-phone2-select-sm" onchange="WebPhone2.setSpeakerDevice(this.value)">';
+			html += '<option value="default"' + (as.speakerDeviceId === 'default' ? ' selected' : '') + '>Default</option>';
+			for (var k = 0; k < devices.outputs.length; k++) {
+				var dk = devices.outputs[k];
+				var dksel = (dk.id === as.speakerDeviceId) ? ' selected' : '';
+				html += '<option value="' + escapeHtml(dk.id) + '"' + dksel + '>' + escapeHtml(dk.label) + '</option>';
+			}
+			html += '</select>';
+		}
+		// Speaker volume (always shown)
+		html += '<div class="web-phone2-volume-row">';
+		html += '<span class="web-phone2-volume-label">Volume</span>';
+		html += '<input type="range" class="web-phone2-volume-slider" min="0" max="1" step="0.05" value="' + as.speakerVolume + '" ';
+		html += 'oninput="document.getElementById(\'web-phone2-spk-vol-pct\').textContent=Math.round(this.value*100)+\'%\';WebPhone2.setSpeakerVolume(this.value)">';
+		html += '<span id="web-phone2-spk-vol-pct" class="web-phone2-volume-pct">' + spkVolPct + '%</span>';
+		html += '</div>';
+		html += '</div>';
+
+		// --- Microphone Section ---
+		html += '<div class="web-phone2-settings-section">';
+		html += '<div class="web-phone2-settings-title">&#127908; Microphone</div>';
+		html += '<select class="web-phone2-select web-phone2-select-sm" onchange="WebPhone2.setMicDevice(this.value)">';
+		html += '<option value="default"' + (as.micDeviceId === 'default' ? ' selected' : '') + '>Default</option>';
+		for (var m = 0; m < devices.inputs.length; m++) {
+			var dm = devices.inputs[m];
+			var dmsel = (dm.id === as.micDeviceId) ? ' selected' : '';
+			html += '<option value="' + escapeHtml(dm.id) + '"' + dmsel + '>' + escapeHtml(dm.label) + '</option>';
+		}
+		html += '</select>';
+		if (devices.inputs.length === 0) {
+			html += '<div class="web-phone2-settings-note">Grant microphone access to list devices.</div>';
+		}
+		html += '</div>';
+
+		html += '<button class="web-phone2-btn web-phone2-btn-primary web-phone2-settings-done" onclick="WebPhone2.closeSettings()">Done</button>';
+		html += '</div>';
+
+		return html;
 	}
 
 	function renderDialPad() {
@@ -983,7 +1391,17 @@ var WebPhone2 = (function () {
 		toggleMute: toggleMute,
 		toggleHold: toggleHold,
 		dtmf: sendDTMF,
-		transfer: transfer
+		transfer: transfer,
+		// Audio settings
+		openSettings: openSettings,
+		closeSettings: closeSettings,
+		setRingtone: setRingtone,
+		setRingVolume: setRingVolume,
+		setSpeakerVolume: setSpeakerVolume,
+		setRingDevice: setRingDevice,
+		setSpeakerDevice: setSpeakerDevice,
+		setMicDevice: setMicDevice,
+		previewRingtone: previewRingtone
 	};
 
 })();
