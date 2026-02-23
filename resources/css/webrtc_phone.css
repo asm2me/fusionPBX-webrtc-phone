@@ -593,6 +593,149 @@
 	}
 }
 
+/* --- Tabs (Keypad / Recent) --- */
+.webrtc-tabs {
+	display: flex;
+	border-bottom: 2px solid #e0e0e0;
+	margin-bottom: 12px;
+}
+
+.webrtc-tab {
+	flex: 1;
+	padding: 7px 8px;
+	background: none;
+	border: none;
+	font-size: 13px;
+	font-weight: 500;
+	color: #777;
+	cursor: pointer;
+	border-bottom: 2px solid transparent;
+	margin-bottom: -2px;
+	transition: color 0.15s;
+}
+
+.webrtc-tab:hover {
+	color: #1a73e8;
+}
+
+.webrtc-tab-active {
+	color: #1a73e8;
+	border-bottom-color: #1a73e8;
+	font-weight: 600;
+}
+
+/* --- History Panel --- */
+.webrtc-history {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 0;
+}
+
+.webrtc-history-empty {
+	text-align: center;
+	color: #aaa;
+	font-size: 13px;
+	padding: 28px 0;
+}
+
+.webrtc-history-list {
+	display: flex;
+	flex-direction: column;
+	max-height: 260px;
+	overflow-y: auto;
+}
+
+.webrtc-history-item {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 7px 4px;
+	border-radius: 6px;
+	cursor: pointer;
+	transition: background 0.1s;
+}
+
+.webrtc-history-item:hover {
+	background: #f0f4ff;
+}
+
+.webrtc-history-icon {
+	font-size: 18px;
+	width: 22px;
+	text-align: center;
+	font-weight: 700;
+	flex-shrink: 0;
+	line-height: 1;
+}
+
+/* Direction + status icon colors */
+.webrtc-history-icon-inbound-answered  { color: #4caf50; }
+.webrtc-history-icon-inbound-missed    { color: #e53935; }
+.webrtc-history-icon-inbound-rejected  { color: #9e9e9e; }
+.webrtc-history-icon-outbound-answered { color: #1a73e8; }
+.webrtc-history-icon-outbound-cancelled { color: #9e9e9e; }
+.webrtc-history-icon-outbound-failed   { color: #e53935; }
+
+.webrtc-history-details {
+	flex: 1;
+	min-width: 0;
+}
+
+.webrtc-history-name {
+	font-size: 13px;
+	font-weight: 600;
+	color: #222;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.webrtc-history-number {
+	font-size: 11px;
+	color: #666;
+}
+
+.webrtc-history-meta {
+	font-size: 11px;
+	color: #999;
+}
+
+.webrtc-history-call-btn {
+	background: none;
+	border: none;
+	color: #4caf50;
+	cursor: pointer;
+	padding: 5px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0.6;
+	flex-shrink: 0;
+	transition: background 0.15s, opacity 0.15s;
+}
+
+.webrtc-history-call-btn:hover {
+	background: #e8f5e9;
+	opacity: 1;
+}
+
+.webrtc-history-clear {
+	align-self: center;
+	margin-top: 10px;
+	background: none;
+	color: #aaa;
+	border: 1px solid #ddd;
+	font-size: 11px;
+}
+
+.webrtc-history-clear:hover {
+	color: #e53935;
+	border-color: #e53935;
+	background: none;
+}
+
 /* --- Dark theme support (FusionPBX dark mode) --- */
 @media (prefers-color-scheme: dark) {
 	.webrtc-phone-panel,
@@ -655,5 +798,53 @@
 
 	.webrtc-btn-secondary:hover {
 		background: #4a4a4a;
+	}
+
+	.webrtc-tabs {
+		border-bottom-color: #444;
+	}
+
+	.webrtc-tab {
+		color: #999;
+	}
+
+	.webrtc-tab:hover {
+		color: #90b8f8;
+	}
+
+	.webrtc-tab-active {
+		color: #90b8f8;
+		border-bottom-color: #90b8f8;
+	}
+
+	.webrtc-history-empty {
+		color: #666;
+	}
+
+	.webrtc-history-item:hover {
+		background: #3a3a3a;
+	}
+
+	.webrtc-history-name {
+		color: #eee;
+	}
+
+	.webrtc-history-number,
+	.webrtc-history-meta {
+		color: #777;
+	}
+
+	.webrtc-history-call-btn:hover {
+		background: #1a3a1a;
+	}
+
+	.webrtc-history-clear {
+		color: #666;
+		border-color: #444;
+	}
+
+	.webrtc-history-clear:hover {
+		color: #ef9a9a;
+		border-color: #ef9a9a;
 	}
 }

@@ -49,7 +49,11 @@ var WebRTCPhone = (function () {
 		showSettings: false,
 		audioDevices: { inputs: [], outputs: [] },
 		previewingRingtone: false,
-		previewTimeout: null
+		previewTimeout: null,
+		// Call history
+		callHistory: [],
+		showHistory: false,
+		currentCallRecord: null
 	};
 
 	// --- Initialization ---
@@ -60,6 +64,7 @@ var WebRTCPhone = (function () {
 		if (!state.mountEl) return;
 
 		loadAudioSettings();
+		loadCallHistory();
 
 		// Create hidden audio element for remote audio
 		state.remoteAudio = document.createElement('audio');
@@ -130,6 +135,71 @@ var WebRTCPhone = (function () {
 		} catch (e) {
 			console.warn('WebRTC Phone: Failed to save audio settings', e);
 		}
+	}
+
+	// --- Call History ---
+
+	function loadCallHistory() {
+		try {
+			var saved = localStorage.getItem('webrtc_phone_call_history');
+			if (saved) {
+				var parsed = JSON.parse(saved);
+				if (Array.isArray(parsed)) state.callHistory = parsed;
+			}
+		} catch (e) {
+			console.warn('WebRTC Phone: Failed to load call history', e);
+		}
+	}
+
+	function saveCallHistory() {
+		try {
+			localStorage.setItem('webrtc_phone_call_history', JSON.stringify(state.callHistory));
+		} catch (e) {
+			console.warn('WebRTC Phone: Failed to save call history', e);
+		}
+	}
+
+	function addCallToHistory(record) {
+		if (!record) return;
+		state.callHistory.unshift(record);
+		if (state.callHistory.length > 50) state.callHistory = state.callHistory.slice(0, 50);
+		saveCallHistory();
+	}
+
+	function openHistory() {
+		state.showHistory = true;
+		renderPhone();
+	}
+
+	function closeHistory() {
+		state.showHistory = false;
+		renderPhone();
+	}
+
+	function clearHistory() {
+		state.callHistory = [];
+		saveCallHistory();
+		renderPhone();
+	}
+
+	function dialFromHistory(index) {
+		var record = state.callHistory[index];
+		if (!record || !record.number) return;
+		state.showHistory = false;
+		state.dialInput = record.number;
+		renderPhone();
+		var dialEl = document.getElementById('webrtc-dial-input');
+		if (dialEl) { dialEl.value = record.number; dialEl.focus(); }
+	}
+
+	function formatTimeAgo(ts) {
+		var diff = Math.floor((Date.now() - ts) / 1000);
+		if (diff < 60) return 'Just now';
+		if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+		if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+		if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
+		var d = new Date(ts);
+		return (d.getMonth() + 1) + '/' + d.getDate();
 	}
 
 	function applyOutputDevices() {
@@ -482,14 +552,20 @@ var WebRTCPhone = (function () {
 			},
 			'accepted': function (data) {
 				console.log('WebRTC Phone: call accepted', data);
+				if (state.currentCallRecord) state.currentCallRecord.status = 'answered';
 				state.callState = 'in_call'; stopRingtone(); hideFABBadge(); startCallTimer(); renderPhone();
 			},
 			'confirmed': function (data) {
 				console.log('WebRTC Phone: call confirmed', data);
+				if (state.currentCallRecord) state.currentCallRecord.status = 'answered';
 				state.callState = 'in_call'; stopRingtone(); hideFABBadge(); renderPhone();
 			},
 			'ended': function (data) { console.log('WebRTC Phone: call ended', data.cause); endCall(); },
-			'failed': function (data) { console.error('WebRTC Phone: call failed', data.cause); endCall(); },
+			'failed': function (data) {
+				console.error('WebRTC Phone: call failed', data.cause);
+				if (state.currentCallRecord && state.currentCallRecord.status !== 'answered') state.currentCallRecord.status = 'failed';
+				endCall();
+			},
 			'getusermediafailed': function (data) { console.error('WebRTC Phone: getUserMedia failed', data); endCall(); }
 		};
 
@@ -499,6 +575,8 @@ var WebRTCPhone = (function () {
 			pcConfig: { iceServers: getICEServers() },
 			rtcOfferConstraints: { offerToReceiveAudio: true, offerToReceiveVideo: false }
 		};
+
+		state.currentCallRecord = { direction: 'outbound', number: target, name: '', timestamp: Date.now(), status: 'cancelled' };
 
 		try {
 			state.currentSession = state.ua.call(targetURI, options);
@@ -521,6 +599,15 @@ var WebRTCPhone = (function () {
 		state.callState = 'ringing_in';
 		state.muted = false;
 		state.held = false;
+		var inNum = '', inName = '';
+		try {
+			var remote = session.remote_identity;
+			if (remote) {
+				inNum = remote.uri ? remote.uri.user : '';
+				inName = remote.display_name || '';
+			}
+		} catch (e) {}
+		state.currentCallRecord = { direction: 'inbound', number: inNum, name: inName, timestamp: Date.now(), status: 'missed' };
 		showPanel();
 		playRingtone();
 		showFABBadge('!');
@@ -544,6 +631,7 @@ var WebRTCPhone = (function () {
 	function rejectCall() {
 		if (!state.currentSession || state.callState !== 'ringing_in') return;
 		stopRingtone(); hideFABBadge(); closeIncomingNotification();
+		if (state.currentCallRecord) state.currentCallRecord.status = 'rejected';
 		try { state.currentSession.terminate({ status_code: 486, reason_phrase: 'Busy Here' }); } catch (e) {}
 		endCall();
 	}
@@ -589,9 +677,11 @@ var WebRTCPhone = (function () {
 
 	function setupSessionListeners(session) {
 		session.on('accepted', function () {
+			if (state.currentCallRecord) state.currentCallRecord.status = 'answered';
 			state.callState = 'in_call'; stopRingtone(); hideFABBadge(); startCallTimer(); renderPhone();
 		});
 		session.on('confirmed', function () {
+			if (state.currentCallRecord) state.currentCallRecord.status = 'answered';
 			state.callState = 'in_call'; stopRingtone(); hideFABBadge(); attachRemoteAudio(session); renderPhone();
 		});
 		session.on('ended', function () { endCall(); });
@@ -658,6 +748,11 @@ var WebRTCPhone = (function () {
 	}
 
 	function endCall() {
+		if (state.currentCallRecord) {
+			if (state.currentCallRecord.status === 'answered') state.currentCallRecord.duration = state.callDuration;
+			addCallToHistory(state.currentCallRecord);
+			state.currentCallRecord = null;
+		}
 		state.currentSession = null;
 		state.callState = 'idle';
 		state.muted = false;
@@ -889,7 +984,8 @@ var WebRTCPhone = (function () {
 			}
 
 			if (state.callState === 'idle') {
-				html += renderDialPad();
+				html += renderTabs();
+				html += state.showHistory ? renderHistoryPanel() : renderDialPad();
 			} else if (state.callState === 'ringing_in') {
 				html += '<div class="webrtc-call-info">';
 				html += '<div class="webrtc-call-icon webrtc-call-icon-incoming">&#9742;</div>';
@@ -1004,6 +1100,51 @@ var WebRTCPhone = (function () {
 		html += '</div>';
 
 		html += '<button class="webrtc-btn webrtc-btn-primary webrtc-settings-done" onclick="WebRTCPhone.closeSettings()">Done</button>';
+		html += '</div>';
+		return html;
+	}
+
+	function renderTabs() {
+		var html = '<div class="webrtc-tabs">';
+		html += '<button class="webrtc-tab' + (!state.showHistory ? ' webrtc-tab-active' : '') + '" onclick="WebRTCPhone.closeHistory()">Keypad</button>';
+		html += '<button class="webrtc-tab' + (state.showHistory ? ' webrtc-tab-active' : '') + '" onclick="WebRTCPhone.openHistory()">Recent</button>';
+		html += '</div>';
+		return html;
+	}
+
+	function renderHistoryPanel() {
+		var html = '<div class="webrtc-history">';
+		if (state.callHistory.length === 0) {
+			html += '<div class="webrtc-history-empty">No recent calls</div>';
+		} else {
+			html += '<div class="webrtc-history-list">';
+			for (var i = 0; i < state.callHistory.length; i++) {
+				var rec = state.callHistory[i];
+				var num = rec.number || 'Unknown';
+				var name = rec.name || '';
+				var arrow = rec.direction === 'inbound' ? '&#x2199;' : '&#x2197;';
+				var iconClass = 'webrtc-history-icon-' + rec.direction + '-' + rec.status;
+				var timeStr = formatTimeAgo(rec.timestamp);
+				var durStr = (rec.status === 'answered' && rec.duration > 0) ? ' &middot; ' + escapeHtml(formatDuration(rec.duration)) : '';
+				html += '<div class="webrtc-history-item" onclick="WebRTCPhone.dialFromHistory(' + i + ')">';
+				html += '<div class="webrtc-history-icon ' + iconClass + '">' + arrow + '</div>';
+				html += '<div class="webrtc-history-details">';
+				if (name) {
+					html += '<div class="webrtc-history-name">' + escapeHtml(name) + '</div>';
+					html += '<div class="webrtc-history-number">' + escapeHtml(num) + '</div>';
+				} else {
+					html += '<div class="webrtc-history-name">' + escapeHtml(num) + '</div>';
+				}
+				html += '<div class="webrtc-history-meta">' + escapeHtml(timeStr) + durStr + '</div>';
+				html += '</div>';
+				html += '<button class="webrtc-history-call-btn" onclick="event.stopPropagation();WebRTCPhone.dialFromHistory(' + i + ')" title="Dial">';
+				html += '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 00-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/></svg>';
+				html += '</button>';
+				html += '</div>';
+			}
+			html += '</div>';
+			html += '<button class="webrtc-btn webrtc-btn-sm webrtc-history-clear" onclick="WebRTCPhone.clearHistory()">Clear History</button>';
+		}
 		html += '</div>';
 		return html;
 	}
@@ -1152,7 +1293,9 @@ var WebRTCPhone = (function () {
 		openSettings: openSettings, closeSettings: closeSettings,
 		setRingtone: setRingtone, setRingVolume: setRingVolume, setSpeakerVolume: setSpeakerVolume,
 		setRingDevice: setRingDevice, setSpeakerDevice: setSpeakerDevice, setMicDevice: setMicDevice,
-		previewRingtone: previewRingtone
+		previewRingtone: previewRingtone,
+		openHistory: openHistory, closeHistory: closeHistory,
+		clearHistory: clearHistory, dialFromHistory: dialFromHistory
 	};
 
 })();
