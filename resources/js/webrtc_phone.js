@@ -80,6 +80,11 @@ var WebRTCPhone = (function () {
 
 		state.initialized = true;
 
+		// Navigation guard: warn before leaving page or submitting forms during a call
+		window.addEventListener('beforeunload', handleBeforeUnload);
+		document.addEventListener('submit', handleFormSubmit, true);
+		document.addEventListener('click', handleLinkClick, true);
+
 		// Request notification permission early
 		requestNotificationPermission();
 
@@ -267,6 +272,97 @@ var WebRTCPhone = (function () {
 			return { audio: { deviceId: { exact: micId } }, video: false };
 		}
 		return { audio: true, video: false };
+	}
+
+	// --- Navigation Guard (prevent call drop on page change / form submit) ---
+
+	function isCallActive() {
+		return state.callState === 'in_call' ||
+			state.callState === 'ringing_in' ||
+			state.callState === 'ringing_out';
+	}
+
+	function handleBeforeUnload(e) {
+		if (!isCallActive()) return;
+		e.preventDefault();
+		e.returnValue = '';
+		return '';
+	}
+
+	function handleFormSubmit(e) {
+		if (!isCallActive()) return;
+		var form = e.target;
+		// Allow the phone's own forms to submit without interception
+		if (state.mountEl && state.mountEl.contains(form)) return;
+		e.preventDefault();
+		e.stopImmediatePropagation();
+		showNavigationWarning(function () {
+			hangupCall();
+			setTimeout(function () { form.submit(); }, 250);
+		});
+	}
+
+	function handleLinkClick(e) {
+		if (!isCallActive()) return;
+		var link = e.target.closest ? e.target.closest('a') : null;
+		if (!link) {
+			var el = e.target;
+			while (el && el.tagName !== 'A') el = el.parentNode;
+			link = el;
+		}
+		if (!link || !link.href) return;
+		// Allow: new-tab links, javascript: pseudo-links, same-page hash anchors
+		if (link.target === '_blank') return;
+		if (link.href.indexOf('javascript:') === 0) return;
+		var hrefBase = link.href.split('#')[0];
+		var pageBase = window.location.href.split('#')[0];
+		if (hrefBase === pageBase) return;
+		// Allow clicks inside the phone widget itself
+		if (state.mountEl && state.mountEl.contains(link)) return;
+		var container = document.getElementById('webrtc-phone-floating-container');
+		if (container && container.contains(link)) return;
+		e.preventDefault();
+		e.stopImmediatePropagation();
+		var href = link.href;
+		showNavigationWarning(function () {
+			hangupCall();
+			setTimeout(function () { window.location.href = href; }, 250);
+		});
+	}
+
+	function showNavigationWarning(onConfirm) {
+		closeNavigationWarning();
+		var overlay = document.createElement('div');
+		overlay.id = 'webrtc-nav-warning';
+		overlay.style.cssText = [
+			'position:fixed', 'top:0', 'left:0', 'right:0', 'bottom:0',
+			'background:rgba(0,0,0,0.55)', 'z-index:2147483647',
+			'display:flex', 'align-items:center', 'justify-content:center'
+		].join(';');
+		overlay.innerHTML =
+			'<div style="background:#fff;border-radius:14px;padding:28px 24px;max-width:320px;width:90%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,0.3);">' +
+			'<div style="font-size:40px;margin-bottom:10px;">&#9742;</div>' +
+			'<div style="font-weight:700;font-size:17px;margin-bottom:8px;color:#222;">Call in Progress</div>' +
+			'<div style="font-size:13px;color:#555;margin-bottom:22px;line-height:1.5;">Leaving this page will end your current call.<br>Are you sure you want to continue?</div>' +
+			'<div style="display:flex;gap:10px;justify-content:center;">' +
+			'<button id="webrtc-nav-stay" style="flex:1;padding:10px 0;border:none;border-radius:8px;background:#e8eaed;color:#333;font-weight:600;cursor:pointer;font-size:14px;">Stay on Page</button>' +
+			'<button id="webrtc-nav-leave" style="flex:1;padding:10px 0;border:none;border-radius:8px;background:#e53935;color:#fff;font-weight:600;cursor:pointer;font-size:14px;">End Call &amp; Leave</button>' +
+			'</div></div>';
+		document.body.appendChild(overlay);
+		document.getElementById('webrtc-nav-stay').addEventListener('click', closeNavigationWarning);
+		document.getElementById('webrtc-nav-leave').addEventListener('click', function () {
+			closeNavigationWarning();
+			onConfirm();
+		});
+		// Also close on backdrop click
+		overlay.addEventListener('click', function (e) {
+			if (e.target === overlay) closeNavigationWarning();
+		});
+	}
+
+	function closeNavigationWarning() {
+		var el = document.getElementById('webrtc-nav-warning');
+		if (el && el.parentNode) el.parentNode.removeChild(el);
 	}
 
 	function fetchConfig() {
