@@ -4,7 +4,7 @@
 	FusionPBX
 	Version: MPL 1.1
 
-	Web Phone 2 API
+	WebRTC Phone API
 	Returns the current user's extensions and WSS configuration as JSON.
 */
 
@@ -14,7 +14,7 @@ require_once $document_root."/resources/require.php";
 require_once $document_root."/resources/check_auth.php";
 
 //check permissions
-if (permission_exists('web_phone2_view')) {
+if (permission_exists('webrtc_phone_view')) {
 	//access granted
 } else {
 	echo json_encode(['error' => 'access_denied']);
@@ -35,12 +35,12 @@ if (empty($domain_uuid) || empty($user_uuid)) {
 }
 
 //get wss settings from default settings
-$wss_port = $_SESSION['web_phone2']['wss_port']['text'] ?? '7443';
-$stun_server = $_SESSION['web_phone2']['stun_server']['text'] ?? 'stun:stun.l.google.com:19302';
-$webrtc_enabled = $_SESSION['web_phone2']['enabled']['boolean'] ?? 'true';
+$wss_port = $_SESSION['webrtc_phone']['wss_port']['text'] ?? '7443';
+$stun_server = $_SESSION['webrtc_phone']['stun_server']['text'] ?? 'stun:stun.l.google.com:19302';
+$webrtc_enabled = $_SESSION['webrtc_phone']['enabled']['boolean'] ?? 'true';
 
 if ($webrtc_enabled !== 'true') {
-	echo json_encode(['error' => 'web_phone2_disabled']);
+	echo json_encode(['error' => 'webrtc_phone_disabled']);
 	exit;
 }
 

@@ -1,7 +1,7 @@
 <?php
 
-	$text['title-web_phone2']['en-us'] = "Web Phone 2";
-	$text['description-web_phone2']['en-us'] = "Browser-based SIP phone using WebRTC.";
+	$text['title-webrtc_phone']['en-us'] = "WebRTC Phone";
+	$text['description-webrtc_phone']['en-us'] = "Browser-based SIP phone using WebRTC.";
 	$text['label-extension']['en-us'] = "Extension";
 	$text['label-select_extension']['en-us'] = "Select Extension";
 	$text['label-status']['en-us'] = "Status";

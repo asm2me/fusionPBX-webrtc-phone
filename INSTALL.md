@@ -1,4 +1,4 @@
-# FusionPBX Web Phone 2 - Installation Guide
+# FusionPBX WebRTC Phone - Installation Guide
 
 ## Prerequisites
 
@@ -11,24 +11,24 @@
 
 ### 1. Copy the Module
 
-Copy the `fusionPBX-web-phone2` folder to your FusionPBX apps directory:
+Copy the `fusionPBX-webrtc-phone` folder to your FusionPBX apps directory:
 
 ```bash
-cp -r fusionPBX-web-phone2 /var/www/fusionpbx/app/web_phone2
+cp -r fusionPBX-webrtc-phone /var/www/fusionpbx/app/webrtc_phone
 ```
 
 ### 2. Set Permissions
 
 ```bash
-chown -R www-data:www-data /var/www/fusionpbx/app/web_phone2
-chmod -R 755 /var/www/fusionpbx/app/web_phone2
+chown -R www-data:www-data /var/www/fusionpbx/app/webrtc_phone
+chmod -R 755 /var/www/fusionpbx/app/webrtc_phone
 ```
 
 ### 3. Run the Upgrade Script
 
 In FusionPBX, go to **Advanced > Upgrade** and click:
 - **App Defaults** - registers the module and applies default settings
-- **Menu Defaults** - adds the Web Phone 2 menu entry
+- **Menu Defaults** - adds the WebRTC Phone menu entry
 - **Permission Defaults** - sets up permissions
 
 Alternatively, run from the command line:
@@ -43,7 +43,7 @@ To make the phone available as a floating button on every FusionPBX page, add th
 Edit `/var/www/fusionpbx/themes/default/template.php` (or your active theme), and add the following **before** the closing `</body>` tag:
 
 ```php
-<?php if (file_exists($_SERVER['DOCUMENT_ROOT'].'/app/web_phone2/web_phone2_inc.php')) { include $_SERVER['DOCUMENT_ROOT'].'/app/web_phone2/web_phone2_inc.php'; } ?>
+<?php if (file_exists($_SERVER['DOCUMENT_ROOT'].'/app/webrtc_phone/webrtc_phone_inc.php')) { include $_SERVER['DOCUMENT_ROOT'].'/app/webrtc_phone/webrtc_phone_inc.php'; } ?>
 ```
 
 ### 5. Configure FreeSWITCH for WebSocket
@@ -80,7 +80,7 @@ WebRTC requires WSS (secure WebSocket). Make sure your SSL certificate is config
 
 ### Default Settings (FusionPBX Admin)
 
-Go to **Advanced > Default Settings** and look for the `web_phone2` category:
+Go to **Advanced > Default Settings** and look for the `webrtc_phone` category:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
@@ -90,7 +90,7 @@ Go to **Advanced > Default Settings** and look for the `web_phone2` category:
 
 ### User Permissions
 
-The `web_phone2_view` permission is assigned to:
+The `webrtc_phone_view` permission is assigned to:
 - `superadmin`
 - `admin`
 - `user`
@@ -145,7 +145,7 @@ If the phone button doesn't appear or changes aren't taking effect, clear all ca
 
 ### FusionPBX Session Cache
 
-Log out and log back in to FusionPBX. This forces the session to reload default settings (including `web_phone2` settings).
+Log out and log back in to FusionPBX. This forces the session to reload default settings (including `webrtc_phone` settings).
 
 ### Server-Side Cache (if using a reverse proxy)
 
@@ -190,8 +190,8 @@ After copying new files to the server, always:
 
 ### Phone button doesn't appear at all
 - Verify the include line was added to your theme's `template.php` before `</body>`
-- Check the user has `web_phone2_view` permission (Advanced > Group Manager)
-- Verify `web_phone2` > `enabled` is set to `true` in Advanced > Default Settings
+- Check the user has `webrtc_phone_view` permission (Advanced > Group Manager)
+- Verify `webrtc_phone` > `enabled` is set to `true` in Advanced > Default Settings
 - Log out and back in to refresh the session
 - Clear browser cache with `Ctrl + Shift + R`
 - Check browser console (`F12`) for JavaScript errors
@@ -214,19 +214,19 @@ After copying new files to the server, always:
 ## File Structure
 
 ```
-web_phone2/
+webrtc_phone/
 ├── app_config.php          # Module registration
 ├── app_defaults.php        # Default settings installer
 ├── app_menu.php            # Menu entry
 ├── app_languages.php       # Language strings
-├── web_phone2.php        # Standalone phone page
-├── web_phone2_api.php    # JSON API for extension data
-├── web_phone2_inc.php    # Include file for floating overlay
+├── webrtc_phone.php        # Standalone phone page
+├── webrtc_phone_api.php    # JSON API for extension data
+├── webrtc_phone_inc.php    # Include file for floating overlay
 ├── INSTALL.md              # This file
 └── resources/
     ├── css/
-    │   └── web_phone2.css    # Phone UI styles
+    │   └── webrtc_phone.css    # Phone UI styles
     └── js/
         ├── jssip.min.js        # JsSIP library (SIP over WebSocket)
-        └── web_phone2.js     # Phone application logic
+        └── webrtc_phone.js     # Phone application logic
 ```

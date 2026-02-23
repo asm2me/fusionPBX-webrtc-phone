@@ -1,9 +1,9 @@
 /* ============================================
-   FusionPBX Web Phone 2 - Floating Dialer UI
+   FusionPBX WebRTC Phone - Floating Dialer UI
    ============================================ */
 
 /* --- Floating Action Button (FAB) --- */
-#web-phone2-floating-container {
+#webrtc-phone-floating-container {
 	position: fixed;
 	bottom: 24px;
 	right: 24px;
@@ -11,7 +11,7 @@
 	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
 }
 
-#web-phone2-fab {
+#webrtc-phone-fab {
 	width: 56px;
 	height: 56px;
 	border-radius: 50%;
@@ -27,23 +27,23 @@
 	position: relative;
 }
 
-#web-phone2-fab:hover {
+#webrtc-phone-fab:hover {
 	background: #1557b0;
 	transform: scale(1.08);
 	box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
 }
 
-#web-phone2-fab:active {
+#webrtc-phone-fab:active {
 	transform: scale(0.95);
 }
 
-#web-phone2-fab svg {
+#webrtc-phone-fab svg {
 	width: 24px;
 	height: 24px;
 }
 
 /* Badge */
-.web-phone2-badge {
+.webrtc-badge {
 	position: absolute;
 	top: -4px;
 	right: -4px;
@@ -57,16 +57,16 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	animation: web-phone2-pulse 1.5s infinite;
+	animation: webrtc-pulse 1.5s infinite;
 }
 
-@keyframes web-phone2-pulse {
+@keyframes webrtc-pulse {
 	0%, 100% { box-shadow: 0 0 0 0 rgba(229, 57, 53, 0.5); }
 	50% { box-shadow: 0 0 0 8px rgba(229, 57, 53, 0); }
 }
 
 /* --- Phone Panel --- */
-.web-phone2-panel {
+.webrtc-phone-panel {
 	position: absolute;
 	bottom: 68px;
 	right: 0;
@@ -78,19 +78,19 @@
 	transition: opacity 0.2s, transform 0.2s;
 }
 
-.web-phone2-panel.hidden {
+.webrtc-phone-panel.hidden {
 	display: none;
 }
 
 /* --- Phone Inner --- */
-.web-phone2-inner {
+.webrtc-phone-inner {
 	display: flex;
 	flex-direction: column;
 	height: 100%;
 }
 
 /* --- Header --- */
-.web-phone2-header {
+.webrtc-phone-header {
 	background: #1a73e8;
 	color: #fff;
 	padding: 12px 16px;
@@ -99,37 +99,37 @@
 	gap: 8px;
 }
 
-.web-phone2-title {
+.webrtc-phone-title {
 	font-size: 14px;
 	font-weight: 600;
 	flex: 1;
 }
 
-.web-phone2-status {
+.webrtc-status {
 	font-size: 11px;
 	padding: 2px 8px;
 	border-radius: 10px;
 	font-weight: 500;
 }
 
-.web-phone2-status-registered {
+.webrtc-status-registered {
 	background: rgba(76, 175, 80, 0.9);
 }
 
-.web-phone2-status-unregistered {
+.webrtc-status-unregistered {
 	background: rgba(255, 152, 0, 0.9);
 }
 
-.web-phone2-status-connecting {
+.webrtc-status-connecting {
 	background: rgba(255, 193, 7, 0.9);
 	color: #333;
 }
 
-.web-phone2-status-error {
+.webrtc-status-error {
 	background: rgba(244, 67, 54, 0.9);
 }
 
-.web-phone2-close-btn {
+.webrtc-close-btn {
 	background: none;
 	border: none;
 	color: #fff;
@@ -140,33 +140,33 @@
 	opacity: 0.8;
 }
 
-.web-phone2-close-btn:hover {
+.webrtc-close-btn:hover {
 	opacity: 1;
 }
 
 /* --- Body --- */
-.web-phone2-body {
+.webrtc-phone-body {
 	padding: 16px;
 }
 
 /* --- Extension Selector --- */
-.web-phone2-ext-selector {
+.webrtc-ext-selector {
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
 }
 
-.web-phone2-ext-selector label {
+.webrtc-ext-selector label {
 	font-size: 13px;
 	font-weight: 600;
 	color: #333;
 }
 
-.web-phone2-ext-switch {
+.webrtc-ext-switch {
 	margin-bottom: 12px;
 }
 
-.web-phone2-select {
+.webrtc-select {
 	width: 100%;
 	padding: 8px 12px;
 	border: 1px solid #ddd;
@@ -178,18 +178,18 @@
 	outline: none;
 }
 
-.web-phone2-select:focus {
+.webrtc-select:focus {
 	border-color: #1a73e8;
 	box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
 }
 
-.web-phone2-select-sm {
+.webrtc-select-sm {
 	padding: 4px 8px;
 	font-size: 12px;
 }
 
 /* --- Input --- */
-.web-phone2-input {
+.webrtc-input {
 	width: 100%;
 	padding: 10px 14px;
 	border: 1px solid #ddd;
@@ -203,12 +203,12 @@
 	background: #f8f9fa;
 }
 
-.web-phone2-input:focus {
+.webrtc-input:focus {
 	border-color: #1a73e8;
 	box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
 }
 
-.web-phone2-input-sm {
+.webrtc-input-sm {
 	font-size: 13px;
 	padding: 6px 10px;
 	letter-spacing: 0;
@@ -217,24 +217,24 @@
 }
 
 /* --- Dial Pad --- */
-.web-phone2-dialpad {
+.webrtc-dialpad {
 	display: flex;
 	flex-direction: column;
 	gap: 10px;
 }
 
-.web-phone2-dialpad-grid {
+.webrtc-dialpad-grid {
 	display: grid;
 	grid-template-columns: repeat(3, 1fr);
 	gap: 8px;
 }
 
-.web-phone2-dialpad-sm {
+.webrtc-dialpad-sm {
 	gap: 4px;
 	margin-top: 8px;
 }
 
-.web-phone2-key {
+.webrtc-key {
 	padding: 12px;
 	font-size: 20px;
 	font-weight: 500;
@@ -247,27 +247,27 @@
 	user-select: none;
 }
 
-.web-phone2-key:hover {
+.webrtc-key:hover {
 	background: #e8eaed;
 }
 
-.web-phone2-key:active {
+.webrtc-key:active {
 	background: #d2d5db;
 	transform: scale(0.95);
 }
 
-.web-phone2-key-sm {
+.webrtc-key-sm {
 	padding: 6px;
 	font-size: 14px;
 }
 
-.web-phone2-key-main {
+.webrtc-key-main {
 	display: block;
 	font-size: 20px;
 	line-height: 1.2;
 }
 
-.web-phone2-key-sub {
+.webrtc-key-sub {
 	display: block;
 	font-size: 9px;
 	color: #999;
@@ -276,28 +276,28 @@
 }
 
 /* --- Call Icon --- */
-.web-phone2-call-icon {
+.webrtc-call-icon {
 	font-size: 36px;
 	line-height: 1;
 	color: #666;
 }
 
-.web-phone2-call-icon-incoming {
+.webrtc-call-icon-incoming {
 	color: #4caf50;
-	animation: web-phone2-ring 0.8s infinite alternate;
+	animation: webrtc-ring 0.8s infinite alternate;
 }
 
-.web-phone2-call-icon-active {
+.webrtc-call-icon-active {
 	color: #1a73e8;
 }
 
-@keyframes web-phone2-ring {
+@keyframes webrtc-ring {
 	0% { transform: rotate(-15deg); }
 	100% { transform: rotate(15deg); }
 }
 
 /* --- Backspace Button --- */
-.web-phone2-btn-backspace {
+.webrtc-btn-backspace {
 	background: #eee;
 	color: #666;
 	padding: 10px 14px;
@@ -306,13 +306,13 @@
 	justify-content: center;
 }
 
-.web-phone2-btn-backspace:hover {
+.webrtc-btn-backspace:hover {
 	background: #ddd;
 	color: #333;
 }
 
 /* --- Buttons --- */
-.web-phone2-btn {
+.webrtc-btn {
 	padding: 10px 16px;
 	border: none;
 	border-radius: 8px;
@@ -322,89 +322,89 @@
 	transition: background 0.2s, transform 0.1s;
 }
 
-.web-phone2-btn:active {
+.webrtc-btn:active {
 	transform: scale(0.96);
 }
 
-.web-phone2-btn:disabled {
+.webrtc-btn:disabled {
 	opacity: 0.5;
 	cursor: not-allowed;
 }
 
-.web-phone2-btn-primary {
+.webrtc-btn-primary {
 	background: #1a73e8;
 	color: #fff;
 }
 
-.web-phone2-btn-primary:hover:not(:disabled) {
+.webrtc-btn-primary:hover:not(:disabled) {
 	background: #1557b0;
 }
 
-.web-phone2-btn-call {
+.webrtc-btn-call {
 	background: #4caf50;
 	color: #fff;
 	flex: 1;
 }
 
-.web-phone2-btn-call:hover:not(:disabled) {
+.webrtc-btn-call:hover:not(:disabled) {
 	background: #43a047;
 }
 
-.web-phone2-btn-hangup {
+.webrtc-btn-hangup {
 	background: #e53935;
 	color: #fff;
 }
 
-.web-phone2-btn-hangup:hover {
+.webrtc-btn-hangup:hover {
 	background: #c62828;
 }
 
-.web-phone2-btn-answer {
+.webrtc-btn-answer {
 	background: #4caf50;
 	color: #fff;
 }
 
-.web-phone2-btn-answer:hover {
+.webrtc-btn-answer:hover {
 	background: #43a047;
 }
 
-.web-phone2-btn-reject {
+.webrtc-btn-reject {
 	background: #e53935;
 	color: #fff;
 }
 
-.web-phone2-btn-reject:hover {
+.webrtc-btn-reject:hover {
 	background: #c62828;
 }
 
-.web-phone2-btn-clear {
+.webrtc-btn-clear {
 	background: #9e9e9e;
 	color: #fff;
 	padding: 10px 14px;
 }
 
-.web-phone2-btn-clear:hover {
+.webrtc-btn-clear:hover {
 	background: #757575;
 }
 
-.web-phone2-btn-sm {
+.webrtc-btn-sm {
 	padding: 6px 12px;
 	font-size: 12px;
 }
 
-.web-phone2-btn-active {
+.webrtc-btn-active {
 	background: #ff9800 !important;
 	color: #fff;
 }
 
 /* --- Dial Actions --- */
-.web-phone2-dial-actions {
+.webrtc-dial-actions {
 	display: flex;
 	gap: 8px;
 }
 
 /* --- Call Info --- */
-.web-phone2-call-info {
+.webrtc-call-info {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
@@ -412,7 +412,7 @@
 	padding: 8px 0;
 }
 
-.web-phone2-call-label {
+.webrtc-call-label {
 	font-size: 12px;
 	color: #666;
 	text-transform: uppercase;
@@ -420,33 +420,33 @@
 	font-weight: 600;
 }
 
-.web-phone2-call-number {
+.webrtc-call-number {
 	font-size: 20px;
 	font-weight: 600;
 	color: #222;
 }
 
-.web-phone2-call-timer {
+.webrtc-call-timer {
 	font-size: 16px;
 	color: #1a73e8;
 	font-weight: 500;
 	font-variant-numeric: tabular-nums;
 }
 
-.web-phone2-call-actions {
+.webrtc-call-actions {
 	display: flex;
 	gap: 10px;
 	margin-top: 8px;
 }
 
 /* --- In-call DTMF --- */
-.web-phone2-incall-dtmf {
+.webrtc-incall-dtmf {
 	width: 100%;
 	margin-top: 4px;
 }
 
 /* --- Transfer --- */
-.web-phone2-transfer {
+.webrtc-transfer {
 	display: flex;
 	gap: 6px;
 	align-items: center;
@@ -455,144 +455,11 @@
 }
 
 /* --- Error --- */
-.web-phone2-error {
+.webrtc-error {
 	text-align: center;
 	color: #e53935;
 	padding: 20px;
 	font-size: 14px;
-}
-
-/* --- Settings Button (gear icon in header) --- */
-.web-phone2-settings-btn {
-	background: none;
-	border: none;
-	color: rgba(255, 255, 255, 0.8);
-	cursor: pointer;
-	padding: 2px 4px;
-	line-height: 1;
-	border-radius: 4px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	transition: color 0.15s, background 0.15s;
-}
-
-.web-phone2-settings-btn:hover {
-	color: #fff;
-	background: rgba(255, 255, 255, 0.15);
-}
-
-.web-phone2-settings-btn-active {
-	color: #fff !important;
-	background: rgba(255, 255, 255, 0.25) !important;
-}
-
-/* --- Settings Panel --- */
-.web-phone2-settings-panel {
-	display: flex;
-	flex-direction: column;
-	gap: 0;
-	overflow-y: auto;
-	max-height: 440px;
-}
-
-.web-phone2-settings-section {
-	padding: 10px 0;
-	border-bottom: 1px solid #f0f0f0;
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-}
-
-.web-phone2-settings-section:last-of-type {
-	border-bottom: none;
-}
-
-.web-phone2-settings-title {
-	font-size: 11px;
-	font-weight: 700;
-	text-transform: uppercase;
-	letter-spacing: 0.5px;
-	color: #888;
-	margin-bottom: 2px;
-}
-
-.web-phone2-settings-row {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-}
-
-.web-phone2-volume-row {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-}
-
-.web-phone2-volume-label {
-	font-size: 12px;
-	color: #555;
-	white-space: nowrap;
-	min-width: 52px;
-}
-
-.web-phone2-volume-slider {
-	flex: 1;
-	height: 4px;
-	-webkit-appearance: none;
-	appearance: none;
-	background: #ddd;
-	border-radius: 2px;
-	outline: none;
-	cursor: pointer;
-}
-
-.web-phone2-volume-slider::-webkit-slider-thumb {
-	-webkit-appearance: none;
-	width: 14px;
-	height: 14px;
-	border-radius: 50%;
-	background: #1a73e8;
-	cursor: pointer;
-	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-}
-
-.web-phone2-volume-slider::-moz-range-thumb {
-	width: 14px;
-	height: 14px;
-	border-radius: 50%;
-	background: #1a73e8;
-	cursor: pointer;
-	border: none;
-}
-
-.web-phone2-volume-pct {
-	font-size: 11px;
-	color: #555;
-	min-width: 34px;
-	text-align: right;
-	font-variant-numeric: tabular-nums;
-}
-
-.web-phone2-settings-note {
-	font-size: 11px;
-	color: #999;
-	font-style: italic;
-}
-
-.web-phone2-settings-done {
-	width: 100%;
-	margin-top: 12px;
-}
-
-.web-phone2-btn-secondary {
-	background: #f1f3f4;
-	color: #444;
-	border: 1px solid #ddd;
-}
-
-.web-phone2-btn-secondary:hover {
-	background: #e2e4e7;
 }
 
 /* --- Hidden utility --- */
@@ -601,29 +468,126 @@
 }
 
 /* --- Standalone page mount --- */
-#web-phone2-standalone {
+#webrtc-phone-standalone {
 	max-width: 360px;
 	margin: 40px auto;
 }
 
-#web-phone2-standalone .web-phone2-inner {
+#webrtc-phone-standalone .webrtc-phone-inner {
 	border: 1px solid #ddd;
 	border-radius: 12px;
 	overflow: hidden;
 	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
 }
 
-#web-phone2-standalone .web-phone2-close-btn {
+#webrtc-phone-standalone .webrtc-close-btn {
 	display: none;
+}
+
+/* --- Settings Button (gear icon in header) --- */
+.webrtc-settings-btn {
+	background: none;
+	border: none;
+	color: #fff;
+	cursor: pointer;
+	padding: 0 4px;
+	line-height: 1;
+	opacity: 0.8;
+	font-size: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.webrtc-settings-btn:hover {
+	opacity: 1;
+}
+
+/* --- Settings Panel --- */
+.webrtc-settings-panel {
+	padding: 12px 16px 16px;
+	background: #f8f9fa;
+	border-top: 1px solid #e0e0e0;
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+}
+
+.webrtc-settings-section {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.webrtc-settings-section label {
+	font-size: 11px;
+	font-weight: 700;
+	color: #555;
+	text-transform: uppercase;
+	letter-spacing: 0.8px;
+}
+
+/* --- Volume Row --- */
+.webrtc-volume-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.webrtc-volume-slider {
+	flex: 1;
+	height: 4px;
+	accent-color: #1a73e8;
+	cursor: pointer;
+}
+
+.webrtc-volume-pct {
+	font-size: 11px;
+	color: #666;
+	min-width: 32px;
+	text-align: right;
+}
+
+/* --- Ringtone Row --- */
+.webrtc-ringtone-row {
+	display: flex;
+	gap: 6px;
+	align-items: center;
+}
+
+.webrtc-ringtone-row .webrtc-select {
+	flex: 1;
+}
+
+/* --- Secondary Button --- */
+.webrtc-btn-secondary {
+	background: #e8eaed;
+	color: #333;
+}
+
+.webrtc-btn-secondary:hover {
+	background: #dadce0;
+}
+
+.webrtc-btn-secondary.webrtc-btn-active {
+	background: #ff9800 !important;
+	color: #fff;
+}
+
+/* --- Settings Done Button row --- */
+.webrtc-settings-done {
+	display: flex;
+	justify-content: flex-end;
+	margin-top: 4px;
 }
 
 /* --- Responsive --- */
 @media (max-width: 400px) {
-	.web-phone2-panel {
+	.webrtc-phone-panel {
 		width: 290px;
 	}
 
-	.web-phone2-key {
+	.webrtc-key {
 		padding: 10px;
 		font-size: 18px;
 	}
@@ -631,74 +595,65 @@
 
 /* --- Dark theme support (FusionPBX dark mode) --- */
 @media (prefers-color-scheme: dark) {
-	.web-phone2-panel,
-	#web-phone2-standalone .web-phone2-inner {
+	.webrtc-phone-panel,
+	#webrtc-phone-standalone .webrtc-phone-inner {
 		background: #2d2d2d;
 		border-color: #444;
 	}
 
-	.web-phone2-input {
+	.webrtc-input {
 		background: #3a3a3a;
 		border-color: #555;
 		color: #eee;
 	}
 
-	.web-phone2-key {
+	.webrtc-key {
 		background: #3a3a3a;
 		border-color: #555;
 		color: #eee;
 	}
 
-	.web-phone2-key:hover {
+	.webrtc-key:hover {
 		background: #4a4a4a;
 	}
 
-	.web-phone2-select {
+	.webrtc-select {
 		background: #3a3a3a;
 		border-color: #555;
 		color: #eee;
 	}
 
-	.web-phone2-call-number {
+	.webrtc-call-number {
 		color: #eee;
 	}
 
-	.web-phone2-call-label {
+	.webrtc-call-label {
 		color: #aaa;
 	}
 
-	.web-phone2-ext-selector label {
+	.webrtc-ext-selector label {
 		color: #ccc;
 	}
 
-	.web-phone2-settings-section {
-		border-bottom-color: #3a3a3a;
+	.webrtc-settings-panel {
+		background: #252525;
+		border-color: #444;
 	}
 
-	.web-phone2-settings-title {
-		color: #888;
-	}
-
-	.web-phone2-volume-label,
-	.web-phone2-volume-pct {
+	.webrtc-settings-section label {
 		color: #aaa;
 	}
 
-	.web-phone2-volume-slider {
-		background: #555;
+	.webrtc-volume-pct {
+		color: #aaa;
 	}
 
-	.web-phone2-settings-note {
-		color: #777;
-	}
-
-	.web-phone2-btn-secondary {
+	.webrtc-btn-secondary {
 		background: #3a3a3a;
-		color: #ccc;
-		border-color: #555;
+		color: #eee;
 	}
 
-	.web-phone2-btn-secondary:hover {
+	.webrtc-btn-secondary:hover {
 		background: #4a4a4a;
 	}
 }

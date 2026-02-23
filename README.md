@@ -1,4 +1,4 @@
-# FusionPBX Web Phone 2
+# FusionPBX WebRTC Phone
 
 A browser-based SIP softphone module for [FusionPBX](https://www.fusionpbx.com) that enables making and receiving calls directly from the web interface using WebRTC.
 
@@ -17,7 +17,7 @@ The phone appears as a floating dialer overlay on every FusionPBX page, automati
 - **Incoming call notifications** - Ringtone, pulsing badge, auto-opens the phone panel
 - **Call timer** with hours:minutes:seconds display
 - **Dark mode** support (follows system preference)
-- **Standalone page** available at Apps > Web Phone 2
+- **Standalone page** available at Apps > WebRTC Phone
 - **FusionPBX native module** - follows standard app structure, permissions, menu integration, and default settings
 
 ## Screenshots
@@ -55,15 +55,15 @@ The phone appears as a floating dialer overlay on every FusionPBX page, automati
 ### 1. Clone or Download
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/fusionPBX-web-phone2.git
+git clone https://github.com/YOUR_USERNAME/fusionPBX-webrtc-phone.git
 ```
 
 ### 2. Deploy to FusionPBX
 
 ```bash
-cp -r fusionPBX-web-phone2 /var/www/fusionpbx/app/web_phone2
-chown -R www-data:www-data /var/www/fusionpbx/app/web_phone2
-chmod -R 755 /var/www/fusionpbx/app/web_phone2
+cp -r fusionPBX-webrtc-phone /var/www/fusionpbx/app/webrtc_phone
+chown -R www-data:www-data /var/www/fusionpbx/app/webrtc_phone
+chmod -R 755 /var/www/fusionpbx/app/webrtc_phone
 ```
 
 ### 3. Register the Module
@@ -78,8 +78,8 @@ In FusionPBX, go to **Advanced > Upgrade** and click:
 Add this line to your theme's template file (`/var/www/fusionpbx/themes/default/template.php`) before the closing `</body>` tag:
 
 ```php
-<?php if (file_exists($_SERVER['DOCUMENT_ROOT'].'/app/web_phone2/web_phone2_inc.php')) {
-    include $_SERVER['DOCUMENT_ROOT'].'/app/web_phone2/web_phone2_inc.php';
+<?php if (file_exists($_SERVER['DOCUMENT_ROOT'].'/app/webrtc_phone/webrtc_phone_inc.php')) {
+    include $_SERVER['DOCUMENT_ROOT'].'/app/webrtc_phone/webrtc_phone_inc.php';
 } ?>
 ```
 
@@ -101,7 +101,7 @@ systemctl restart freeswitch
 
 ## Configuration
 
-Default settings are managed in **Advanced > Default Settings** under the `web_phone2` category:
+Default settings are managed in **Advanced > Default Settings** under the `webrtc_phone` category:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
@@ -111,7 +111,7 @@ Default settings are managed in **Advanced > Default Settings** under the `web_p
 
 ### Permissions
 
-The `web_phone2_view` permission controls access. By default it is granted to:
+The `webrtc_phone_view` permission controls access. By default it is granted to:
 - `superadmin`
 - `admin`
 - `user`
@@ -126,14 +126,14 @@ Browser (JsSIP)  ──WSS──▶  FreeSWITCH (:7443)  ──SIP──▶  PST
        │◀── RTP (WebRTC) ──────▶│
        │                        │
   FusionPBX API                 │
-  (web_phone2_api.php)        │
+  (webrtc_phone_api.php)        │
        │                        │
   v_extensions ─────────────────┘
   v_extension_users
 ```
 
 1. User logs into FusionPBX, the floating phone button appears
-2. Phone calls `web_phone2_api.php` to fetch the user's extensions and WSS config
+2. Phone calls `webrtc_phone_api.php` to fetch the user's extensions and WSS config
 3. **Single extension** → auto-registers via JsSIP over WSS to FreeSWITCH
 4. **Multiple extensions** → shows a dropdown selector, then registers the chosen one
 5. Once registered, the user can dial numbers or receive incoming calls in the browser
@@ -141,22 +141,22 @@ Browser (JsSIP)  ──WSS──▶  FreeSWITCH (:7443)  ──SIP──▶  PST
 ## Module Structure
 
 ```
-web_phone2/
+webrtc_phone/
 ├── app_config.php            # Module registration & default settings
 ├── app_defaults.php          # Applies defaults during upgrade
 ├── app_menu.php              # Adds menu entry under Apps
 ├── app_languages.php         # Language strings (en-us)
-├── web_phone2.php          # Standalone phone page
-├── web_phone2_api.php      # JSON API: returns user extensions + WSS config
-├── web_phone2_inc.php      # Include for floating overlay injection
+├── webrtc_phone.php          # Standalone phone page
+├── webrtc_phone_api.php      # JSON API: returns user extensions + WSS config
+├── webrtc_phone_inc.php      # Include for floating overlay injection
 ├── INSTALL.md                # Detailed installation guide
 ├── README.md                 # This file
 └── resources/
     ├── css/
-    │   └── web_phone2.css  # Phone UI styles (light + dark mode)
+    │   └── webrtc_phone.css  # Phone UI styles (light + dark mode)
     └── js/
         ├── jssip.min.js      # JsSIP 3.11.1 (SIP over WebSocket library)
-        └── web_phone2.js   # Phone application logic
+        └── webrtc_phone.js   # Phone application logic
 ```
 
 ## Technology
@@ -173,7 +173,7 @@ web_phone2/
 | Status stays "Connecting..." | Check WSS port 7443 is open in firewall; verify FreeSWITCH WSS binding with `fs_cli -x "sofia status"` |
 | No audio in calls | Check browser microphone permissions; verify STUN server reachability |
 | "No extensions assigned" | Assign extensions to the user in Accounts > Extensions via Extension Users |
-| Phone button doesn't appear | Verify the include line was added to your theme template; check user has `web_phone2_view` permission |
+| Phone button doesn't appear | Verify the include line was added to your theme template; check user has `webrtc_phone_view` permission |
 | Registration fails (Error) | Check extension password matches; verify SSL certificate is valid for WSS |
 
 ## Contributing
