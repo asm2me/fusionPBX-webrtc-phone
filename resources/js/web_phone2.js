@@ -1,10 +1,10 @@
 /*
-	FusionPBX WebRTC Phone
+	FusionPBX Web Phone 2
 	Browser-based SIP softphone using JsSIP over WebSocket Secure (WSS).
 	Fetches the active user's extensions from FusionPBX and registers via WebRTC.
 */
 
-var WebRTCPhone = (function () {
+var WebPhone2 = (function () {
 	'use strict';
 
 	// State
@@ -39,13 +39,13 @@ var WebRTCPhone = (function () {
 
 		// Create hidden audio element for remote audio
 		state.remoteAudio = document.createElement('audio');
-		state.remoteAudio.id = 'webrtc-remote-audio';
+		state.remoteAudio.id = 'web-phone2-remote-audio';
 		state.remoteAudio.autoplay = true;
 		document.body.appendChild(state.remoteAudio);
 
 		// Create ringtone audio
 		state.ringtoneAudio = document.createElement('audio');
-		state.ringtoneAudio.id = 'webrtc-ringtone';
+		state.ringtoneAudio.id = 'web-phone2-ringtone';
 		state.ringtoneAudio.loop = true;
 		state.ringtoneAudio.src = generateRingtoneDataURI();
 		document.body.appendChild(state.ringtoneAudio);
@@ -62,14 +62,14 @@ var WebRTCPhone = (function () {
 		if (!('Notification' in window)) return;
 		if (Notification.permission === 'default') {
 			Notification.requestPermission().then(function (perm) {
-				console.log('WebRTC Phone: Notification permission:', perm);
+				console.log('Web Phone 2: Notification permission:', perm);
 			});
 		}
 	}
 
 	function fetchConfig() {
 		var xhr = new XMLHttpRequest();
-		xhr.open('GET', '/app/webrtc_phone/webrtc_phone_api.php', true);
+		xhr.open('GET', '/app/web_phone2/web_phone2_api.php', true);
 		xhr.onreadystatechange = function () {
 			if (xhr.readyState === 4) {
 				if (xhr.status === 200) {
@@ -117,7 +117,7 @@ var WebRTCPhone = (function () {
 		// Enable JsSIP debug logging
 		JsSIP.debug.enable('JsSIP:*');
 
-		console.log('WebRTC Phone: Connecting to', wssUrl, 'as', sipUri);
+		console.log('Web Phone 2: Connecting to', wssUrl, 'as', sipUri);
 		updateStatus('connecting');
 
 		try {
@@ -127,10 +127,12 @@ var WebRTCPhone = (function () {
 				sockets: [socket],
 				uri: sipUri,
 				password: ext.password,
-				display_name: ext.caller_id_name || ext.extension,
+				authorization_user: (ext.auth_username || ext.extension),
+				display_name: (ext.caller_id_name || ext.extension),
 				register: true,
+				register_expires: 300,
 				session_timers: false,
-				user_agent: 'FusionPBX-WebRTC-Phone/1.0'
+				user_agent: 'FusionPBX-Web-Phone2/1.0'
 			};
 
 			state.ua = new JsSIP.UA(configuration);
@@ -147,12 +149,12 @@ var WebRTCPhone = (function () {
 
 			state.ua.on('registrationFailed', function (e) {
 				state.registered = false;
-				console.error('WebRTC Phone: Registration failed', e.cause);
+				console.error('Web Phone 2: Registration failed', e.cause);
 				renderPhone();
 			});
 
 			state.ua.on('newRTCSession', function (data) {
-				console.log('WebRTC Phone: newRTCSession', data.originator, data.request ? data.request.method : '');
+				console.log('Web Phone 2: newRTCSession', data.originator, data.request ? data.request.method : '');
 				if (data.originator === 'remote') {
 					handleIncomingCall(data.session);
 				}
@@ -166,7 +168,7 @@ var WebRTCPhone = (function () {
 			state.ua.start();
 
 		} catch (e) {
-			console.error('WebRTC Phone: SIP registration error', e);
+			console.error('Web Phone 2: SIP registration error', e);
 			updateStatus('error');
 		}
 	}
@@ -199,13 +201,13 @@ var WebRTCPhone = (function () {
 		var domain = state.config.domain;
 		var targetURI = 'sip:' + target + '@' + domain;
 
-		console.log('WebRTC Phone: Calling', targetURI);
+		console.log('Web Phone 2: Calling', targetURI);
 
 		var eventHandlers = {
 			'peerconnection': function (data) {
-				console.log('WebRTC Phone: peerconnection event', data);
+				console.log('Web Phone 2: peerconnection event', data);
 				data.peerconnection.ontrack = function (event) {
-					console.log('WebRTC Phone: remote track received', event);
+					console.log('Web Phone 2: remote track received', event);
 					if (event.streams && event.streams[0]) {
 						state.remoteAudio.srcObject = event.streams[0];
 						state.remoteAudio.play().catch(function () {});
@@ -213,16 +215,16 @@ var WebRTCPhone = (function () {
 				};
 			},
 			'connecting': function (data) {
-				console.log('WebRTC Phone: call connecting', data);
+				console.log('Web Phone 2: call connecting', data);
 			},
 			'sending': function (data) {
-				console.log('WebRTC Phone: call sending INVITE', data);
+				console.log('Web Phone 2: call sending INVITE', data);
 			},
 			'progress': function (data) {
-				console.log('WebRTC Phone: call progress (ringing)', data);
+				console.log('Web Phone 2: call progress (ringing)', data);
 			},
 			'accepted': function (data) {
-				console.log('WebRTC Phone: call accepted', data);
+				console.log('Web Phone 2: call accepted', data);
 				state.callState = 'in_call';
 				stopRingtone();
 				hideFABBadge();
@@ -230,22 +232,22 @@ var WebRTCPhone = (function () {
 				renderPhone();
 			},
 			'confirmed': function (data) {
-				console.log('WebRTC Phone: call confirmed', data);
+				console.log('Web Phone 2: call confirmed', data);
 				state.callState = 'in_call';
 				stopRingtone();
 				hideFABBadge();
 				renderPhone();
 			},
 			'ended': function (data) {
-				console.log('WebRTC Phone: call ended', data.cause);
+				console.log('Web Phone 2: call ended', data.cause);
 				endCall();
 			},
 			'failed': function (data) {
-				console.error('WebRTC Phone: call failed', data.cause, data.message);
+				console.error('Web Phone 2: call failed', data.cause, data.message);
 				endCall();
 			},
 			'getusermediafailed': function (data) {
-				console.error('WebRTC Phone: getUserMedia failed', data);
+				console.error('Web Phone 2: getUserMedia failed', data);
 				endCall();
 			}
 		};
@@ -268,9 +270,9 @@ var WebRTCPhone = (function () {
 			state.muted = false;
 			state.held = false;
 			renderPhone();
-			console.log('WebRTC Phone: call initiated, session:', state.currentSession);
+			console.log('Web Phone 2: call initiated, session:', state.currentSession);
 		} catch (e) {
-			console.error('WebRTC Phone: Call exception', e);
+			console.error('Web Phone 2: Call exception', e);
 			endCall();
 		}
 	}
@@ -313,7 +315,7 @@ var WebRTCPhone = (function () {
 		try {
 			state.currentSession.answer(options);
 		} catch (e) {
-			console.error('WebRTC Phone: Answer failed', e);
+			console.error('Web Phone 2: Answer failed', e);
 			endCall();
 		}
 	}
@@ -338,7 +340,7 @@ var WebRTCPhone = (function () {
 		try {
 			state.currentSession.terminate();
 		} catch (e) {
-			console.error('WebRTC Phone: Hangup error', e);
+			console.error('Web Phone 2: Hangup error', e);
 		}
 		endCall();
 	}
@@ -397,7 +399,7 @@ var WebRTCPhone = (function () {
 		try {
 			state.currentSession.refer(targetURI);
 		} catch (e) {
-			console.error('WebRTC Phone: Transfer failed', e);
+			console.error('Web Phone 2: Transfer failed', e);
 		}
 	}
 
@@ -427,7 +429,7 @@ var WebRTCPhone = (function () {
 		});
 
 		session.on('failed', function (e) {
-			console.log('WebRTC Phone: Call failed/ended', e.cause);
+			console.log('Web Phone 2: Call failed/ended', e.cause);
 			endCall();
 		});
 
@@ -483,8 +485,8 @@ var WebRTCPhone = (function () {
 		try {
 			state.incomingNotification = new Notification('Incoming Call', {
 				body: caller + (extLabel ? '\nTo: Extension ' + extLabel : ''),
-				icon: '/app/webrtc_phone/resources/images/phone-icon.svg',
-				tag: 'webrtc-incoming-call',
+				icon: '/app/web_phone2/resources/images/phone-icon.svg',
+				tag: 'web-phone2-incoming-call',
 				requireInteraction: true,
 				silent: false
 			});
@@ -501,7 +503,7 @@ var WebRTCPhone = (function () {
 				state.incomingNotification = null;
 			};
 		} catch (e) {
-			console.error('WebRTC Phone: Notification error', e);
+			console.error('Web Phone 2: Notification error', e);
 		}
 	}
 
@@ -534,7 +536,7 @@ var WebRTCPhone = (function () {
 		stopCallTimer();
 		state.callTimer = setInterval(function () {
 			state.callDuration++;
-			var timerEl = document.getElementById('webrtc-call-timer');
+			var timerEl = document.getElementById('web-phone2-call-timer');
 			if (timerEl) {
 				timerEl.textContent = formatDuration(state.callDuration);
 			}
@@ -620,14 +622,14 @@ var WebRTCPhone = (function () {
 
 	function renderExtensionSelector() {
 		if (!state.mountEl) return;
-		var html = '<div class="webrtc-phone-inner">';
-		html += '<div class="webrtc-phone-header">';
-		html += '<span class="webrtc-phone-title">WebRTC Phone</span>';
-		html += '<button class="webrtc-close-btn" onclick="WebRTCPhone.toggle()" title="Close">&times;</button>';
+		var html = '<div class="web-phone2-inner">';
+		html += '<div class="web-phone2-header">';
+		html += '<span class="web-phone2-title">Web Phone 2</span>';
+		html += '<button class="web-phone2-close-btn" onclick="WebPhone2.toggle()" title="Close">&times;</button>';
 		html += '</div>';
-		html += '<div class="webrtc-phone-body webrtc-ext-selector">';
-		html += '<label for="webrtc-ext-select">Select Extension:</label>';
-		html += '<select id="webrtc-ext-select" class="webrtc-select">';
+		html += '<div class="web-phone2-body web-phone2-ext-selector">';
+		html += '<label for="web-phone2-ext-select">Select Extension:</label>';
+		html += '<select id="web-phone2-ext-select" class="web-phone2-select">';
 		html += '<option value="">-- Choose Extension --</option>';
 		for (var i = 0; i < state.extensions.length; i++) {
 			var ext = state.extensions[i];
@@ -639,14 +641,14 @@ var WebRTCPhone = (function () {
 			html += '<option value="' + i + '">' + escapeHtml(label) + '</option>';
 		}
 		html += '</select>';
-		html += '<button class="webrtc-btn webrtc-btn-primary" onclick="WebRTCPhone.selectExtension()">Connect</button>';
+		html += '<button class="web-phone2-btn web-phone2-btn-primary" onclick="WebPhone2.selectExtension()">Connect</button>';
 		html += '</div>';
 		html += '</div>';
 		state.mountEl.innerHTML = html;
 	}
 
 	function selectExtension() {
-		var sel = document.getElementById('webrtc-ext-select');
+		var sel = document.getElementById('web-phone2-ext-select');
 		if (!sel || sel.value === '') return;
 		state.selectedExtension = state.extensions[parseInt(sel.value)];
 		renderPhone();
@@ -657,28 +659,28 @@ var WebRTCPhone = (function () {
 		if (!state.mountEl || !state.selectedExtension) return;
 
 		var ext = state.selectedExtension;
-		var html = '<div class="webrtc-phone-inner">';
+		var html = '<div class="web-phone2-inner">';
 
 		// Header
-		html += '<div class="webrtc-phone-header">';
-		html += '<span class="webrtc-phone-title">' + escapeHtml(ext.extension);
+		html += '<div class="web-phone2-header">';
+		html += '<span class="web-phone2-title">' + escapeHtml(ext.extension);
 		if (ext.caller_id_name && ext.caller_id_name !== ext.extension) {
 			html += ' <small>(' + escapeHtml(ext.caller_id_name) + ')</small>';
 		}
 		html += '</span>';
-		html += '<span id="webrtc-status" class="webrtc-status webrtc-status-' + (state.registered ? 'registered' : 'connecting') + '">';
+		html += '<span id="web-phone2-status" class="web-phone2-status web-phone2-status-' + (state.registered ? 'registered' : 'connecting') + '">';
 		html += state.registered ? 'Registered' : 'Connecting...';
 		html += '</span>';
-		html += '<button class="webrtc-close-btn" onclick="WebRTCPhone.toggle()" title="Minimize">&times;</button>';
+		html += '<button class="web-phone2-close-btn" onclick="WebPhone2.toggle()" title="Minimize">&times;</button>';
 		html += '</div>';
 
 		// Body
-		html += '<div class="webrtc-phone-body">';
+		html += '<div class="web-phone2-body">';
 
 		// Extension switcher (if multiple extensions)
 		if (state.extensions.length > 1) {
-			html += '<div class="webrtc-ext-switch">';
-			html += '<select id="webrtc-ext-switch-select" class="webrtc-select webrtc-select-sm" onchange="WebRTCPhone.switchExtension(this.value)">';
+			html += '<div class="web-phone2-ext-switch">';
+			html += '<select id="web-phone2-ext-switch-select" class="web-phone2-select web-phone2-select-sm" onchange="WebPhone2.switchExtension(this.value)">';
 			for (var i = 0; i < state.extensions.length; i++) {
 				var e = state.extensions[i];
 				var selected = (e.extension === ext.extension) ? ' selected' : '';
@@ -693,45 +695,45 @@ var WebRTCPhone = (function () {
 		if (state.callState === 'idle') {
 			html += renderDialPad();
 		} else if (state.callState === 'ringing_in') {
-			html += '<div class="webrtc-call-info">';
-			html += '<div class="webrtc-call-icon webrtc-call-icon-incoming">&#9742;</div>';
-			html += '<div class="webrtc-call-label">Incoming Call</div>';
-			html += '<div class="webrtc-call-number">' + getRemoteIdentity() + '</div>';
-			html += '<div class="webrtc-call-actions">';
-			html += '<button class="webrtc-btn webrtc-btn-answer" onclick="WebRTCPhone.answer()">Answer</button>';
-			html += '<button class="webrtc-btn webrtc-btn-reject" onclick="WebRTCPhone.reject()">Reject</button>';
+			html += '<div class="web-phone2-call-info">';
+			html += '<div class="web-phone2-call-icon web-phone2-call-icon-incoming">&#9742;</div>';
+			html += '<div class="web-phone2-call-label">Incoming Call</div>';
+			html += '<div class="web-phone2-call-number">' + getRemoteIdentity() + '</div>';
+			html += '<div class="web-phone2-call-actions">';
+			html += '<button class="web-phone2-btn web-phone2-btn-answer" onclick="WebPhone2.answer()">Answer</button>';
+			html += '<button class="web-phone2-btn web-phone2-btn-reject" onclick="WebPhone2.reject()">Reject</button>';
 			html += '</div>';
 			html += '</div>';
 		} else if (state.callState === 'ringing_out') {
-			html += '<div class="webrtc-call-info">';
-			html += '<div class="webrtc-call-icon">&#9742;</div>';
-			html += '<div class="webrtc-call-label">Calling...</div>';
-			html += '<div class="webrtc-call-number">' + escapeHtml(state.dialInput) + '</div>';
-			html += '<div class="webrtc-call-actions">';
-			html += '<button class="webrtc-btn webrtc-btn-hangup" onclick="WebRTCPhone.hangup()">Cancel</button>';
+			html += '<div class="web-phone2-call-info">';
+			html += '<div class="web-phone2-call-icon">&#9742;</div>';
+			html += '<div class="web-phone2-call-label">Calling...</div>';
+			html += '<div class="web-phone2-call-number">' + escapeHtml(state.dialInput) + '</div>';
+			html += '<div class="web-phone2-call-actions">';
+			html += '<button class="web-phone2-btn web-phone2-btn-hangup" onclick="WebPhone2.hangup()">Cancel</button>';
 			html += '</div>';
 			html += '</div>';
 		} else if (state.callState === 'in_call') {
-			html += '<div class="webrtc-call-info">';
-			html += '<div class="webrtc-call-icon webrtc-call-icon-active">&#9742;</div>';
-			html += '<div class="webrtc-call-label">In Call</div>';
-			html += '<div class="webrtc-call-number">' + getRemoteIdentity() + '</div>';
-			html += '<div id="webrtc-call-timer" class="webrtc-call-timer">' + formatDuration(state.callDuration) + '</div>';
-			html += '<div class="webrtc-call-actions">';
-			html += '<button class="webrtc-btn webrtc-btn-sm ' + (state.muted ? 'webrtc-btn-active' : '') + '" onclick="WebRTCPhone.toggleMute()">';
+			html += '<div class="web-phone2-call-info">';
+			html += '<div class="web-phone2-call-icon web-phone2-call-icon-active">&#9742;</div>';
+			html += '<div class="web-phone2-call-label">In Call</div>';
+			html += '<div class="web-phone2-call-number">' + getRemoteIdentity() + '</div>';
+			html += '<div id="web-phone2-call-timer" class="web-phone2-call-timer">' + formatDuration(state.callDuration) + '</div>';
+			html += '<div class="web-phone2-call-actions">';
+			html += '<button class="web-phone2-btn web-phone2-btn-sm ' + (state.muted ? 'web-phone2-btn-active' : '') + '" onclick="WebPhone2.toggleMute()">';
 			html += state.muted ? 'Unmute' : 'Mute';
 			html += '</button>';
-			html += '<button class="webrtc-btn webrtc-btn-sm ' + (state.held ? 'webrtc-btn-active' : '') + '" onclick="WebRTCPhone.toggleHold()">';
+			html += '<button class="web-phone2-btn web-phone2-btn-sm ' + (state.held ? 'web-phone2-btn-active' : '') + '" onclick="WebPhone2.toggleHold()">';
 			html += state.held ? 'Resume' : 'Hold';
 			html += '</button>';
-			html += '<button class="webrtc-btn webrtc-btn-hangup" onclick="WebRTCPhone.hangup()">Hang Up</button>';
+			html += '<button class="web-phone2-btn web-phone2-btn-hangup" onclick="WebPhone2.hangup()">Hang Up</button>';
 			html += '</div>';
 			// In-call DTMF keypad
 			html += renderInCallDTMF();
 			// Transfer
-			html += '<div class="webrtc-transfer">';
-			html += '<input type="text" id="webrtc-transfer-input" class="webrtc-input webrtc-input-sm" placeholder="Transfer to...">';
-			html += '<button class="webrtc-btn webrtc-btn-sm webrtc-btn-primary" onclick="WebRTCPhone.transfer()">Xfer</button>';
+			html += '<div class="web-phone2-transfer">';
+			html += '<input type="text" id="web-phone2-transfer-input" class="web-phone2-input web-phone2-input-sm" placeholder="Transfer to...">';
+			html += '<button class="web-phone2-btn web-phone2-btn-sm web-phone2-btn-primary" onclick="WebPhone2.transfer()">Xfer</button>';
 			html += '</div>';
 			html += '</div>';
 		}
@@ -742,16 +744,16 @@ var WebRTCPhone = (function () {
 		state.mountEl.innerHTML = html;
 
 		// Restore dial input value
-		var dialEl = document.getElementById('webrtc-dial-input');
+		var dialEl = document.getElementById('web-phone2-dial-input');
 		if (dialEl && state.dialInput && state.callState === 'idle') {
 			dialEl.value = state.dialInput;
 		}
 	}
 
 	function renderDialPad() {
-		var html = '<div class="webrtc-dialpad">';
-		html += '<input type="text" id="webrtc-dial-input" class="webrtc-input" placeholder="Enter number..." value="' + escapeHtml(state.dialInput) + '" onkeydown="if(event.key===\'Enter\')WebRTCPhone.call()" oninput="WebRTCPhone.updateDialInput(this.value)">';
-		html += '<div class="webrtc-dialpad-grid">';
+		var html = '<div class="web-phone2-dialpad">';
+		html += '<input type="text" id="web-phone2-dial-input" class="web-phone2-input" placeholder="Enter number..." value="' + escapeHtml(state.dialInput) + '" onkeydown="if(event.key===\'Enter\')WebPhone2.call()" oninput="WebPhone2.updateDialInput(this.value)">';
+		html += '<div class="web-phone2-dialpad-grid">';
 		var keys = [
 			{ key: '1', sub: '' },
 			{ key: '2', sub: 'ABC' },
@@ -767,20 +769,20 @@ var WebRTCPhone = (function () {
 			{ key: '#', sub: '' }
 		];
 		for (var i = 0; i < keys.length; i++) {
-			html += '<button class="webrtc-key" onclick="WebRTCPhone.pressKey(\'' + keys[i].key + '\')">';
-			html += '<span class="webrtc-key-main">' + keys[i].key + '</span>';
+			html += '<button class="web-phone2-key" onclick="WebPhone2.pressKey(\'' + keys[i].key + '\')">';
+			html += '<span class="web-phone2-key-main">' + keys[i].key + '</span>';
 			if (keys[i].sub) {
-				html += '<span class="webrtc-key-sub">' + keys[i].sub + '</span>';
+				html += '<span class="web-phone2-key-sub">' + keys[i].sub + '</span>';
 			}
 			html += '</button>';
 		}
 		html += '</div>';
-		html += '<div class="webrtc-dial-actions">';
-		html += '<button class="webrtc-btn webrtc-btn-call" onclick="WebRTCPhone.call()" ' + (!state.registered ? 'disabled title="Not registered"' : '') + '>';
+		html += '<div class="web-phone2-dial-actions">';
+		html += '<button class="web-phone2-btn web-phone2-btn-call" onclick="WebPhone2.call()" ' + (!state.registered ? 'disabled title="Not registered"' : '') + '>';
 		html += '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 00-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/></svg>';
 		html += ' Call';
 		html += '</button>';
-		html += '<button class="webrtc-btn webrtc-btn-backspace" onclick="WebRTCPhone.backspace()" title="Backspace">';
+		html += '<button class="web-phone2-btn web-phone2-btn-backspace" onclick="WebPhone2.backspace()" title="Backspace">';
 		html += '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 4H8l-7 8 7 8h13a2 2 0 002-2V6a2 2 0 00-2-2z"/><line x1="18" y1="9" x2="12" y2="15"/><line x1="12" y1="9" x2="18" y2="15"/></svg>';
 		html += '</button>';
 		html += '</div>';
@@ -789,11 +791,11 @@ var WebRTCPhone = (function () {
 	}
 
 	function renderInCallDTMF() {
-		var html = '<div class="webrtc-incall-dtmf">';
-		html += '<div class="webrtc-dialpad-grid webrtc-dialpad-sm">';
+		var html = '<div class="web-phone2-incall-dtmf">';
+		html += '<div class="web-phone2-dialpad-grid web-phone2-dialpad-sm">';
 		var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'];
 		for (var i = 0; i < keys.length; i++) {
-			html += '<button class="webrtc-key webrtc-key-sm" onclick="WebRTCPhone.dtmf(\'' + keys[i] + '\')">' + keys[i] + '</button>';
+			html += '<button class="web-phone2-key web-phone2-key-sm" onclick="WebPhone2.dtmf(\'' + keys[i] + '\')">' + keys[i] + '</button>';
 		}
 		html += '</div>';
 		html += '</div>';
@@ -802,13 +804,13 @@ var WebRTCPhone = (function () {
 
 	function renderError(message) {
 		if (!state.mountEl) return;
-		var html = '<div class="webrtc-phone-inner">';
-		html += '<div class="webrtc-phone-header">';
-		html += '<span class="webrtc-phone-title">WebRTC Phone</span>';
-		html += '<button class="webrtc-close-btn" onclick="WebRTCPhone.toggle()" title="Close">&times;</button>';
+		var html = '<div class="web-phone2-inner">';
+		html += '<div class="web-phone2-header">';
+		html += '<span class="web-phone2-title">Web Phone 2</span>';
+		html += '<button class="web-phone2-close-btn" onclick="WebPhone2.toggle()" title="Close">&times;</button>';
 		html += '</div>';
-		html += '<div class="webrtc-phone-body">';
-		html += '<div class="webrtc-error">' + escapeHtml(message) + '</div>';
+		html += '<div class="web-phone2-body">';
+		html += '<div class="web-phone2-error">' + escapeHtml(message) + '</div>';
 		html += '</div>';
 		html += '</div>';
 		state.mountEl.innerHTML = html;
@@ -830,12 +832,12 @@ var WebRTCPhone = (function () {
 	}
 
 	function updateStatus(status) {
-		var el = document.getElementById('webrtc-status');
+		var el = document.getElementById('web-phone2-status');
 		if (!el) {
 			renderPhone();
 			return;
 		}
-		el.className = 'webrtc-status webrtc-status-' + status;
+		el.className = 'web-phone2-status web-phone2-status-' + status;
 		switch (status) {
 			case 'registered':
 				el.textContent = 'Registered';
@@ -855,7 +857,7 @@ var WebRTCPhone = (function () {
 	// --- FAB Badge ---
 
 	function showFABBadge(text) {
-		var badge = document.getElementById('webrtc-phone-fab-badge');
+		var badge = document.getElementById('web-phone2-fab-badge');
 		if (badge) {
 			badge.textContent = text;
 			badge.classList.remove('hidden');
@@ -863,7 +865,7 @@ var WebRTCPhone = (function () {
 	}
 
 	function hideFABBadge() {
-		var badge = document.getElementById('webrtc-phone-fab-badge');
+		var badge = document.getElementById('web-phone2-fab-badge');
 		if (badge) {
 			badge.classList.add('hidden');
 		}
@@ -872,7 +874,7 @@ var WebRTCPhone = (function () {
 	// --- Panel Toggle ---
 
 	function toggle() {
-		var panel = document.getElementById('webrtc-phone-panel');
+		var panel = document.getElementById('web-phone2-panel');
 		if (panel) {
 			state.visible = !state.visible;
 			if (state.visible) {
@@ -884,7 +886,7 @@ var WebRTCPhone = (function () {
 	}
 
 	function showPanel() {
-		var panel = document.getElementById('webrtc-phone-panel');
+		var panel = document.getElementById('web-phone2-panel');
 		if (panel) {
 			state.visible = true;
 			panel.classList.remove('hidden');
@@ -895,7 +897,7 @@ var WebRTCPhone = (function () {
 
 	function pressKey(key) {
 		state.dialInput += key;
-		var dialEl = document.getElementById('webrtc-dial-input');
+		var dialEl = document.getElementById('web-phone2-dial-input');
 		if (dialEl) {
 			dialEl.value = state.dialInput;
 			dialEl.focus();
@@ -905,7 +907,7 @@ var WebRTCPhone = (function () {
 	function backspace() {
 		if (state.dialInput.length > 0) {
 			state.dialInput = state.dialInput.slice(0, -1);
-			var dialEl = document.getElementById('webrtc-dial-input');
+			var dialEl = document.getElementById('web-phone2-dial-input');
 			if (dialEl) {
 				dialEl.value = state.dialInput;
 			}
@@ -918,14 +920,14 @@ var WebRTCPhone = (function () {
 
 	function clearDial() {
 		state.dialInput = '';
-		var dialEl = document.getElementById('webrtc-dial-input');
+		var dialEl = document.getElementById('web-phone2-dial-input');
 		if (dialEl) {
 			dialEl.value = '';
 		}
 	}
 
 	function call() {
-		var dialEl = document.getElementById('webrtc-dial-input');
+		var dialEl = document.getElementById('web-phone2-dial-input');
 		if (dialEl) {
 			state.dialInput = dialEl.value.trim();
 		}
@@ -948,7 +950,7 @@ var WebRTCPhone = (function () {
 	}
 
 	function transfer() {
-		var input = document.getElementById('webrtc-transfer-input');
+		var input = document.getElementById('web-phone2-transfer-input');
 		if (input && input.value.trim()) {
 			transferCall(input.value.trim());
 		}
