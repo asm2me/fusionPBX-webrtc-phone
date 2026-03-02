@@ -564,10 +564,7 @@ var WebRTCPhone = (function () {
 				});
 				pc.addEventListener('iceconnectionstatechange', function () {
 					console.log('WebRTC Phone: ICE connection state:', pc.iceConnectionState);
-				});
-				pc.addEventListener('connectionstatechange', function () {
-					console.log('WebRTC Phone: Peer connection state:', pc.connectionState);
-					if (pc.connectionState === 'failed') {
+					if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
 						pc.getStats().then(function (stats) {
 							stats.forEach(function (r) {
 								if (r.type === 'candidate-pair') console.log('WebRTC Phone: ICE pair state:', r.state, 'nominated:', r.nominated, 'bytesSent:', r.bytesSent, 'bytesReceived:', r.bytesReceived);
@@ -576,6 +573,10 @@ var WebRTCPhone = (function () {
 							});
 						}).catch(function () {});
 					}
+				});
+				pc.addEventListener('connectionstatechange', function () {
+					console.log('WebRTC Phone: Peer connection state:', pc.connectionState);
+					if (pc.connectionState === 'connected' && state.callState === 'in_call' && !state.callTimer) startCallTimer();
 				});
 				pc.ontrack = function (event) {
 					console.log('WebRTC Phone: ontrack fired', event.track && event.track.kind, 'streams:', event.streams && event.streams.length);
@@ -594,14 +595,13 @@ var WebRTCPhone = (function () {
 					console.log('WebRTC Phone: remote SDP (answer):\n' + data.response.body);
 				}
 				if (state.currentCallRecord) state.currentCallRecord.status = 'answered';
-				state.callState = 'in_call'; stopRingtone(); hideFABBadge(); startCallTimer(); renderPhone();
+				state.callState = 'in_call'; stopRingtone(); hideFABBadge(); renderPhone();
 			},
 			'confirmed': function (data) {
 				console.log('WebRTC Phone: call confirmed', data);
 				if (state.currentCallRecord) state.currentCallRecord.status = 'answered';
 				state.callState = 'in_call'; stopRingtone(); hideFABBadge();
 				if (state.currentSession && !state.remoteAudio.srcObject) attachRemoteAudio(state.currentSession);
-				if (!state.callTimer) startCallTimer();
 				renderPhone();
 			},
 			'ended': function (data) { console.log('WebRTC Phone: call ended', data.cause); endCall(); },
@@ -726,12 +726,11 @@ var WebRTCPhone = (function () {
 	function setupSessionListeners(session) {
 		session.on('accepted', function () {
 			if (state.currentCallRecord) state.currentCallRecord.status = 'answered';
-			state.callState = 'in_call'; stopRingtone(); hideFABBadge(); startCallTimer(); renderPhone();
+			state.callState = 'in_call'; stopRingtone(); hideFABBadge(); renderPhone();
 		});
 		session.on('confirmed', function () {
 			if (state.currentCallRecord) state.currentCallRecord.status = 'answered';
 			state.callState = 'in_call'; stopRingtone(); hideFABBadge(); if (!state.remoteAudio.srcObject) attachRemoteAudio(session);
-			if (!state.callTimer) startCallTimer();
 			renderPhone();
 		});
 		session.on('ended', function () { endCall(); });
@@ -756,10 +755,7 @@ var WebRTCPhone = (function () {
 			});
 			pc.addEventListener('iceconnectionstatechange', function () {
 				console.log('WebRTC Phone: ICE connection state:', pc.iceConnectionState);
-			});
-			pc.addEventListener('connectionstatechange', function () {
-				console.log('WebRTC Phone: Peer connection state:', pc.connectionState);
-				if (pc.connectionState === 'failed') {
+				if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
 					pc.getStats().then(function (stats) {
 						stats.forEach(function (r) {
 							if (r.type === 'candidate-pair') console.log('WebRTC Phone: ICE pair state:', r.state, 'nominated:', r.nominated, 'bytesSent:', r.bytesSent, 'bytesReceived:', r.bytesReceived);
@@ -768,6 +764,10 @@ var WebRTCPhone = (function () {
 						});
 					}).catch(function () {});
 				}
+			});
+			pc.addEventListener('connectionstatechange', function () {
+				console.log('WebRTC Phone: Peer connection state:', pc.connectionState);
+				if (pc.connectionState === 'connected' && state.callState === 'in_call' && !state.callTimer) startCallTimer();
 			});
 			pc.ontrack = function (event) {
 				console.log('WebRTC Phone: ontrack fired', event.track && event.track.kind, 'streams:', event.streams && event.streams.length);
