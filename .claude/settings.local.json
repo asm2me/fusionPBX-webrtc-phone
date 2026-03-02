@@ -4,7 +4,8 @@
       "Bash(curl:*)",
       "Bash(node fix_ice2.js)",
       "Bash(node fix_diag.js)",
-      "Bash(node fix_confirmed.js)"
+      "Bash(node fix_confirmed.js)",
+      "Bash(node fix_ice_diag.js)"
     ]
   }
 }

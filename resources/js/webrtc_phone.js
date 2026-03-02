@@ -567,6 +567,15 @@ var WebRTCPhone = (function () {
 				});
 				pc.addEventListener('connectionstatechange', function () {
 					console.log('WebRTC Phone: Peer connection state:', pc.connectionState);
+					if (pc.connectionState === 'failed') {
+						pc.getStats().then(function (stats) {
+							stats.forEach(function (r) {
+								if (r.type === 'candidate-pair') console.log('WebRTC Phone: ICE pair state:', r.state, 'nominated:', r.nominated, 'bytesSent:', r.bytesSent, 'bytesReceived:', r.bytesReceived);
+								if (r.type === 'local-candidate') console.log('WebRTC Phone: local candidate:', r.candidateType, r.ip || r.address, r.port, r.protocol);
+								if (r.type === 'remote-candidate') console.log('WebRTC Phone: remote candidate:', r.candidateType, r.ip || r.address, r.port, r.protocol);
+							});
+						}).catch(function () {});
+					}
 				});
 				pc.ontrack = function (event) {
 					console.log('WebRTC Phone: ontrack fired', event.track && event.track.kind, 'streams:', event.streams && event.streams.length);
@@ -581,6 +590,9 @@ var WebRTCPhone = (function () {
 			},
 			'accepted': function (data) {
 				console.log('WebRTC Phone: call accepted', data);
+				if (data && data.response && data.response.body) {
+					console.log('WebRTC Phone: remote SDP (answer):\n' + data.response.body);
+				}
 				if (state.currentCallRecord) state.currentCallRecord.status = 'answered';
 				state.callState = 'in_call'; stopRingtone(); hideFABBadge(); startCallTimer(); renderPhone();
 			},
@@ -747,6 +759,15 @@ var WebRTCPhone = (function () {
 			});
 			pc.addEventListener('connectionstatechange', function () {
 				console.log('WebRTC Phone: Peer connection state:', pc.connectionState);
+				if (pc.connectionState === 'failed') {
+					pc.getStats().then(function (stats) {
+						stats.forEach(function (r) {
+							if (r.type === 'candidate-pair') console.log('WebRTC Phone: ICE pair state:', r.state, 'nominated:', r.nominated, 'bytesSent:', r.bytesSent, 'bytesReceived:', r.bytesReceived);
+							if (r.type === 'local-candidate') console.log('WebRTC Phone: local candidate:', r.candidateType, r.ip || r.address, r.port, r.protocol);
+							if (r.type === 'remote-candidate') console.log('WebRTC Phone: remote candidate:', r.candidateType, r.ip || r.address, r.port, r.protocol);
+						});
+					}).catch(function () {});
+				}
 			});
 			pc.ontrack = function (event) {
 				console.log('WebRTC Phone: ontrack fired', event.track && event.track.kind, 'streams:', event.streams && event.streams.length);
