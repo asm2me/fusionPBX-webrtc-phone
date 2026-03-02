@@ -530,10 +530,7 @@ var WebRTCPhone = (function () {
 	// --- Call Handling ---
 
 	function getICEServers() {
-		var servers = [
-			{ urls: 'stun:stun.l.google.com:19302' },
-			{ urls: 'stun:stun1.l.google.com:19302' }
-		];
+		var servers = [];
 		if (state.config && state.config.stun_server) {
 			servers.push({ urls: state.config.stun_server });
 		}
@@ -549,7 +546,22 @@ var WebRTCPhone = (function () {
 
 		var eventHandlers = {
 			'peerconnection': function (data) {
-				data.peerconnection.ontrack = function (event) {
+				var pc = data.peerconnection;
+				var iceCompleted = false;
+				var srflxTimer = null;
+				var absoluteTimer = setTimeout(function () {
+					if (!iceCompleted) { iceCompleted = true; clearTimeout(srflxTimer); pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); }
+				}, 3000);
+				pc.addEventListener('icecandidate', function (e) {
+					if (!e.candidate) { iceCompleted = true; clearTimeout(srflxTimer); clearTimeout(absoluteTimer); return; }
+					if (e.candidate.type === 'srflx' && !iceCompleted) {
+						clearTimeout(srflxTimer);
+						srflxTimer = setTimeout(function () {
+							if (!iceCompleted) { iceCompleted = true; clearTimeout(absoluteTimer); pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); }
+						}, 500);
+					}
+				});
+				pc.ontrack = function (event) {
 					if (event.streams && event.streams[0]) {
 						state.remoteAudio.srcObject = event.streams[0];
 					} else if (event.track) {
@@ -706,7 +718,22 @@ var WebRTCPhone = (function () {
 		session.on('failed', function (e) { console.log('WebRTC Phone: Call failed/ended', e.cause); endCall(); });
 		session.on('getusermediafailed', function (e) { console.error('WebRTC Phone: Microphone access failed', e); endCall(); });
 		session.on('peerconnection', function (data) {
-			data.peerconnection.ontrack = function (event) {
+			var pc = data.peerconnection;
+			var iceCompleted = false;
+			var srflxTimer = null;
+			var absoluteTimer = setTimeout(function () {
+				if (!iceCompleted) { iceCompleted = true; clearTimeout(srflxTimer); pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); }
+			}, 3000);
+			pc.addEventListener('icecandidate', function (e) {
+				if (!e.candidate) { iceCompleted = true; clearTimeout(srflxTimer); clearTimeout(absoluteTimer); return; }
+				if (e.candidate.type === 'srflx' && !iceCompleted) {
+					clearTimeout(srflxTimer);
+					srflxTimer = setTimeout(function () {
+						if (!iceCompleted) { iceCompleted = true; clearTimeout(absoluteTimer); pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); }
+					}, 500);
+				}
+			});
+			pc.ontrack = function (event) {
 				if (event.streams && event.streams[0]) {
 					state.remoteAudio.srcObject = event.streams[0];
 				} else if (event.track) {
