@@ -588,7 +588,7 @@ var WebRTCPhone = (function () {
 				console.log('WebRTC Phone: call confirmed', data);
 				if (state.currentCallRecord) state.currentCallRecord.status = 'answered';
 				state.callState = 'in_call'; stopRingtone(); hideFABBadge();
-				if (state.currentSession) attachRemoteAudio(state.currentSession);
+				if (state.currentSession && !state.remoteAudio.srcObject) attachRemoteAudio(state.currentSession);
 				if (!state.callTimer) startCallTimer();
 				renderPhone();
 			},
@@ -718,7 +718,7 @@ var WebRTCPhone = (function () {
 		});
 		session.on('confirmed', function () {
 			if (state.currentCallRecord) state.currentCallRecord.status = 'answered';
-			state.callState = 'in_call'; stopRingtone(); hideFABBadge(); attachRemoteAudio(session);
+			state.callState = 'in_call'; stopRingtone(); hideFABBadge(); if (!state.remoteAudio.srcObject) attachRemoteAudio(session);
 			if (!state.callTimer) startCallTimer();
 			renderPhone();
 		});
