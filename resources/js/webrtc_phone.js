@@ -549,8 +549,11 @@ var WebRTCPhone = (function () {
 				data.peerconnection.ontrack = function (event) {
 					if (event.streams && event.streams[0]) {
 						state.remoteAudio.srcObject = event.streams[0];
-						state.remoteAudio.play().catch(function () {});
+					} else if (event.track) {
+						if (!state.remoteAudio.srcObject) state.remoteAudio.srcObject = new MediaStream();
+						state.remoteAudio.srcObject.addTrack(event.track);
 					}
+					state.remoteAudio.play().catch(function () {});
 				};
 			},
 			'accepted': function (data) {
@@ -561,7 +564,10 @@ var WebRTCPhone = (function () {
 			'confirmed': function (data) {
 				console.log('WebRTC Phone: call confirmed', data);
 				if (state.currentCallRecord) state.currentCallRecord.status = 'answered';
-				state.callState = 'in_call'; stopRingtone(); hideFABBadge(); renderPhone();
+				state.callState = 'in_call'; stopRingtone(); hideFABBadge();
+				if (state.currentSession) attachRemoteAudio(state.currentSession);
+				if (!state.callTimer) startCallTimer();
+				renderPhone();
 			},
 			'ended': function (data) { console.log('WebRTC Phone: call ended', data.cause); endCall(); },
 			'failed': function (data) {
@@ -700,8 +706,11 @@ var WebRTCPhone = (function () {
 			data.peerconnection.ontrack = function (event) {
 				if (event.streams && event.streams[0]) {
 					state.remoteAudio.srcObject = event.streams[0];
-					state.remoteAudio.play().catch(function () {});
+				} else if (event.track) {
+					if (!state.remoteAudio.srcObject) state.remoteAudio.srcObject = new MediaStream();
+					state.remoteAudio.srcObject.addTrack(event.track);
 				}
+				state.remoteAudio.play().catch(function () {});
 			};
 		});
 	}
