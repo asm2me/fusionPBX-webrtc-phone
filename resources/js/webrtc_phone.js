@@ -339,7 +339,7 @@ var WebRTCPhone = (function () {
 	function getMicConstraints() {
 		var micId = state.audioSettings.micDeviceId;
 		if (micId && micId !== 'default') {
-			return { audio: { deviceId: { exact: micId } }, video: false };
+			return { audio: { deviceId: { ideal: micId } }, video: false };
 		}
 		return { audio: true, video: false };
 	}
