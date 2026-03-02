@@ -562,14 +562,21 @@ var WebRTCPhone = (function () {
 						}, 500);
 					}
 				});
+				pc.addEventListener('iceconnectionstatechange', function () {
+					console.log('WebRTC Phone: ICE connection state:', pc.iceConnectionState);
+				});
+				pc.addEventListener('connectionstatechange', function () {
+					console.log('WebRTC Phone: Peer connection state:', pc.connectionState);
+				});
 				pc.ontrack = function (event) {
+					console.log('WebRTC Phone: ontrack fired', event.track && event.track.kind, 'streams:', event.streams && event.streams.length);
 					if (event.streams && event.streams[0]) {
 						state.remoteAudio.srcObject = event.streams[0];
 					} else if (event.track) {
 						if (!state.remoteAudio.srcObject) state.remoteAudio.srcObject = new MediaStream();
 						state.remoteAudio.srcObject.addTrack(event.track);
 					}
-					state.remoteAudio.play().catch(function () {});
+					state.remoteAudio.play().catch(function (e) { console.warn('WebRTC Phone: audio play failed', e); });
 				};
 			},
 			'accepted': function (data) {
@@ -735,14 +742,21 @@ var WebRTCPhone = (function () {
 					}, 500);
 				}
 			});
+			pc.addEventListener('iceconnectionstatechange', function () {
+				console.log('WebRTC Phone: ICE connection state:', pc.iceConnectionState);
+			});
+			pc.addEventListener('connectionstatechange', function () {
+				console.log('WebRTC Phone: Peer connection state:', pc.connectionState);
+			});
 			pc.ontrack = function (event) {
+				console.log('WebRTC Phone: ontrack fired', event.track && event.track.kind, 'streams:', event.streams && event.streams.length);
 				if (event.streams && event.streams[0]) {
 					state.remoteAudio.srcObject = event.streams[0];
 				} else if (event.track) {
 					if (!state.remoteAudio.srcObject) state.remoteAudio.srcObject = new MediaStream();
 					state.remoteAudio.srcObject.addTrack(event.track);
 				}
-				state.remoteAudio.play().catch(function () {});
+				state.remoteAudio.play().catch(function (e) { console.warn('WebRTC Phone: audio play failed', e); });
 			};
 		});
 	}

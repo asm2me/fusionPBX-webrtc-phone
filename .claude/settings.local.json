@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(curl:*)",
-      "Bash(node fix_ice2.js)"
+      "Bash(node fix_ice2.js)",
+      "Bash(node fix_diag.js)"
     ]
   }
 }
