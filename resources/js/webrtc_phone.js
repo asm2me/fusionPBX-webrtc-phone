@@ -530,7 +530,10 @@ var WebRTCPhone = (function () {
 	// --- Call Handling ---
 
 	function getICEServers() {
-		var servers = [];
+		var servers = [
+			{ urls: 'stun:stun.l.google.com:19302' },
+			{ urls: 'stun:stun1.l.google.com:19302' }
+		];
 		if (state.config && state.config.stun_server) {
 			servers.push({ urls: state.config.stun_server });
 		}
