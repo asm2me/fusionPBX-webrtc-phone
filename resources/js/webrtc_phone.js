@@ -551,13 +551,14 @@ var WebRTCPhone = (function () {
 				var srflxTimer = null;
 				var absoluteTimer = setTimeout(function () {
 					if (!iceCompleted) { iceCompleted = true; clearTimeout(srflxTimer); pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); }
-				}, 3000);
+				}, 10000);
 				pc.addEventListener('icecandidate', function (e) {
 					if (!e.candidate) { iceCompleted = true; clearTimeout(srflxTimer); clearTimeout(absoluteTimer); return; }
 					if (e.candidate.type === 'srflx' && !iceCompleted) {
 						clearTimeout(srflxTimer);
+						clearTimeout(absoluteTimer);
 						srflxTimer = setTimeout(function () {
-							if (!iceCompleted) { iceCompleted = true; clearTimeout(absoluteTimer); pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); }
+							if (!iceCompleted) { iceCompleted = true; pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); }
 						}, 500);
 					}
 				});
@@ -723,13 +724,14 @@ var WebRTCPhone = (function () {
 			var srflxTimer = null;
 			var absoluteTimer = setTimeout(function () {
 				if (!iceCompleted) { iceCompleted = true; clearTimeout(srflxTimer); pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); }
-			}, 3000);
+			}, 10000);
 			pc.addEventListener('icecandidate', function (e) {
 				if (!e.candidate) { iceCompleted = true; clearTimeout(srflxTimer); clearTimeout(absoluteTimer); return; }
 				if (e.candidate.type === 'srflx' && !iceCompleted) {
 					clearTimeout(srflxTimer);
+					clearTimeout(absoluteTimer);
 					srflxTimer = setTimeout(function () {
-						if (!iceCompleted) { iceCompleted = true; clearTimeout(absoluteTimer); pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); }
+						if (!iceCompleted) { iceCompleted = true; pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); }
 					}, 500);
 				}
 			});
