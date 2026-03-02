@@ -507,7 +507,10 @@ var WebRTCPhone = (function () {
 				console.log('WebRTC Phone: newRTCSession', data.originator, data.request ? data.request.method : '');
 				if (data.originator === 'remote') handleIncomingCall(data.session);
 			});
-			state.ua.on('disconnected', function () { state.registered = false; renderPhone(); });
+			state.ua.on('disconnected', function () {
+				state.registered = false;
+				if (state.currentSession) { endCall(); } else { renderPhone(); }
+			});
 			state.ua.start();
 		} catch (e) {
 			console.error('WebRTC Phone: SIP registration error', e);
@@ -619,6 +622,8 @@ var WebRTCPhone = (function () {
 	function answerCall() {
 		if (!state.currentSession || state.callState !== 'ringing_in') return;
 		stopRingtone(); hideFABBadge(); closeIncomingNotification();
+		state.callState = 'in_call';
+		renderPhone();
 		var options = { mediaConstraints: getMicConstraints(), pcConfig: { iceServers: getICEServers() } };
 		try {
 			state.currentSession.answer(options);
@@ -646,8 +651,10 @@ var WebRTCPhone = (function () {
 	function toggleMute() {
 		if (!state.currentSession || state.callState !== 'in_call') return;
 		state.muted = !state.muted;
-		if (state.muted) { state.currentSession.mute({ audio: true }); }
-		else { state.currentSession.unmute({ audio: true }); }
+		try {
+			if (state.muted) { state.currentSession.mute({ audio: true }); }
+			else { state.currentSession.unmute({ audio: true }); }
+		} catch (e) { state.muted = !state.muted; }
 		renderPhone();
 	}
 
@@ -682,10 +689,13 @@ var WebRTCPhone = (function () {
 		});
 		session.on('confirmed', function () {
 			if (state.currentCallRecord) state.currentCallRecord.status = 'answered';
-			state.callState = 'in_call'; stopRingtone(); hideFABBadge(); attachRemoteAudio(session); renderPhone();
+			state.callState = 'in_call'; stopRingtone(); hideFABBadge(); attachRemoteAudio(session);
+			if (!state.callTimer) startCallTimer();
+			renderPhone();
 		});
 		session.on('ended', function () { endCall(); });
 		session.on('failed', function (e) { console.log('WebRTC Phone: Call failed/ended', e.cause); endCall(); });
+		session.on('getusermediafailed', function (e) { console.error('WebRTC Phone: Microphone access failed', e); endCall(); });
 		session.on('peerconnection', function (data) {
 			data.peerconnection.ontrack = function (event) {
 				if (event.streams && event.streams[0]) {
