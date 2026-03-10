@@ -3216,38 +3216,51 @@ var WebRTCPhone = (function () {
 
 		h.push('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Network Quality Report</title>');
 		h.push('<style>');
-		h.push('body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;max-width:700px;margin:30px auto;padding:20px;color:#333;font-size:14px;}');
-		h.push('h1{font-size:20px;border-bottom:2px solid #1976d2;padding-bottom:8px;color:#1976d2;}');
-		h.push('h2{font-size:16px;margin-top:20px;color:#555;border-bottom:1px solid #ddd;padding-bottom:4px;}');
-		h.push('.info{color:#666;margin-bottom:16px;}');
-		h.push('.test-row{display:flex;align-items:center;padding:6px 0;border-bottom:1px solid #f0f0f0;}');
-		h.push('.icon{width:24px;text-align:center;font-size:16px;margin-right:8px;}');
+		h.push('*{box-sizing:border-box;margin:0;padding:0;}');
+		h.push('body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;max-width:1100px;margin:0 auto;padding:16px 24px;color:#333;font-size:13px;line-height:1.4;}');
+		h.push('h1{font-size:17px;border-bottom:2px solid #1976d2;padding-bottom:6px;color:#1976d2;margin-bottom:8px;}');
+		h.push('h2{font-size:13px;margin:10px 0 4px;color:#555;border-bottom:1px solid #ddd;padding-bottom:2px;text-transform:uppercase;letter-spacing:0.5px;}');
+		h.push('.header-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;}');
+		h.push('.info{color:#666;font-size:12px;}');
+		h.push('.cols{display:flex;gap:20px;} .col{flex:1;min-width:0;}');
+		h.push('.test-row{display:flex;align-items:center;padding:3px 0;border-bottom:1px solid #f5f5f5;}');
+		h.push('.icon{width:18px;text-align:center;font-size:13px;margin-right:6px;flex-shrink:0;}');
 		h.push('.pass .icon{color:#4caf50;} .fail .icon{color:#f44336;} .warn .icon{color:#ff9800;}');
-		h.push('.label{flex:1;font-weight:500;} .value{color:#666;text-align:right;}');
-		h.push('.details{padding:4px 0 4px 32px;color:#666;font-size:13px;}');
-		h.push('.issues{padding:4px 0 4px 32px;} .issues span{display:inline-block;background:#fff3e0;color:#e65100;padding:2px 6px;border-radius:3px;font-size:12px;margin:2px;}');
-		h.push('.diagnosis{background:#f5f5f5;border-radius:8px;padding:12px;margin-top:16px;}');
-		h.push('.diag-source{font-size:16px;font-weight:600;margin-bottom:8px;}');
+		h.push('.label{flex:1;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;} .value{color:#666;text-align:right;white-space:nowrap;margin-left:8px;}');
+		h.push('.details{padding:2px 0 2px 24px;color:#888;font-size:11px;}');
+		h.push('.issues{padding:2px 0 2px 24px;} .issues span{display:inline-block;background:#fff3e0;color:#e65100;padding:1px 5px;border-radius:3px;font-size:11px;margin:1px;}');
+		h.push('.diagnosis{background:#f5f5f5;border-radius:6px;padding:10px;margin-top:8px;}');
+		h.push('.diag-source{font-size:14px;font-weight:600;margin-bottom:4px;}');
 		h.push('.diag-pass .diag-source{color:#4caf50;} .diag-warn .diag-source{color:#ff9800;} .diag-fail .diag-source{color:#f44336;}');
-		h.push('.diag-list{margin:8px 0;} .diag-item{padding:3px 0;font-size:13px;}');
-		h.push('.bar-chart{display:flex;align-items:flex-end;gap:3px;height:40px;margin:8px 0 8px 32px;}');
-		h.push('.bar{flex:1;border-radius:2px 2px 0 0;min-width:4px;} .bar-ok{background:#4caf50;} .bar-spike{background:#ff9800;} .bar-fail{background:#f44336;opacity:0.4;}');
-		h.push('.footer{margin-top:24px;padding-top:12px;border-top:1px solid #ddd;color:#999;font-size:12px;text-align:center;}');
-		h.push('@media print{body{margin:0;padding:10px;}}');
+		h.push('.diag-list{margin:4px 0;} .diag-item{padding:1px 0;font-size:12px;}');
+		h.push('.bar-chart{display:flex;align-items:flex-end;gap:2px;height:32px;margin:4px 0;}');
+		h.push('.bar{flex:1;border-radius:2px 2px 0 0;min-width:3px;} .bar-ok{background:#4caf50;} .bar-spike{background:#ff9800;} .bar-fail{background:#f44336;opacity:0.4;}');
+		// Hop table for traceroute nodes
+		h.push('.hop-table{width:100%;border-collapse:collapse;margin:4px 0;font-size:11px;}');
+		h.push('.hop-table th{background:#f5f5f5;padding:2px 6px;text-align:left;font-weight:600;border-bottom:1px solid #ddd;}');
+		h.push('.hop-table td{padding:2px 6px;border-bottom:1px solid #f0f0f0;}');
+		h.push('.hop-ok{color:#4caf50;} .hop-spike{color:#ff9800;} .hop-fail{color:#f44336;}');
+		h.push('.footer{margin-top:12px;padding-top:8px;border-top:1px solid #ddd;color:#999;font-size:11px;text-align:center;}');
+		h.push('@media print{body{margin:0;padding:8px;max-width:100%;} @page{size:landscape;margin:10mm;}}');
 		h.push('</style></head><body>');
 
+		// Header with info
+		h.push('<div class="header-row"><div>');
 		h.push('<h1>WebRTC Phone Network Quality Report</h1>');
-		h.push('<div class="info">');
-		h.push('<strong>Date:</strong> ' + new Date().toLocaleString() + '<br>');
-		h.push('<strong>Domain:</strong> ' + escapeHtml(state.config ? state.config.domain : 'N/A') + '<br>');
-		h.push('<strong>Extension:</strong> ' + escapeHtml(ext.extension || 'N/A') + (ext.caller_id_name ? ' (' + escapeHtml(ext.caller_id_name) + ')' : ''));
-		h.push('</div>');
+		h.push('</div><div class="info" style="text-align:right;">');
+		h.push(new Date().toLocaleString() + '<br>');
+		h.push('<strong>' + escapeHtml(state.config ? state.config.domain : 'N/A') + '</strong> | Ext: ' + escapeHtml(ext.extension || 'N/A') + (ext.caller_id_name ? ' (' + escapeHtml(ext.caller_id_name) + ')' : ''));
+		h.push('</div></div>');
 
 		function row(cls, icon, label, value) {
 			return '<div class="test-row ' + cls + '"><span class="icon">' + icon + '</span><span class="label">' + label + '</span><span class="value">' + value + '</span></div>';
 		}
 
-		h.push('<h2>Connectivity Tests</h2>');
+		// Two-column layout
+		h.push('<div class="cols"><div class="col">');
+
+		// Left column: Connectivity + Echo + Bandwidth + Audio
+		h.push('<h2>Connectivity</h2>');
 		if (r.wss !== null) h.push(row(r.wss.ok ? 'pass' : 'fail', r.wss.ok ? '&#10003;' : '&#10007;', 'WSS Server', r.wss.ok ? r.wss.time + 'ms' : escapeHtml(r.wss.error)));
 		if (r.stun !== null) h.push(row(r.stun.ok ? 'pass' : 'fail', r.stun.ok ? '&#10003;' : '&#10007;', 'STUN Server', r.stun.ok ? r.stun.time + 'ms' + (r.stun.ip ? ' (' + escapeHtml(r.stun.ip) + ')' : '') : escapeHtml(r.stun.error)));
 		if (r.latency !== null) {
@@ -3263,22 +3276,22 @@ var WebRTCPhone = (function () {
 			if (r.demoCall.error) {
 				h.push(row('fail', '&#10007;', 'Echo Test', escapeHtml(r.demoCall.error)));
 			} else {
-				h.push(row(r.demoCall.ok ? 'pass' : 'fail', r.demoCall.ok ? '&#10003;' : '&#10007;', 'Echo Test', r.demoCall.ok ? r.demoCall.rating + ' (MOS ' + r.demoCall.mos.toFixed(1) + ')' : 'Failed'));
+				h.push(row(r.demoCall.ok ? 'pass' : 'fail', r.demoCall.ok ? '&#10003;' : '&#10007;', 'Result', r.demoCall.ok ? r.demoCall.rating + ' (MOS ' + r.demoCall.mos.toFixed(1) + ')' : 'Failed'));
 				if (r.demoCall.ok || r.demoCall.packetsReceived > 0) {
-					h.push('<div class="details">Recv: ' + r.demoCall.packetsReceived + ' pkts | Sent: ' + (r.demoCall.packetsSent || 0) + ' pkts | Loss: ' + r.demoCall.packetLoss + '% | Jitter: ' + r.demoCall.jitter + 'ms | RTT: ' + r.demoCall.rtt + 'ms</div>');
+					h.push('<div class="details">Recv:' + r.demoCall.packetsReceived + ' Sent:' + (r.demoCall.packetsSent || 0) + ' Loss:' + r.demoCall.packetLoss + '% Jitter:' + r.demoCall.jitter + 'ms RTT:' + r.demoCall.rtt + 'ms</div>');
 				}
 				// Bandwidth
-				h.push('<h2>Bandwidth (UDP via RTP)</h2>');
+				h.push('<h2>Bandwidth (UDP/RTP)</h2>');
 				if (r.demoCall.bitrate > 0) h.push(row(r.demoCall.bitrate >= 40 ? 'pass' : (r.demoCall.bitrate >= 20 ? 'warn' : 'fail'), r.demoCall.bitrate >= 40 ? '&#10003;' : '&#9888;', 'Download', r.demoCall.bitrate + ' kbps'));
 				if (r.demoCall.bitrateOut > 0) h.push(row(r.demoCall.bitrateOut >= 40 ? 'pass' : (r.demoCall.bitrateOut >= 20 ? 'warn' : 'fail'), r.demoCall.bitrateOut >= 40 ? '&#10003;' : '&#9888;', 'Upload', r.demoCall.bitrateOut + ' kbps'));
 				if (r.demoCall.availableBandwidth > 0) h.push(row(r.demoCall.availableBandwidth >= 100 ? 'pass' : 'warn', r.demoCall.availableBandwidth >= 100 ? '&#10003;' : '&#9888;', 'Available', r.demoCall.availableBandwidth + ' kbps'));
-				// Audio Test
+				// Audio
 				if (r.demoCall.audioTest) {
 					var at = r.demoCall.audioTest;
-					h.push('<h2>Audio &amp; Microphone Test</h2>');
-					h.push(row(at.mic.ok ? 'pass' : 'fail', at.mic.ok ? '&#10003;' : '&#10007;', 'Microphone', at.mic.rating + ' (avg ' + at.mic.avg + '%, peak ' + at.mic.max + '%)'));
-					h.push(row(at.spk.ok ? 'pass' : 'fail', at.spk.ok ? '&#10003;' : '&#10007;', 'Echo Return', at.spk.rating + ' (avg ' + at.spk.avg + '%, peak ' + at.spk.max + '%)'));
-					h.push(row(at.echoDetected ? 'pass' : 'fail', at.echoDetected ? '&#10003;' : '&#10007;', 'Full Duplex', at.echoDetected ? 'Two-way audio confirmed' : 'Audio path incomplete'));
+					h.push('<h2>Audio / Mic</h2>');
+					h.push(row(at.mic.ok ? 'pass' : 'fail', at.mic.ok ? '&#10003;' : '&#10007;', 'Microphone', at.mic.rating + ' (' + at.mic.avg + '%/' + at.mic.max + '%)'));
+					h.push(row(at.spk.ok ? 'pass' : 'fail', at.spk.ok ? '&#10003;' : '&#10007;', 'Echo Return', at.spk.rating + ' (' + at.spk.avg + '%/' + at.spk.max + '%)'));
+					h.push(row(at.echoDetected ? 'pass' : 'fail', at.echoDetected ? '&#10003;' : '&#10007;', 'Full Duplex', at.echoDetected ? 'OK' : 'Incomplete'));
 				}
 				if (r.demoCall.issues && r.demoCall.issues.length > 0) {
 					h.push('<div class="issues">');
@@ -3298,7 +3311,10 @@ var WebRTCPhone = (function () {
 			}
 		}
 
-		// Path Trace
+		// End left column, start right column
+		h.push('</div><div class="col">');
+
+		// Right column: Path Trace + Diagnosis
 		if (r.pathTrace) {
 			h.push('<h2>Path Trace</h2>');
 			if (r.pathTrace.error) {
@@ -3306,7 +3322,7 @@ var WebRTCPhone = (function () {
 			} else {
 				var pt = r.pathTrace;
 				h.push(row(pt.stability >= 80 ? 'pass' : (pt.stability >= 50 ? 'warn' : 'fail'), pt.stability >= 80 ? '&#10003;' : '&#9888;', 'Stability', pt.stability + '% (' + (pt.stability >= 80 ? 'Stable' : 'Unstable') + ')'));
-				h.push('<div class="details">Avg: ' + pt.avg + 'ms | Min: ' + pt.min + 'ms | Max: ' + pt.max + 'ms | Jitter: ' + pt.jitter + 'ms</div>');
+				h.push('<div class="details">Avg:' + pt.avg + 'ms Min:' + pt.min + 'ms Max:' + pt.max + 'ms Jitter:' + pt.jitter + 'ms</div>');
 				// Bar chart
 				h.push('<div class="bar-chart">');
 				for (var pi = 0; pi < pt.samples.length; pi++) {
@@ -3316,12 +3332,42 @@ var WebRTCPhone = (function () {
 					h.push('<div class="bar ' + barCls + '" style="height:' + barH + '%"></div>');
 				}
 				h.push('</div>');
+				// Traceroute nodes table
+				var ptDomain = state.config ? state.config.domain : 'N/A';
+				var ptPublicIP = pt.iceInfo.publicIP || '';
+				var ptLocalIP = pt.iceInfo.localIP || '';
+				h.push('<table class="hop-table">');
+				h.push('<tr><th>Hop</th><th>Server</th><th>IP</th><th>Latency</th><th>Status</th></tr>');
+				for (var hi = 0; hi < pt.samples.length; hi++) {
+					var hs = pt.samples[hi];
+					var hCls = hs.time < 0 ? 'hop-fail' : (hs.time > pt.avg * 2 ? 'hop-spike' : 'hop-ok');
+					var hStatus = hs.time < 0 ? 'Failed' : (hs.time > pt.avg * 2 ? 'Spike' : 'OK');
+					h.push('<tr class="' + hCls + '">');
+					h.push('<td>' + hs.hop + '</td>');
+					h.push('<td>' + escapeHtml(ptDomain) + '</td>');
+					h.push('<td>' + (ptPublicIP || ptLocalIP || 'N/A') + '</td>');
+					h.push('<td>' + (hs.time > 0 ? hs.time + 'ms' : '---') + '</td>');
+					h.push('<td>' + hStatus + '</td>');
+					h.push('</tr>');
+				}
+				h.push('</table>');
 				h.push(row('pass', '&#128270;', 'NAT Type', escapeHtml(pt.natType)));
 				if (pt.iceInfo.localIP || pt.iceInfo.publicIP) {
-					var ips = [];
-					if (pt.iceInfo.localIP) ips.push('Local: ' + pt.iceInfo.localIP);
-					if (pt.iceInfo.publicIP) ips.push('Public: ' + pt.iceInfo.publicIP);
-					h.push('<div class="details">' + ips.join(' | ') + '</div>');
+					var ips2 = [];
+					if (pt.iceInfo.localIP) ips2.push('Local: ' + pt.iceInfo.localIP);
+					if (pt.iceInfo.publicIP) ips2.push('Public: ' + pt.iceInfo.publicIP);
+					h.push('<div class="details">' + ips2.join(' | ') + '</div>');
+				}
+				// ICE candidates detail
+				if (pt.iceInfo.candidates && pt.iceInfo.candidates.length > 0) {
+					h.push('<h2>ICE Candidates</h2>');
+					h.push('<table class="hop-table">');
+					h.push('<tr><th>Type</th><th>Protocol</th><th>Address</th><th>Port</th></tr>');
+					for (var ci = 0; ci < pt.iceInfo.candidates.length; ci++) {
+						var cand = pt.iceInfo.candidates[ci];
+						h.push('<tr><td>' + escapeHtml(cand.type) + '</td><td>' + escapeHtml(cand.protocol) + '</td><td>' + escapeHtml(cand.address || 'N/A') + '</td><td>' + (cand.port || '') + '</td></tr>');
+					}
+					h.push('</table>');
 				}
 				if (pt.issues && pt.issues.length > 0) {
 					h.push('<div class="issues">');
@@ -3350,6 +3396,9 @@ var WebRTCPhone = (function () {
 			}
 			h.push('</div>');
 		}
+
+		// End right column
+		h.push('</div></div>');
 
 		h.push('<div class="footer">Generated by FusionPBX WebRTC Phone</div>');
 		h.push('</body></html>');
@@ -3380,18 +3429,22 @@ var WebRTCPhone = (function () {
 		fetch('/app/webrtc_phone/webrtc_phone_report.php', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
+			credentials: 'same-origin',
 			body: JSON.stringify({
 				report: reportText,
 				report_html: reportHtml,
 				extension: ext.extension || ''
 			})
 		}).then(function (resp) {
+			if (!resp.ok) throw new Error('HTTP ' + resp.status);
 			return resp.json();
 		}).then(function (data) {
 			if (data.success) {
 				alert(t('reportSent'));
 			} else {
-				alert(t('reportFailed') + (data.message ? ': ' + data.message : ''));
+				var msg = data.message || 'Unknown error';
+				if (data.smtp_host) msg += '\nSMTP: ' + data.smtp_host;
+				alert(t('reportFailed') + ':\n' + msg);
 			}
 		}).catch(function (err) {
 			alert(t('reportFailed') + ': ' + err.message);

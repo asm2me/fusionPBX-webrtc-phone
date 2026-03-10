@@ -54,56 +54,132 @@ if ($extension) {
 	$subject .= " (Ext: " . $extension . ")";
 }
 
-//build email
-$boundary = md5(uniqid(time()));
-$headers = "From: " . ($user_email ? $user_email : "noreply@" . $domain_name) . "\r\n";
-$headers .= "Reply-To: " . ($user_email ? $user_email : "noreply@" . $domain_name) . "\r\n";
-$headers .= "MIME-Version: 1.0\r\n";
-$headers .= "Content-Type: multipart/alternative; boundary=\"" . $boundary . "\"\r\n";
-$headers .= "X-Mailer: FusionPBX-WebRTC-Phone\r\n";
+//html body
+$html_body = !empty($report_html) ? $report_html : "<html><body><pre>" . htmlspecialchars($report_text) . "</pre></body></html>";
 
-$body = "--" . $boundary . "\r\n";
-$body .= "Content-Type: text/plain; charset=UTF-8\r\n";
-$body .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
-$body .= $report_text . "\r\n\r\n";
-$body .= "--" . $boundary . "\r\n";
-$body .= "Content-Type: text/html; charset=UTF-8\r\n";
-$body .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
+//get SMTP settings from FusionPBX default settings
+$smtp_host = $_SESSION['email']['smtp_host']['text'] ?? '';
+$smtp_port = $_SESSION['email']['smtp_port']['numeric'] ?? '';
+$smtp_from = $_SESSION['email']['smtp_from']['text'] ?? '';
+$smtp_from_name = $_SESSION['email']['smtp_from_name']['text'] ?? '';
+$smtp_user = $_SESSION['email']['smtp_username']['text'] ?? ($_SESSION['email']['smtp_user']['text'] ?? '');
+$smtp_pass = $_SESSION['email']['smtp_password']['text'] ?? ($_SESSION['email']['smtp_pass']['text'] ?? '');
+$smtp_secure = $_SESSION['email']['smtp_secure']['text'] ?? 'tls';
+$smtp_auth = $_SESSION['email']['smtp_auth']['text'] ?? 'true';
 
-if (!empty($report_html)) {
-	$body .= $report_html . "\r\n";
-} else {
-	$body .= "<html><body><pre>" . htmlspecialchars($report_text) . "</pre></body></html>\r\n";
-}
-
-$body .= "--" . $boundary . "--\r\n";
-
-//try FusionPBX email class first, fall back to mail()
 $sent = false;
+$error_msg = '';
 
-//check if FusionPBX email class exists
-if (class_exists('email')) {
+// Method 1: Try FusionPBX email class
+if (!$sent && class_exists('email')) {
 	try {
-		$email = new email;
-		$email->recipients = $to;
-		$email->subject = $subject;
-		$email->body = !empty($report_html) ? $report_html : "<pre>" . htmlspecialchars($report_text) . "</pre>";
-		$email->from_address = $user_email ? $user_email : "noreply@" . $domain_name;
-		$email->from_name = $username . " (" . $domain_name . ")";
-		$sent = $email->send();
+		$email_obj = new email;
+		$email_obj->recipients = $to;
+		$email_obj->subject = $subject;
+		$email_obj->body = $html_body;
+		$email_obj->from_address = $smtp_from ?: ($user_email ?: "noreply@" . $domain_name);
+		$email_obj->from_name = $username . " (" . $domain_name . ")";
+		$result = $email_obj->send();
+		if ($result) {
+			$sent = true;
+		} else {
+			$error_msg = 'FusionPBX email class returned false';
+		}
 	} catch (Exception $e) {
-		//fall back to mail()
+		$error_msg = 'Email class: ' . $e->getMessage();
 	}
 }
 
+// Method 2: Try PHPMailer directly if available
 if (!$sent) {
+	$phpmailer_paths = [
+		$document_root . '/resources/classes/phpmailer/src/PHPMailer.php',
+		$document_root . '/resources/classes/phpmailer/PHPMailer.php',
+		$document_root . '/vendor/phpmailer/phpmailer/src/PHPMailer.php',
+	];
+	$phpmailer_loaded = false;
+	foreach ($phpmailer_paths as $path) {
+		if (file_exists($path)) {
+			require_once $path;
+			// Also load SMTP class
+			$smtp_path = dirname($path) . '/SMTP.php';
+			if (file_exists($smtp_path)) require_once $smtp_path;
+			$exception_path = dirname($path) . '/Exception.php';
+			if (file_exists($exception_path)) require_once $exception_path;
+			$phpmailer_loaded = true;
+			break;
+		}
+	}
+
+	if ($phpmailer_loaded && !empty($smtp_host)) {
+		try {
+			$mailer_class = class_exists('PHPMailer\\PHPMailer\\PHPMailer') ? 'PHPMailer\\PHPMailer\\PHPMailer' : (class_exists('PHPMailer') ? 'PHPMailer' : '');
+			if ($mailer_class) {
+				$mail = new $mailer_class(true);
+				$mail->isSMTP();
+				$mail->Host = $smtp_host;
+				$mail->Port = intval($smtp_port ?: 587);
+				if ($smtp_auth === 'true' && !empty($smtp_user)) {
+					$mail->SMTPAuth = true;
+					$mail->Username = $smtp_user;
+					$mail->Password = $smtp_pass;
+				}
+				if ($smtp_secure === 'tls') {
+					$mail->SMTPSecure = 'tls';
+				} elseif ($smtp_secure === 'ssl') {
+					$mail->SMTPSecure = 'ssl';
+				}
+				$mail->CharSet = 'UTF-8';
+				$mail->setFrom($smtp_from ?: ($user_email ?: "noreply@" . $domain_name), $username . " (" . $domain_name . ")");
+				$mail->addAddress($to);
+				$mail->Subject = $subject;
+				$mail->isHTML(true);
+				$mail->Body = $html_body;
+				$mail->AltBody = $report_text;
+				$sent = $mail->send();
+				if (!$sent) {
+					$error_msg = 'PHPMailer: ' . $mail->ErrorInfo;
+				}
+			}
+		} catch (Exception $e) {
+			$error_msg = 'PHPMailer: ' . $e->getMessage();
+		}
+	}
+}
+
+// Method 3: PHP mail() as final fallback
+if (!$sent) {
+	$boundary = md5(uniqid(time()));
+	$headers = "From: " . ($smtp_from ?: ($user_email ?: "noreply@" . $domain_name)) . "\r\n";
+	$headers .= "Reply-To: " . ($user_email ?: "noreply@" . $domain_name) . "\r\n";
+	$headers .= "MIME-Version: 1.0\r\n";
+	$headers .= "Content-Type: multipart/alternative; boundary=\"" . $boundary . "\"\r\n";
+
+	$body = "--" . $boundary . "\r\n";
+	$body .= "Content-Type: text/plain; charset=UTF-8\r\n";
+	$body .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
+	$body .= $report_text . "\r\n\r\n";
+	$body .= "--" . $boundary . "\r\n";
+	$body .= "Content-Type: text/html; charset=UTF-8\r\n";
+	$body .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
+	$body .= $html_body . "\r\n";
+	$body .= "--" . $boundary . "--\r\n";
+
 	$sent = @mail($to, $subject, $body, $headers);
+	if (!$sent) {
+		$error_msg = ($error_msg ? $error_msg . '. ' : '') . 'PHP mail() also failed. Check SMTP config in Advanced > Default Settings > Email.';
+	}
 }
 
 if ($sent) {
 	echo json_encode(['success' => true, 'message' => 'Report sent to ' . $to]);
 } else {
-	echo json_encode(['error' => 'send_failed', 'message' => 'Failed to send email. Check server mail configuration.']);
+	echo json_encode([
+		'error' => 'send_failed',
+		'message' => $error_msg ?: 'Failed to send email. Configure SMTP in Advanced > Default Settings > Email.',
+		'smtp_configured' => !empty($smtp_host),
+		'smtp_host' => !empty($smtp_host) ? $smtp_host : 'not configured'
+	]);
 }
 
 ?>
