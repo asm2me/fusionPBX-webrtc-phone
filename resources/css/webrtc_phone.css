@@ -838,7 +838,30 @@
 .webrtc-network-test {
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
+	gap: 8px;
+}
+
+/* Widen panel when showing network test */
+.webrtc-phone-panel:has(.webrtc-network-test) {
+	width: 640px;
+}
+
+#webrtc-phone-standalone .webrtc-phone-inner:has(.webrtc-network-test) {
+	max-width: 660px;
+}
+
+.webrtc-net-columns {
+	display: flex;
+	gap: 10px;
+	width: 100%;
+}
+
+.webrtc-net-col {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
 }
 
 .webrtc-network-test-title {
@@ -858,16 +881,16 @@
 .webrtc-network-test-results {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: 4px;
 }
 
 .webrtc-net-result {
 	display: flex;
 	align-items: center;
-	gap: 8px;
-	padding: 6px 10px;
-	border-radius: 6px;
-	font-size: 12px;
+	gap: 4px;
+	padding: 3px 6px;
+	border-radius: 4px;
+	font-size: 11px;
 }
 
 .webrtc-net-pass {
@@ -883,8 +906,8 @@
 }
 
 .webrtc-net-icon {
-	font-size: 14px;
-	width: 18px;
+	font-size: 12px;
+	width: 14px;
 	text-align: center;
 	flex-shrink: 0;
 }
@@ -896,7 +919,8 @@
 .webrtc-net-label {
 	font-weight: 600;
 	color: #444;
-	min-width: 90px;
+	min-width: 70px;
+	font-size: 11px;
 }
 
 .webrtc-net-value {
@@ -904,15 +928,16 @@
 	flex: 1;
 	text-align: right;
 	font-variant-numeric: tabular-nums;
+	font-size: 11px;
 }
 
 .webrtc-net-verdict {
 	text-align: center;
-	font-size: 12px;
+	font-size: 11px;
 	font-weight: 600;
-	padding: 8px;
-	border-radius: 6px;
-	margin-top: 4px;
+	padding: 5px;
+	border-radius: 4px;
+	margin-top: 2px;
 }
 
 .webrtc-net-verdict-pass {
@@ -928,9 +953,9 @@
 .webrtc-net-demo-details {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 6px 12px;
-	padding: 4px 10px;
-	font-size: 10px;
+	gap: 3px 8px;
+	padding: 2px 6px;
+	font-size: 9px;
 	color: #666;
 }
 
@@ -951,12 +976,12 @@
 }
 
 .webrtc-net-section-label {
-	font-size: 10px;
+	font-size: 9px;
 	font-weight: 700;
 	text-transform: uppercase;
 	letter-spacing: 0.8px;
 	color: #888;
-	margin-top: 6px;
+	margin-top: 4px;
 }
 
 .webrtc-net-diagnosis {
@@ -1021,10 +1046,10 @@
 	display: flex;
 	align-items: flex-end;
 	gap: 2px;
-	height: 40px;
-	padding: 4px 0;
+	height: 30px;
+	padding: 2px 0;
 	border-bottom: 1px solid #e0e0e0;
-	margin: 4px 0;
+	margin: 2px 0;
 }
 
 .webrtc-ping-bar {

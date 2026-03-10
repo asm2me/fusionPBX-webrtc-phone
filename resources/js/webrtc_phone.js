@@ -1573,6 +1573,10 @@ var WebRTCPhone = (function () {
 		if (spkBar) spkBar.style.width = state.spkLevel + '%';
 	}
 
+	function renderNetRow(cls, icon, label, value) {
+		return '<div class="webrtc-net-result ' + cls + '"><span class="webrtc-net-icon">' + icon + '</span><span class="webrtc-net-label">' + label + '</span><span class="webrtc-net-value">' + value + '</span></div>';
+	}
+
 	function renderNetworkTestPanel() {
 		var html = '<div class="webrtc-network-test">';
 		html += '<div class="webrtc-network-test-title">' + t('networkQualityTest') + '</div>';
@@ -1583,159 +1587,85 @@ var WebRTCPhone = (function () {
 
 		var r = state.networkTestResults;
 		if (r) {
-			html += '<div class="webrtc-network-test-results">';
+			// ===== TWO-COLUMN LAYOUT =====
+			html += '<div class="webrtc-net-columns">';
+
+			// ===== LEFT COLUMN: Connectivity + Echo + Bandwidth + Audio =====
+			html += '<div class="webrtc-net-col">';
+
 			// WSS
-			if (r.wss !== null) {
-				html += '<div class="webrtc-net-result ' + (r.wss.ok ? 'webrtc-net-pass' : 'webrtc-net-fail') + '">';
-				html += '<span class="webrtc-net-icon">' + (r.wss.ok ? '&#10003;' : '&#10007;') + '</span>';
-				html += '<span class="webrtc-net-label">' + t('wssServer') + '</span>';
-				html += '<span class="webrtc-net-value">' + (r.wss.ok ? r.wss.time + 'ms' : escapeHtml(r.wss.error)) + '</span>';
-				html += '</div>';
-			}
+			if (r.wss !== null) html += renderNetRow(r.wss.ok ? 'webrtc-net-pass' : 'webrtc-net-fail', r.wss.ok ? '&#10003;' : '&#10007;', t('wssServer'), r.wss.ok ? r.wss.time + 'ms' : escapeHtml(r.wss.error));
 			// STUN
-			if (r.stun !== null) {
-				html += '<div class="webrtc-net-result ' + (r.stun.ok ? 'webrtc-net-pass' : 'webrtc-net-fail') + '">';
-				html += '<span class="webrtc-net-icon">' + (r.stun.ok ? '&#10003;' : '&#10007;') + '</span>';
-				html += '<span class="webrtc-net-label">' + t('stunServer') + '</span>';
-				html += '<span class="webrtc-net-value">' + (r.stun.ok ? r.stun.time + 'ms' + (r.stun.ip ? ' (' + escapeHtml(r.stun.ip) + ')' : '') : escapeHtml(r.stun.error)) + '</span>';
-				html += '</div>';
-			}
+			if (r.stun !== null) html += renderNetRow(r.stun.ok ? 'webrtc-net-pass' : 'webrtc-net-fail', r.stun.ok ? '&#10003;' : '&#10007;', t('stunServer'), r.stun.ok ? r.stun.time + 'ms' + (r.stun.ip ? ' (' + escapeHtml(r.stun.ip) + ')' : '') : escapeHtml(r.stun.error));
 			// Latency
 			if (r.latency !== null) {
 				var latOk = r.latency.rtt > 0 && r.latency.rtt < 300;
-				html += '<div class="webrtc-net-result ' + (r.latency.rtt > 0 ? (latOk ? 'webrtc-net-pass' : 'webrtc-net-warn') : 'webrtc-net-fail') + '">';
-				html += '<span class="webrtc-net-icon">' + (r.latency.rtt > 0 ? (latOk ? '&#10003;' : '&#9888;') : '&#10007;') + '</span>';
-				html += '<span class="webrtc-net-label">' + t('latency') + '</span>';
-				html += '<span class="webrtc-net-value">' + (r.latency.rtt > 0 ? r.latency.rtt + 'ms' : escapeHtml(r.latency.error || 'N/A')) + '</span>';
-				html += '</div>';
+				html += renderNetRow(r.latency.rtt > 0 ? (latOk ? 'webrtc-net-pass' : 'webrtc-net-warn') : 'webrtc-net-fail', r.latency.rtt > 0 ? (latOk ? '&#10003;' : '&#9888;') : '&#10007;', t('latency'), r.latency.rtt > 0 ? r.latency.rtt + 'ms' : escapeHtml(r.latency.error || 'N/A'));
 			}
 			// Jitter
-			if (r.jitterTest !== null) {
-				html += '<div class="webrtc-net-result ' + (r.jitterTest.ok ? 'webrtc-net-pass' : 'webrtc-net-warn') + '">';
-				html += '<span class="webrtc-net-icon">' + (r.jitterTest.ok ? '&#10003;' : '&#9888;') + '</span>';
-				html += '<span class="webrtc-net-label">' + t('systemJitter') + '</span>';
-				html += '<span class="webrtc-net-value">' + r.jitterTest.jitter + 'ms</span>';
-				html += '</div>';
-			}
-
+			if (r.jitterTest !== null) html += renderNetRow(r.jitterTest.ok ? 'webrtc-net-pass' : 'webrtc-net-warn', r.jitterTest.ok ? '&#10003;' : '&#9888;', t('systemJitter'), r.jitterTest.jitter + 'ms');
 			// SIP Ping
-			if (r.sipPing !== null) {
-				html += '<div class="webrtc-net-result ' + (r.sipPing.ok ? 'webrtc-net-pass' : 'webrtc-net-fail') + '">';
-				html += '<span class="webrtc-net-icon">' + (r.sipPing.ok ? '&#10003;' : '&#10007;') + '</span>';
-				html += '<span class="webrtc-net-label">' + t('sipSignaling') + '</span>';
-				html += '<span class="webrtc-net-value">' + (r.sipPing.ok ? r.sipPing.time + 'ms' : escapeHtml(r.sipPing.error || 'Failed')) + '</span>';
-				html += '</div>';
-			}
+			if (r.sipPing !== null) html += renderNetRow(r.sipPing.ok ? 'webrtc-net-pass' : 'webrtc-net-fail', r.sipPing.ok ? '&#10003;' : '&#10007;', t('sipSignaling'), r.sipPing.ok ? r.sipPing.time + 'ms' : escapeHtml(r.sipPing.error || 'Failed'));
 
 			// Demo Call
 			if (r.demoCall !== null) {
 				if (r.demoCall.status === 'calling') {
-					html += '<div class="webrtc-net-result webrtc-net-warn">';
-					html += '<span class="webrtc-net-icon">&#8987;</span>';
-					html += '<span class="webrtc-net-label">' + t('echoTest') + '</span>';
-					html += '<span class="webrtc-net-value">' + t('dialingEcho') + '</span>';
-					html += '</div>';
+					html += renderNetRow('webrtc-net-warn', '&#8987;', t('echoTest'), t('dialingEcho'));
 				} else if (r.demoCall.status === 'connected') {
-					html += '<div class="webrtc-net-result webrtc-net-warn">';
-					html += '<span class="webrtc-net-icon">&#8987;</span>';
-					html += '<span class="webrtc-net-label">' + t('echoTest') + '</span>';
-					html += '<span class="webrtc-net-value">' + t('collectingStats') + '</span>';
-					html += '</div>';
+					html += renderNetRow('webrtc-net-warn', '&#8987;', t('echoTest'), t('collectingStats'));
 				} else if (r.demoCall.error) {
-					html += '<div class="webrtc-net-result webrtc-net-fail">';
-					html += '<span class="webrtc-net-icon">&#10007;</span>';
-					html += '<span class="webrtc-net-label">' + t('echoTest') + '</span>';
-					html += '<span class="webrtc-net-value">' + escapeHtml(r.demoCall.error) + '</span>';
-					html += '</div>';
+					html += renderNetRow('webrtc-net-fail', '&#10007;', t('echoTest'), escapeHtml(r.demoCall.error));
 				} else {
-					// Completed demo call with stats
-					html += '<div class="webrtc-net-result ' + (r.demoCall.ok ? 'webrtc-net-pass' : 'webrtc-net-fail') + '">';
-					html += '<span class="webrtc-net-icon">' + (r.demoCall.ok ? '&#10003;' : '&#10007;') + '</span>';
-					html += '<span class="webrtc-net-label">' + t('echoTest') + '</span>';
-					html += '<span class="webrtc-net-value">' + (r.demoCall.ok ? r.demoCall.rating.charAt(0).toUpperCase() + r.demoCall.rating.slice(1) + ' (MOS ' + r.demoCall.mos.toFixed(1) + ')' : 'Failed') + '</span>';
-					html += '</div>';
+					html += renderNetRow(r.demoCall.ok ? 'webrtc-net-pass' : 'webrtc-net-fail', r.demoCall.ok ? '&#10003;' : '&#10007;', t('echoTest'), r.demoCall.ok ? r.demoCall.rating.charAt(0).toUpperCase() + r.demoCall.rating.slice(1) + ' (MOS ' + r.demoCall.mos.toFixed(1) + ')' : 'Failed');
 					if (r.demoCall.ok || r.demoCall.packetsReceived > 0) {
 						html += '<div class="webrtc-net-demo-details">';
-						html += '<span>' + t('recv') + ': ' + r.demoCall.packetsReceived + ' pkts</span>';
-						html += '<span>' + t('sent') + ': ' + (r.demoCall.packetsSent || 0) + ' pkts</span>';
-						html += '<span>' + t('loss') + ': ' + r.demoCall.packetLoss + '%</span>';
-						html += '<span>' + t('jitter') + ': ' + r.demoCall.jitter + 'ms</span>';
-						html += '<span>' + t('rtt') + ': ' + r.demoCall.rtt + 'ms</span>';
+						html += '<span>' + t('recv') + ':' + r.demoCall.packetsReceived + '</span>';
+						html += '<span>' + t('sent') + ':' + (r.demoCall.packetsSent || 0) + '</span>';
+						html += '<span>' + t('loss') + ':' + r.demoCall.packetLoss + '%</span>';
+						html += '<span>' + t('jitter') + ':' + r.demoCall.jitter + 'ms</span>';
+						html += '<span>' + t('rtt') + ':' + r.demoCall.rtt + 'ms</span>';
 						html += '</div>';
-						// Bandwidth / Speed Test (UDP via RTP to VoIP server)
-						html += '<div class="webrtc-net-section-label">' + t('bandwidth') + ' (UDP ' + t('serverRoute') + ')</div>';
+						// Bandwidth
+						html += '<div class="webrtc-net-section-label">' + t('bandwidth') + ' (UDP)</div>';
 						if (r.demoCall.bitrate > 0) {
 							var dlOk = r.demoCall.bitrate >= 40;
-							var dlWarn = r.demoCall.bitrate >= 20 && r.demoCall.bitrate < 40;
-							html += '<div class="webrtc-net-result ' + (dlOk ? 'webrtc-net-pass' : (dlWarn ? 'webrtc-net-warn' : 'webrtc-net-fail')) + '">';
-							html += '<span class="webrtc-net-icon">' + (dlOk ? '&#10003;' : (dlWarn ? '&#9888;' : '&#10007;')) + '</span>';
-							html += '<span class="webrtc-net-label">' + t('download') + '</span>';
-							html += '<span class="webrtc-net-value">' + r.demoCall.bitrate + ' kbps</span>';
-							html += '</div>';
+							html += renderNetRow(dlOk ? 'webrtc-net-pass' : (r.demoCall.bitrate >= 20 ? 'webrtc-net-warn' : 'webrtc-net-fail'), dlOk ? '&#10003;' : '&#9888;', t('download'), r.demoCall.bitrate + ' kbps');
 						}
 						if (r.demoCall.bitrateOut > 0) {
 							var ulOk = r.demoCall.bitrateOut >= 40;
-							var ulWarn = r.demoCall.bitrateOut >= 20 && r.demoCall.bitrateOut < 40;
-							html += '<div class="webrtc-net-result ' + (ulOk ? 'webrtc-net-pass' : (ulWarn ? 'webrtc-net-warn' : 'webrtc-net-fail')) + '">';
-							html += '<span class="webrtc-net-icon">' + (ulOk ? '&#10003;' : (ulWarn ? '&#9888;' : '&#10007;')) + '</span>';
-							html += '<span class="webrtc-net-label">' + t('upload') + '</span>';
-							html += '<span class="webrtc-net-value">' + r.demoCall.bitrateOut + ' kbps</span>';
-							html += '</div>';
+							html += renderNetRow(ulOk ? 'webrtc-net-pass' : (r.demoCall.bitrateOut >= 20 ? 'webrtc-net-warn' : 'webrtc-net-fail'), ulOk ? '&#10003;' : '&#9888;', t('upload'), r.demoCall.bitrateOut + ' kbps');
 						}
 						if (r.demoCall.availableBandwidth > 0) {
-							var bwOk = r.demoCall.availableBandwidth >= 100;
-							var bwWarn = r.demoCall.availableBandwidth >= 50;
-							html += '<div class="webrtc-net-result ' + (bwOk ? 'webrtc-net-pass' : (bwWarn ? 'webrtc-net-warn' : 'webrtc-net-fail')) + '">';
-							html += '<span class="webrtc-net-icon">' + (bwOk ? '&#10003;' : (bwWarn ? '&#9888;' : '&#10007;')) + '</span>';
-							html += '<span class="webrtc-net-label">' + t('available') + '</span>';
-							html += '<span class="webrtc-net-value">' + r.demoCall.availableBandwidth + ' kbps</span>';
-							html += '</div>';
+							html += renderNetRow(r.demoCall.availableBandwidth >= 100 ? 'webrtc-net-pass' : 'webrtc-net-warn', r.demoCall.availableBandwidth >= 100 ? '&#10003;' : '&#9888;', t('available'), r.demoCall.availableBandwidth + ' kbps');
 						}
 					}
 					if (r.demoCall.issues && r.demoCall.issues.length > 0) {
 						html += '<div class="webrtc-net-demo-issues">';
-						for (var di = 0; di < r.demoCall.issues.length; di++) {
-							html += '<span class="webrtc-quality-issue">' + escapeHtml(r.demoCall.issues[di]) + '</span>';
-						}
+						for (var di = 0; di < r.demoCall.issues.length; di++) html += '<span class="webrtc-quality-issue">' + escapeHtml(r.demoCall.issues[di]) + '</span>';
 						html += '</div>';
 					}
-					// Audio/Mic Test Results
+					// Audio/Mic Test
 					if (r.demoCall.audioTest) {
 						var at = r.demoCall.audioTest;
 						html += '<div class="webrtc-net-section-label">' + t('audioMicTest') + '</div>';
-						// Mic result
-						var micRatingLabel = t(at.mic.rating) || at.mic.rating;
-						var micClass = at.mic.ok ? (at.mic.rating === 'strong' || at.mic.rating === 'normal' ? 'webrtc-net-pass' : 'webrtc-net-warn') : 'webrtc-net-fail';
-						html += '<div class="webrtc-net-result ' + micClass + '">';
-						html += '<span class="webrtc-net-icon">' + (at.mic.ok ? '&#10003;' : '&#10007;') + '</span>';
-						html += '<span class="webrtc-net-label">' + t('microphone') + '</span>';
-						html += '<span class="webrtc-net-value">' + micRatingLabel.charAt(0).toUpperCase() + micRatingLabel.slice(1) + ' (avg ' + at.mic.avg + '%, peak ' + at.mic.max + '%)</span>';
-						html += '</div>';
-						// Speaker/echo result
-						var spkRatingLabel = t(at.spk.rating) || at.spk.rating;
-						var spkClass = at.spk.ok ? (at.spk.rating === 'strong' || at.spk.rating === 'normal' ? 'webrtc-net-pass' : 'webrtc-net-warn') : 'webrtc-net-fail';
-						html += '<div class="webrtc-net-result ' + spkClass + '">';
-						html += '<span class="webrtc-net-icon">' + (at.spk.ok ? '&#10003;' : '&#10007;') + '</span>';
-						html += '<span class="webrtc-net-label">' + t('echoReturn') + '</span>';
-						html += '<span class="webrtc-net-value">' + spkRatingLabel.charAt(0).toUpperCase() + spkRatingLabel.slice(1) + ' (avg ' + at.spk.avg + '%, peak ' + at.spk.max + '%)</span>';
-						html += '</div>';
-						// Echo path
-						html += '<div class="webrtc-net-result ' + (at.echoDetected ? 'webrtc-net-pass' : 'webrtc-net-fail') + '">';
-						html += '<span class="webrtc-net-icon">' + (at.echoDetected ? '&#10003;' : '&#10007;') + '</span>';
-						html += '<span class="webrtc-net-label">' + t('fullDuplex') + '</span>';
-						html += '<span class="webrtc-net-value">' + (at.echoDetected ? t('twoWayAudio') : t('audioPathIncomplete')) + '</span>';
-						html += '</div>';
-						// Audio issues
+						var micLbl = t(at.mic.rating) || at.mic.rating;
+						html += renderNetRow(at.mic.ok ? (at.mic.rating === 'strong' || at.mic.rating === 'normal' ? 'webrtc-net-pass' : 'webrtc-net-warn') : 'webrtc-net-fail', at.mic.ok ? '&#10003;' : '&#10007;', t('microphone'), micLbl.charAt(0).toUpperCase() + micLbl.slice(1) + ' (' + at.mic.avg + '%/' + at.mic.max + '%)');
+						var spkLbl = t(at.spk.rating) || at.spk.rating;
+						html += renderNetRow(at.spk.ok ? (at.spk.rating === 'strong' || at.spk.rating === 'normal' ? 'webrtc-net-pass' : 'webrtc-net-warn') : 'webrtc-net-fail', at.spk.ok ? '&#10003;' : '&#10007;', t('echoReturn'), spkLbl.charAt(0).toUpperCase() + spkLbl.slice(1) + ' (' + at.spk.avg + '%/' + at.spk.max + '%)');
+						html += renderNetRow(at.echoDetected ? 'webrtc-net-pass' : 'webrtc-net-fail', at.echoDetected ? '&#10003;' : '&#10007;', t('fullDuplex'), at.echoDetected ? t('twoWayAudio') : t('audioPathIncomplete'));
 						if (at.issues && at.issues.length > 0) {
 							html += '<div class="webrtc-net-demo-issues">';
-							for (var ai = 0; ai < at.issues.length; ai++) {
-								html += '<span class="webrtc-quality-issue">' + escapeHtml(at.issues[ai]) + '</span>';
-							}
+							for (var ai = 0; ai < at.issues.length; ai++) html += '<span class="webrtc-quality-issue">' + escapeHtml(at.issues[ai]) + '</span>';
 							html += '</div>';
 						}
 					}
 				}
 			}
+
+			html += '</div>'; // end left column
+
+			// ===== RIGHT COLUMN: Baseline + Path Trace + Diagnosis =====
+			html += '<div class="webrtc-net-col">';
 
 			// Reference pings
 			if (r.refPings && r.refPings.length > 0) {
@@ -1743,12 +1673,7 @@ var WebRTCPhone = (function () {
 				for (var rpi = 0; rpi < r.refPings.length; rpi++) {
 					var rp = r.refPings[rpi];
 					var rpOk = rp.ok && rp.time < 200;
-					var rpClass = rp.ok ? (rpOk ? 'webrtc-net-pass' : 'webrtc-net-warn') : 'webrtc-net-fail';
-					html += '<div class="webrtc-net-result ' + rpClass + '">';
-					html += '<span class="webrtc-net-icon">' + (rp.ok ? (rpOk ? '&#10003;' : '&#9888;') : '&#10007;') + '</span>';
-					html += '<span class="webrtc-net-label">' + escapeHtml(rp.name) + '</span>';
-					html += '<span class="webrtc-net-value">' + (rp.ok ? rp.time + 'ms' : escapeHtml(rp.error || 'Failed')) + '</span>';
-					html += '</div>';
+					html += renderNetRow(rp.ok ? (rpOk ? 'webrtc-net-pass' : 'webrtc-net-warn') : 'webrtc-net-fail', rp.ok ? (rpOk ? '&#10003;' : '&#9888;') : '&#10007;', escapeHtml(rp.name), rp.ok ? rp.time + 'ms' : escapeHtml(rp.error || 'Failed'));
 				}
 			}
 
@@ -1757,30 +1682,16 @@ var WebRTCPhone = (function () {
 				var pt = r.pathTrace;
 				html += '<div class="webrtc-net-section-label">' + t('pathTrace') + '</div>';
 				if (pt.error) {
-					html += '<div class="webrtc-net-result webrtc-net-fail">';
-					html += '<span class="webrtc-net-icon">&#10007;</span>';
-					html += '<span class="webrtc-net-label">' + t('serverRoute') + '</span>';
-					html += '<span class="webrtc-net-value">' + escapeHtml(pt.error) + '</span>';
-					html += '</div>';
+					html += renderNetRow('webrtc-net-fail', '&#10007;', t('serverRoute'), escapeHtml(pt.error));
 				} else {
-					// Stability indicator
 					var stabClass = pt.stability >= 80 ? 'webrtc-net-pass' : (pt.stability >= 50 ? 'webrtc-net-warn' : 'webrtc-net-fail');
-					var stabIcon = pt.stability >= 80 ? '&#10003;' : (pt.stability >= 50 ? '&#9888;' : '&#10007;');
-					html += '<div class="webrtc-net-result ' + stabClass + '">';
-					html += '<span class="webrtc-net-icon">' + stabIcon + '</span>';
-					html += '<span class="webrtc-net-label">' + t('stability') + '</span>';
-					html += '<span class="webrtc-net-value">' + pt.stability + '% (' + (pt.stability >= 80 ? t('pathStable') : t('pathUnstable')) + ')</span>';
-					html += '</div>';
-					// Ping profile
+					html += renderNetRow(stabClass, pt.stability >= 80 ? '&#10003;' : (pt.stability >= 50 ? '&#9888;' : '&#10007;'), t('stability'), pt.stability + '% (' + (pt.stability >= 80 ? t('pathStable') : t('pathUnstable')) + ')');
 					html += '<div class="webrtc-net-demo-details">';
-					html += '<span>Avg: ' + pt.avg + 'ms</span>';
-					html += '<span>Min: ' + pt.min + 'ms</span>';
-					html += '<span>Max: ' + pt.max + 'ms</span>';
-					html += '<span>' + t('jitter') + ': ' + pt.jitter + 'ms</span>';
-					if (pt.spikes > 0) html += '<span>Spikes: ' + pt.spikes + '</span>';
-					if (pt.failedPings > 0) html += '<span>Failed: ' + pt.failedPings + '/' + pt.totalPings + '</span>';
+					html += '<span>Avg:' + pt.avg + 'ms</span><span>Min:' + pt.min + 'ms</span><span>Max:' + pt.max + 'ms</span><span>' + t('jitter') + ':' + pt.jitter + 'ms</span>';
+					if (pt.spikes > 0) html += '<span>Spikes:' + pt.spikes + '</span>';
+					if (pt.failedPings > 0) html += '<span>Fail:' + pt.failedPings + '/' + pt.totalPings + '</span>';
 					html += '</div>';
-					// Ping timeline visual
+					// Ping timeline
 					html += '<div class="webrtc-ping-timeline">';
 					var _ptDomain = state.config ? state.config.domain : '';
 					var _ptPublicIP = pt.iceInfo.publicIP || '';
@@ -1788,34 +1699,25 @@ var WebRTCPhone = (function () {
 					for (var pi = 0; pi < pt.samples.length; pi++) {
 						var ps = pt.samples[pi];
 						var barH = ps.time > 0 ? Math.min(100, Math.max(5, Math.round((ps.time / (pt.max || 1)) * 100))) : 0;
-						var barClass = ps.time < 0 ? 'webrtc-ping-bar-fail' : (ps.time > pt.avg * 2 ? 'webrtc-ping-bar-spike' : 'webrtc-ping-bar-ok');
+						var barClass2 = ps.time < 0 ? 'webrtc-ping-bar-fail' : (ps.time > pt.avg * 2 ? 'webrtc-ping-bar-spike' : 'webrtc-ping-bar-ok');
 						var barTip = 'Hop ' + ps.hop + ': ' + (ps.time > 0 ? ps.time + 'ms' : 'failed');
 						barTip += '\nServer: ' + (_ptDomain || 'N/A');
 						if (_ptPublicIP) barTip += '\nPublic IP: ' + _ptPublicIP;
 						if (_ptLocalIP) barTip += '\nLocal IP: ' + _ptLocalIP;
 						if (pt.natType) barTip += '\nNAT: ' + pt.natType;
-						html += '<div class="webrtc-ping-bar ' + barClass + '" style="height:' + barH + '%" title="' + escapeHtml(barTip) + '"></div>';
+						html += '<div class="webrtc-ping-bar ' + barClass2 + '" style="height:' + barH + '%" title="' + escapeHtml(barTip) + '"></div>';
 					}
 					html += '</div>';
-					// NAT type
-					html += '<div class="webrtc-net-result webrtc-net-pass">';
-					html += '<span class="webrtc-net-icon">&#128270;</span>';
-					html += '<span class="webrtc-net-label">' + t('natType') + '</span>';
-					html += '<span class="webrtc-net-value">' + escapeHtml(pt.natType) + '</span>';
-					html += '</div>';
-					// ICE candidate IPs
+					html += renderNetRow('webrtc-net-pass', '&#128270;', t('natType'), escapeHtml(pt.natType));
 					if (pt.iceInfo.localIP || pt.iceInfo.publicIP) {
 						html += '<div class="webrtc-net-demo-details">';
 						if (pt.iceInfo.localIP) html += '<span>Local: ' + escapeHtml(pt.iceInfo.localIP) + '</span>';
 						if (pt.iceInfo.publicIP) html += '<span>Public: ' + escapeHtml(pt.iceInfo.publicIP) + '</span>';
 						html += '</div>';
 					}
-					// Path trace issues
 					if (pt.issues && pt.issues.length > 0) {
 						html += '<div class="webrtc-net-demo-issues">';
-						for (var pti = 0; pti < pt.issues.length; pti++) {
-							html += '<span class="webrtc-quality-issue">' + escapeHtml(pt.issues[pti]) + '</span>';
-						}
+						for (var pti = 0; pti < pt.issues.length; pti++) html += '<span class="webrtc-quality-issue">' + escapeHtml(pt.issues[pti]) + '</span>';
 						html += '</div>';
 					}
 				}
@@ -1826,34 +1728,27 @@ var WebRTCPhone = (function () {
 				var d = r.diagnosis;
 				var sourceLabel = { user: t('yourNetwork'), server: t('voipServer'), none: t('noIssues'), unknown: t('undetermined') };
 				var sourceIcon = { user: '&#128187;', server: '&#9729;', none: '&#10003;', unknown: '&#63;' };
-				var diagClass = d.source === 'none' ? 'webrtc-net-verdict-pass' : (d.source === 'server' ? 'webrtc-net-verdict-fail' : (d.source === 'user' ? 'webrtc-net-verdict-warn' : 'webrtc-net-verdict-warn'));
-
+				var diagClass = d.source === 'none' ? 'webrtc-net-verdict-pass' : (d.source === 'server' ? 'webrtc-net-verdict-fail' : 'webrtc-net-verdict-warn');
 				html += '<div class="webrtc-net-diagnosis">';
 				html += '<div class="webrtc-net-section-label">' + t('diagnosis') + '</div>';
 				html += '<div class="webrtc-net-verdict ' + diagClass + '">';
 				html += '<span class="webrtc-net-diag-source">' + (sourceIcon[d.source] || '') + ' ' + t('issueSource') + ': <strong>' + (sourceLabel[d.source] || t('undetermined')) + '</strong></span>';
 				html += '</div>';
-
 				if (d.issues.length > 0 && d.source !== 'none') {
-					html += '<div class="webrtc-net-diag-list">';
-					html += '<div class="webrtc-net-diag-heading">' + t('findings') + '</div>';
-					for (var di2 = 0; di2 < d.issues.length; di2++) {
-						html += '<div class="webrtc-net-diag-item webrtc-net-diag-issue">' + escapeHtml(d.issues[di2]) + '</div>';
-					}
+					html += '<div class="webrtc-net-diag-list"><div class="webrtc-net-diag-heading">' + t('findings') + '</div>';
+					for (var di2 = 0; di2 < d.issues.length; di2++) html += '<div class="webrtc-net-diag-item webrtc-net-diag-issue">' + escapeHtml(d.issues[di2]) + '</div>';
 					html += '</div>';
 				}
-
 				if (d.suggestions.length > 0) {
-					html += '<div class="webrtc-net-diag-list">';
-					html += '<div class="webrtc-net-diag-heading">' + (d.source === 'none' ? '' : t('suggestedFixes')) + '</div>';
-					for (var si = 0; si < d.suggestions.length; si++) {
-						html += '<div class="webrtc-net-diag-item webrtc-net-diag-fix">' + escapeHtml(d.suggestions[si]) + '</div>';
-					}
+					html += '<div class="webrtc-net-diag-list"><div class="webrtc-net-diag-heading">' + (d.source === 'none' ? '' : t('suggestedFixes')) + '</div>';
+					for (var si = 0; si < d.suggestions.length; si++) html += '<div class="webrtc-net-diag-item webrtc-net-diag-fix">' + escapeHtml(d.suggestions[si]) + '</div>';
 					html += '</div>';
 				}
 				html += '</div>';
 			}
-			html += '</div>';
+
+			html += '</div>'; // end right column
+			html += '</div>'; // end columns
 		}
 
 		html += '<div class="webrtc-network-test-actions">';
