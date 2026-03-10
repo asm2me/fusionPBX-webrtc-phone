@@ -61,19 +61,27 @@ if (isset($_SESSION['user_uuid']) && permission_exists('webrtc_phone_view')) {
 
 		// Inject translations for the JS UI based on user's language
 		$_webrtc_lang = $_SESSION['domain']['language']['code'] ?? 'en-us';
-		if (!isset($text)) {
-			require __DIR__.'/app_languages.php';
-		}
+		// Always load our own translations into a clean variable
+		$_webrtc_text = [];
+		$text_backup = $text ?? null;
+		$text = [];
+		require __DIR__.'/app_languages.php';
+		$_webrtc_text = $text;
+		$text = $text_backup;
+		unset($text_backup);
+
 		$_webrtc_js_strings = [];
-		foreach ($text as $key => $langs) {
-			if (strpos($key, 'js-') === 0) {
+		foreach ($_webrtc_text as $key => $langs) {
+			if (strpos($key, 'js-') === 0 && is_array($langs)) {
 				$jsKey = substr($key, 3);
 				$_webrtc_js_strings[$jsKey] = $langs[$_webrtc_lang] ?? ($langs['en-us'] ?? '');
 			}
 		}
+		unset($_webrtc_text);
 		if (!empty($_webrtc_js_strings)) {
 			echo "<script>window.webrtcPhoneLang = ".json_encode($_webrtc_js_strings, JSON_UNESCAPED_UNICODE).";</script>\n";
 		}
+		unset($_webrtc_js_strings, $_webrtc_lang);
 
 		echo "<script>document.addEventListener('DOMContentLoaded', function(){ WebRTCPhone.init('webrtc-phone-mount'); });</script>\n";
 	}

@@ -36,18 +36,28 @@ echo "<script src='/app/webrtc_phone/resources/js/jssip.min.js?v=".$v."'></scrip
 echo "<script src='/app/webrtc_phone/resources/js/webrtc_phone.js?v=".$v."'></script>\n";
 echo "<link rel='stylesheet' href='/app/webrtc_phone/resources/css/webrtc_phone.css?v=".$v."'>\n";
 
-// Inject translations for the JS UI
+// Inject translations for the JS UI - load raw language arrays directly
 $_webrtc_lang = $_SESSION['domain']['language']['code'] ?? 'en-us';
+$_webrtc_text = [];
+$_text_save = $text ?? null;
+$text = [];
+require __DIR__.'/app_languages.php';
+$_webrtc_text = $text;
+$text = $_text_save;
+unset($_text_save);
+
 $_webrtc_js_strings = [];
-foreach ($text as $key => $langs) {
-	if (strpos($key, 'js-') === 0) {
+foreach ($_webrtc_text as $key => $langs) {
+	if (strpos($key, 'js-') === 0 && is_array($langs)) {
 		$jsKey = substr($key, 3);
-		$_webrtc_js_strings[$jsKey] = is_array($langs) ? ($langs[$_webrtc_lang] ?? ($langs['en-us'] ?? '')) : '';
+		$_webrtc_js_strings[$jsKey] = $langs[$_webrtc_lang] ?? ($langs['en-us'] ?? '');
 	}
 }
+unset($_webrtc_text);
 if (!empty($_webrtc_js_strings)) {
 	echo "<script>window.webrtcPhoneLang = ".json_encode($_webrtc_js_strings, JSON_UNESCAPED_UNICODE).";</script>\n";
 }
+unset($_webrtc_js_strings, $_webrtc_lang);
 
 echo "<script>document.addEventListener('DOMContentLoaded', function(){ WebRTCPhone.init('webrtc-phone-mount'); });</script>\n";
 

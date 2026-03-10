@@ -225,6 +225,19 @@
 	$text['js-jitter']['ar-eg'] = "ارتعاش";
 	$text['js-rtt']['ar-eg'] = "RTT";
 
+	// Copy Arabic to all common Arabic locale variants
+	$_ar_variants = ['ar-sa', 'ar-ae', 'ar-jo', 'ar-lb', 'ar-sy', 'ar-iq', 'ar-kw', 'ar-bh', 'ar-qa', 'ar-om', 'ar-ye', 'ar-ly', 'ar-tn', 'ar-dz', 'ar-ma'];
+	foreach ($text as $_k => $_v) {
+		if (isset($_v['ar-eg'])) {
+			foreach ($_ar_variants as $_ar) {
+				if (!isset($text[$_k][$_ar])) {
+					$text[$_k][$_ar] = $_v['ar-eg'];
+				}
+			}
+		}
+	}
+	unset($_ar_variants, $_k, $_v, $_ar);
+
 	// ===================== French (fr-fr) =====================
 	$text['title-webrtc_phone']['fr-fr'] = "Téléphone WebRTC";
 	$text['description-webrtc_phone']['fr-fr'] = "Téléphone SIP basé sur le navigateur utilisant WebRTC.";
