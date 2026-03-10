@@ -1040,8 +1040,10 @@
 
 .webrtc-network-test-actions {
 	display: flex;
-	gap: 8px;
+	gap: 6px;
 	justify-content: center;
+	flex-wrap: wrap;
+	padding: 8px 0 4px;
 }
 
 /* --- Audio Level Indicators --- */

@@ -119,6 +119,12 @@
 	$text['js-pingProfile']['en-us'] = "Ping Profile";
 	$text['js-pathStable']['en-us'] = "Path Stable";
 	$text['js-pathUnstable']['en-us'] = "Path Unstable";
+	$text['js-downloadPDF']['en-us'] = "Download PDF";
+	$text['js-sendReport']['en-us'] = "Send Report";
+	$text['js-sending']['en-us'] = "Sending...";
+	$text['js-reportSent']['en-us'] = "Report sent successfully!";
+	$text['js-reportFailed']['en-us'] = "Failed to send report";
+	$text['js-popupBlocked']['en-us'] = "Please allow popups to download the report";
 
 	// ===================== Arabic (ar-eg) =====================
 	$text['title-webrtc_phone']['ar-eg'] = "هاتف WebRTC";
@@ -238,6 +244,12 @@
 	$text['js-pingProfile']['ar-eg'] = "ملف الاستجابة";
 	$text['js-pathStable']['ar-eg'] = "المسار مستقر";
 	$text['js-pathUnstable']['ar-eg'] = "المسار غير مستقر";
+	$text['js-downloadPDF']['ar-eg'] = "تحميل PDF";
+	$text['js-sendReport']['ar-eg'] = "إرسال التقرير";
+	$text['js-sending']['ar-eg'] = "جاري الإرسال...";
+	$text['js-reportSent']['ar-eg'] = "تم إرسال التقرير بنجاح!";
+	$text['js-reportFailed']['ar-eg'] = "فشل إرسال التقرير";
+	$text['js-popupBlocked']['ar-eg'] = "يرجى السماح بالنوافذ المنبثقة لتحميل التقرير";
 
 	// Copy Arabic to all common Arabic locale variants
 	$_ar_variants = ['ar-sa', 'ar-ae', 'ar-jo', 'ar-lb', 'ar-sy', 'ar-iq', 'ar-kw', 'ar-bh', 'ar-qa', 'ar-om', 'ar-ye', 'ar-ly', 'ar-tn', 'ar-dz', 'ar-ma'];
@@ -327,6 +339,12 @@
 	$text['js-runTest']['fr-fr'] = "Lancer le test";
 	$text['js-reTest']['fr-fr'] = "Retester";
 	$text['js-close']['fr-fr'] = "Fermer";
+	$text['js-downloadPDF']['fr-fr'] = "Télécharger PDF";
+	$text['js-sendReport']['fr-fr'] = "Envoyer le rapport";
+	$text['js-sending']['fr-fr'] = "Envoi en cours...";
+	$text['js-reportSent']['fr-fr'] = "Rapport envoyé avec succès!";
+	$text['js-reportFailed']['fr-fr'] = "Échec de l'envoi du rapport";
+	$text['js-popupBlocked']['fr-fr'] = "Veuillez autoriser les popups pour télécharger le rapport";
 	$text['js-audioSettings']['fr-fr'] = "Paramètres audio";
 	$text['js-ringtone']['fr-fr'] = "Sonnerie";
 	$text['js-ringVolume']['fr-fr'] = "Volume sonnerie";
@@ -383,6 +401,12 @@
 	$text['js-runTest']['es-cl'] = "Ejecutar prueba";
 	$text['js-reTest']['es-cl'] = "Repetir";
 	$text['js-close']['es-cl'] = "Cerrar";
+	$text['js-downloadPDF']['es-cl'] = "Descargar PDF";
+	$text['js-sendReport']['es-cl'] = "Enviar informe";
+	$text['js-sending']['es-cl'] = "Enviando...";
+	$text['js-reportSent']['es-cl'] = "Informe enviado con éxito!";
+	$text['js-reportFailed']['es-cl'] = "Error al enviar el informe";
+	$text['js-popupBlocked']['es-cl'] = "Permite las ventanas emergentes para descargar el informe";
 	$text['js-audioSettings']['es-cl'] = "Ajustes de audio";
 	$text['js-ringtone']['es-cl'] = "Tono de llamada";
 	$text['js-defaultDevice']['es-cl'] = "Predeterminado";
@@ -427,6 +451,12 @@
 	$text['js-yourNetwork']['de-de'] = "Ihr Netzwerk";
 	$text['js-noIssues']['de-de'] = "Keine Probleme";
 	$text['js-close']['de-de'] = "Schließen";
+	$text['js-downloadPDF']['de-de'] = "PDF herunterladen";
+	$text['js-sendReport']['de-de'] = "Bericht senden";
+	$text['js-sending']['de-de'] = "Wird gesendet...";
+	$text['js-reportSent']['de-de'] = "Bericht erfolgreich gesendet!";
+	$text['js-reportFailed']['de-de'] = "Fehler beim Senden des Berichts";
+	$text['js-popupBlocked']['de-de'] = "Bitte erlauben Sie Popups zum Herunterladen des Berichts";
 	$text['js-audioSettings']['de-de'] = "Audio-Einstellungen";
 	$text['js-defaultDevice']['de-de'] = "Standard";
 
@@ -458,5 +488,11 @@
 	$text['js-fair']['pt-pt'] = "Regular";
 	$text['js-poor']['pt-pt'] = "Ruim";
 	$text['js-close']['pt-pt'] = "Fechar";
+	$text['js-downloadPDF']['pt-pt'] = "Baixar PDF";
+	$text['js-sendReport']['pt-pt'] = "Enviar relatório";
+	$text['js-sending']['pt-pt'] = "Enviando...";
+	$text['js-reportSent']['pt-pt'] = "Relatório enviado com sucesso!";
+	$text['js-reportFailed']['pt-pt'] = "Falha ao enviar o relatório";
+	$text['js-popupBlocked']['pt-pt'] = "Permita popups para baixar o relatório";
 
 ?>

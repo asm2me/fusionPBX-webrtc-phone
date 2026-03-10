@@ -108,7 +108,14 @@ var WebRTCPhone = (function () {
 		sent: 'Sent',
 		loss: 'Loss',
 		jitter: 'Jitter',
-		rtt: 'RTT'
+		rtt: 'RTT',
+		// Report
+		downloadPDF: 'Download PDF',
+		sendReport: 'Send Report',
+		sending: 'Sending...',
+		reportSent: 'Report sent successfully!',
+		reportFailed: 'Failed to send report',
+		popupBlocked: 'Please allow popups to download the report'
 	};
 
 	function t(key) {
@@ -1775,11 +1782,19 @@ var WebRTCPhone = (function () {
 					html += '</div>';
 					// Ping timeline visual
 					html += '<div class="webrtc-ping-timeline">';
+					var _ptDomain = state.config ? state.config.domain : '';
+					var _ptPublicIP = pt.iceInfo.publicIP || '';
+					var _ptLocalIP = pt.iceInfo.localIP || '';
 					for (var pi = 0; pi < pt.samples.length; pi++) {
 						var ps = pt.samples[pi];
 						var barH = ps.time > 0 ? Math.min(100, Math.max(5, Math.round((ps.time / (pt.max || 1)) * 100))) : 0;
 						var barClass = ps.time < 0 ? 'webrtc-ping-bar-fail' : (ps.time > pt.avg * 2 ? 'webrtc-ping-bar-spike' : 'webrtc-ping-bar-ok');
-						html += '<div class="webrtc-ping-bar ' + barClass + '" style="height:' + barH + '%" title="' + (ps.time > 0 ? ps.time + 'ms' : 'failed') + '"></div>';
+						var barTip = 'Hop ' + ps.hop + ': ' + (ps.time > 0 ? ps.time + 'ms' : 'failed');
+						barTip += '\nServer: ' + (_ptDomain || 'N/A');
+						if (_ptPublicIP) barTip += '\nPublic IP: ' + _ptPublicIP;
+						if (_ptLocalIP) barTip += '\nLocal IP: ' + _ptLocalIP;
+						if (pt.natType) barTip += '\nNAT: ' + pt.natType;
+						html += '<div class="webrtc-ping-bar ' + barClass + '" style="height:' + barH + '%" title="' + escapeHtml(barTip) + '"></div>';
 					}
 					html += '</div>';
 					// NAT type
@@ -1844,6 +1859,10 @@ var WebRTCPhone = (function () {
 		html += '<div class="webrtc-network-test-actions">';
 		if (!state.networkTestRunning) {
 			html += '<button class="webrtc-btn webrtc-btn-sm webrtc-btn-primary" onclick="WebRTCPhone.runNetworkTest()">' + (r ? t('reTest') : t('runTest')) + '</button>';
+		}
+		if (r && !state.networkTestRunning && r.diagnosis) {
+			html += '<button class="webrtc-btn webrtc-btn-sm webrtc-btn-secondary" onclick="WebRTCPhone.downloadReportPDF()" title="' + t('downloadPDF') + '">&#128196; ' + t('downloadPDF') + '</button>';
+			html += '<button id="webrtc-send-report-btn" class="webrtc-btn webrtc-btn-sm webrtc-btn-secondary" onclick="WebRTCPhone.sendReportEmail()" title="' + t('sendReport') + '">&#9993; ' + t('sendReport') + '</button>';
 		}
 		html += '<button class="webrtc-btn webrtc-btn-sm webrtc-btn-secondary" onclick="WebRTCPhone.closeNetworkTest()">' + t('close') + '</button>';
 		html += '</div></div>';
@@ -3060,6 +3079,327 @@ var WebRTCPhone = (function () {
 		return div.innerHTML;
 	}
 
+	// --- Report Generation ---
+
+	function buildReportText() {
+		var r = state.networkTestResults;
+		if (!r) return '';
+		var ext = state.selectedExtension || {};
+		var lines = [];
+		lines.push('=== WebRTC Phone Network Quality Report ===');
+		lines.push('Date: ' + new Date().toLocaleString());
+		lines.push('Domain: ' + (state.config ? state.config.domain : 'N/A'));
+		lines.push('Extension: ' + (ext.extension || 'N/A') + (ext.caller_id_name ? ' (' + ext.caller_id_name + ')' : ''));
+		lines.push('');
+
+		// WSS
+		if (r.wss !== null) {
+			lines.push('[' + (r.wss.ok ? 'PASS' : 'FAIL') + '] WSS Server: ' + (r.wss.ok ? r.wss.time + 'ms' : r.wss.error));
+		}
+		// STUN
+		if (r.stun !== null) {
+			lines.push('[' + (r.stun.ok ? 'PASS' : 'FAIL') + '] STUN Server: ' + (r.stun.ok ? r.stun.time + 'ms' + (r.stun.ip ? ' (' + r.stun.ip + ')' : '') : r.stun.error));
+		}
+		// Latency
+		if (r.latency !== null) {
+			var latOk = r.latency.rtt > 0 && r.latency.rtt < 300;
+			lines.push('[' + (r.latency.rtt > 0 ? (latOk ? 'PASS' : 'WARN') : 'FAIL') + '] Latency: ' + (r.latency.rtt > 0 ? r.latency.rtt + 'ms' : (r.latency.error || 'N/A')));
+		}
+		// Jitter
+		if (r.jitterTest !== null) {
+			lines.push('[' + (r.jitterTest.ok ? 'PASS' : 'WARN') + '] System Jitter: ' + r.jitterTest.jitter + 'ms');
+		}
+		// SIP Ping
+		if (r.sipPing !== null) {
+			lines.push('[' + (r.sipPing.ok ? 'PASS' : 'FAIL') + '] SIP Signaling: ' + (r.sipPing.ok ? r.sipPing.time + 'ms' : (r.sipPing.error || 'Failed')));
+		}
+		lines.push('');
+
+		// Echo Test / Demo Call
+		if (r.demoCall !== null && r.demoCall.status !== 'calling' && r.demoCall.status !== 'connected') {
+			if (r.demoCall.error) {
+				lines.push('[FAIL] Echo Test: ' + r.demoCall.error);
+			} else {
+				lines.push('[' + (r.demoCall.ok ? 'PASS' : 'FAIL') + '] Echo Test: ' + (r.demoCall.ok ? r.demoCall.rating + ' (MOS ' + r.demoCall.mos.toFixed(1) + ')' : 'Failed'));
+				if (r.demoCall.ok || r.demoCall.packetsReceived > 0) {
+					lines.push('  Recv: ' + r.demoCall.packetsReceived + ' pkts | Sent: ' + (r.demoCall.packetsSent || 0) + ' pkts | Loss: ' + r.demoCall.packetLoss + '% | Jitter: ' + r.demoCall.jitter + 'ms | RTT: ' + r.demoCall.rtt + 'ms');
+				}
+				// Bandwidth
+				lines.push('');
+				lines.push('--- Bandwidth (UDP via RTP) ---');
+				if (r.demoCall.bitrate > 0) lines.push('  Download: ' + r.demoCall.bitrate + ' kbps');
+				if (r.demoCall.bitrateOut > 0) lines.push('  Upload: ' + r.demoCall.bitrateOut + ' kbps');
+				if (r.demoCall.availableBandwidth > 0) lines.push('  Available: ' + r.demoCall.availableBandwidth + ' kbps');
+				// Audio Test
+				if (r.demoCall.audioTest) {
+					var at = r.demoCall.audioTest;
+					lines.push('');
+					lines.push('--- Audio & Microphone Test ---');
+					lines.push('  Microphone: ' + at.mic.rating + ' (avg ' + at.mic.avg + '%, peak ' + at.mic.max + '%)');
+					lines.push('  Echo Return: ' + at.spk.rating + ' (avg ' + at.spk.avg + '%, peak ' + at.spk.max + '%)');
+					lines.push('  Full Duplex: ' + (at.echoDetected ? 'Two-way audio confirmed' : 'Audio path incomplete'));
+					if (at.issues && at.issues.length > 0) {
+						lines.push('  Issues: ' + at.issues.join(', '));
+					}
+				}
+				// Demo call issues
+				if (r.demoCall.issues && r.demoCall.issues.length > 0) {
+					lines.push('  Issues: ' + r.demoCall.issues.join(', '));
+				}
+			}
+		}
+		lines.push('');
+
+		// Reference Pings
+		if (r.refPings && r.refPings.length > 0) {
+			lines.push('--- Internet Baseline ---');
+			for (var i = 0; i < r.refPings.length; i++) {
+				var rp = r.refPings[i];
+				lines.push('  ' + rp.name + ': ' + (rp.ok ? rp.time + 'ms' : (rp.error || 'Failed')));
+			}
+			lines.push('');
+		}
+
+		// Path Trace
+		if (r.pathTrace) {
+			lines.push('--- Path Trace ---');
+			if (r.pathTrace.error) {
+				lines.push('  Error: ' + r.pathTrace.error);
+			} else {
+				var pt = r.pathTrace;
+				lines.push('  Stability: ' + pt.stability + '% (' + (pt.stability >= 80 ? 'Stable' : 'Unstable') + ')');
+				lines.push('  Avg: ' + pt.avg + 'ms | Min: ' + pt.min + 'ms | Max: ' + pt.max + 'ms | Jitter: ' + pt.jitter + 'ms');
+				if (pt.spikes > 0) lines.push('  Spikes: ' + pt.spikes);
+				if (pt.failedPings > 0) lines.push('  Failed: ' + pt.failedPings + '/' + pt.totalPings);
+				lines.push('  NAT Type: ' + pt.natType);
+				if (pt.iceInfo.localIP) lines.push('  Local IP: ' + pt.iceInfo.localIP);
+				if (pt.iceInfo.publicIP) lines.push('  Public IP: ' + pt.iceInfo.publicIP);
+				// Ping samples
+				lines.push('  Ping samples: ' + pt.samples.map(function(s) { return s.time > 0 ? s.time + 'ms' : 'fail'; }).join(', '));
+				if (pt.issues && pt.issues.length > 0) {
+					lines.push('  Issues: ' + pt.issues.join(', '));
+				}
+			}
+			lines.push('');
+		}
+
+		// Diagnosis
+		if (r.diagnosis) {
+			var d = r.diagnosis;
+			var sourceMap = { user: 'Your Network', server: 'VoIP Server', none: 'No Issues', unknown: 'Undetermined' };
+			lines.push('=== DIAGNOSIS ===');
+			lines.push('Issue Source: ' + (sourceMap[d.source] || 'Undetermined'));
+			if (d.issues.length > 0) {
+				lines.push('Findings:');
+				for (var fi = 0; fi < d.issues.length; fi++) {
+					lines.push('  - ' + d.issues[fi]);
+				}
+			}
+			if (d.suggestions.length > 0) {
+				lines.push('Suggested Fixes:');
+				for (var si = 0; si < d.suggestions.length; si++) {
+					lines.push('  - ' + d.suggestions[si]);
+				}
+			}
+		}
+
+		lines.push('');
+		lines.push('--- Generated by FusionPBX WebRTC Phone ---');
+		return lines.join('\n');
+	}
+
+	function buildReportHTML() {
+		var r = state.networkTestResults;
+		if (!r) return '';
+		var ext = state.selectedExtension || {};
+		var h = [];
+
+		h.push('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Network Quality Report</title>');
+		h.push('<style>');
+		h.push('body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;max-width:700px;margin:30px auto;padding:20px;color:#333;font-size:14px;}');
+		h.push('h1{font-size:20px;border-bottom:2px solid #1976d2;padding-bottom:8px;color:#1976d2;}');
+		h.push('h2{font-size:16px;margin-top:20px;color:#555;border-bottom:1px solid #ddd;padding-bottom:4px;}');
+		h.push('.info{color:#666;margin-bottom:16px;}');
+		h.push('.test-row{display:flex;align-items:center;padding:6px 0;border-bottom:1px solid #f0f0f0;}');
+		h.push('.icon{width:24px;text-align:center;font-size:16px;margin-right:8px;}');
+		h.push('.pass .icon{color:#4caf50;} .fail .icon{color:#f44336;} .warn .icon{color:#ff9800;}');
+		h.push('.label{flex:1;font-weight:500;} .value{color:#666;text-align:right;}');
+		h.push('.details{padding:4px 0 4px 32px;color:#666;font-size:13px;}');
+		h.push('.issues{padding:4px 0 4px 32px;} .issues span{display:inline-block;background:#fff3e0;color:#e65100;padding:2px 6px;border-radius:3px;font-size:12px;margin:2px;}');
+		h.push('.diagnosis{background:#f5f5f5;border-radius:8px;padding:12px;margin-top:16px;}');
+		h.push('.diag-source{font-size:16px;font-weight:600;margin-bottom:8px;}');
+		h.push('.diag-pass .diag-source{color:#4caf50;} .diag-warn .diag-source{color:#ff9800;} .diag-fail .diag-source{color:#f44336;}');
+		h.push('.diag-list{margin:8px 0;} .diag-item{padding:3px 0;font-size:13px;}');
+		h.push('.bar-chart{display:flex;align-items:flex-end;gap:3px;height:40px;margin:8px 0 8px 32px;}');
+		h.push('.bar{flex:1;border-radius:2px 2px 0 0;min-width:4px;} .bar-ok{background:#4caf50;} .bar-spike{background:#ff9800;} .bar-fail{background:#f44336;opacity:0.4;}');
+		h.push('.footer{margin-top:24px;padding-top:12px;border-top:1px solid #ddd;color:#999;font-size:12px;text-align:center;}');
+		h.push('@media print{body{margin:0;padding:10px;}}');
+		h.push('</style></head><body>');
+
+		h.push('<h1>WebRTC Phone Network Quality Report</h1>');
+		h.push('<div class="info">');
+		h.push('<strong>Date:</strong> ' + new Date().toLocaleString() + '<br>');
+		h.push('<strong>Domain:</strong> ' + escapeHtml(state.config ? state.config.domain : 'N/A') + '<br>');
+		h.push('<strong>Extension:</strong> ' + escapeHtml(ext.extension || 'N/A') + (ext.caller_id_name ? ' (' + escapeHtml(ext.caller_id_name) + ')' : ''));
+		h.push('</div>');
+
+		function row(cls, icon, label, value) {
+			return '<div class="test-row ' + cls + '"><span class="icon">' + icon + '</span><span class="label">' + label + '</span><span class="value">' + value + '</span></div>';
+		}
+
+		h.push('<h2>Connectivity Tests</h2>');
+		if (r.wss !== null) h.push(row(r.wss.ok ? 'pass' : 'fail', r.wss.ok ? '&#10003;' : '&#10007;', 'WSS Server', r.wss.ok ? r.wss.time + 'ms' : escapeHtml(r.wss.error)));
+		if (r.stun !== null) h.push(row(r.stun.ok ? 'pass' : 'fail', r.stun.ok ? '&#10003;' : '&#10007;', 'STUN Server', r.stun.ok ? r.stun.time + 'ms' + (r.stun.ip ? ' (' + escapeHtml(r.stun.ip) + ')' : '') : escapeHtml(r.stun.error)));
+		if (r.latency !== null) {
+			var latOk = r.latency.rtt > 0 && r.latency.rtt < 300;
+			h.push(row(r.latency.rtt > 0 ? (latOk ? 'pass' : 'warn') : 'fail', r.latency.rtt > 0 ? (latOk ? '&#10003;' : '&#9888;') : '&#10007;', 'Latency', r.latency.rtt > 0 ? r.latency.rtt + 'ms' : (r.latency.error || 'N/A')));
+		}
+		if (r.jitterTest !== null) h.push(row(r.jitterTest.ok ? 'pass' : 'warn', r.jitterTest.ok ? '&#10003;' : '&#9888;', 'System Jitter', r.jitterTest.jitter + 'ms'));
+		if (r.sipPing !== null) h.push(row(r.sipPing.ok ? 'pass' : 'fail', r.sipPing.ok ? '&#10003;' : '&#10007;', 'SIP Signaling', r.sipPing.ok ? r.sipPing.time + 'ms' : (r.sipPing.error || 'Failed')));
+
+		// Echo Test
+		if (r.demoCall !== null && !r.demoCall.status) {
+			h.push('<h2>Echo Test</h2>');
+			if (r.demoCall.error) {
+				h.push(row('fail', '&#10007;', 'Echo Test', escapeHtml(r.demoCall.error)));
+			} else {
+				h.push(row(r.demoCall.ok ? 'pass' : 'fail', r.demoCall.ok ? '&#10003;' : '&#10007;', 'Echo Test', r.demoCall.ok ? r.demoCall.rating + ' (MOS ' + r.demoCall.mos.toFixed(1) + ')' : 'Failed'));
+				if (r.demoCall.ok || r.demoCall.packetsReceived > 0) {
+					h.push('<div class="details">Recv: ' + r.demoCall.packetsReceived + ' pkts | Sent: ' + (r.demoCall.packetsSent || 0) + ' pkts | Loss: ' + r.demoCall.packetLoss + '% | Jitter: ' + r.demoCall.jitter + 'ms | RTT: ' + r.demoCall.rtt + 'ms</div>');
+				}
+				// Bandwidth
+				h.push('<h2>Bandwidth (UDP via RTP)</h2>');
+				if (r.demoCall.bitrate > 0) h.push(row(r.demoCall.bitrate >= 40 ? 'pass' : (r.demoCall.bitrate >= 20 ? 'warn' : 'fail'), r.demoCall.bitrate >= 40 ? '&#10003;' : '&#9888;', 'Download', r.demoCall.bitrate + ' kbps'));
+				if (r.demoCall.bitrateOut > 0) h.push(row(r.demoCall.bitrateOut >= 40 ? 'pass' : (r.demoCall.bitrateOut >= 20 ? 'warn' : 'fail'), r.demoCall.bitrateOut >= 40 ? '&#10003;' : '&#9888;', 'Upload', r.demoCall.bitrateOut + ' kbps'));
+				if (r.demoCall.availableBandwidth > 0) h.push(row(r.demoCall.availableBandwidth >= 100 ? 'pass' : 'warn', r.demoCall.availableBandwidth >= 100 ? '&#10003;' : '&#9888;', 'Available', r.demoCall.availableBandwidth + ' kbps'));
+				// Audio Test
+				if (r.demoCall.audioTest) {
+					var at = r.demoCall.audioTest;
+					h.push('<h2>Audio &amp; Microphone Test</h2>');
+					h.push(row(at.mic.ok ? 'pass' : 'fail', at.mic.ok ? '&#10003;' : '&#10007;', 'Microphone', at.mic.rating + ' (avg ' + at.mic.avg + '%, peak ' + at.mic.max + '%)'));
+					h.push(row(at.spk.ok ? 'pass' : 'fail', at.spk.ok ? '&#10003;' : '&#10007;', 'Echo Return', at.spk.rating + ' (avg ' + at.spk.avg + '%, peak ' + at.spk.max + '%)'));
+					h.push(row(at.echoDetected ? 'pass' : 'fail', at.echoDetected ? '&#10003;' : '&#10007;', 'Full Duplex', at.echoDetected ? 'Two-way audio confirmed' : 'Audio path incomplete'));
+				}
+				if (r.demoCall.issues && r.demoCall.issues.length > 0) {
+					h.push('<div class="issues">');
+					for (var di = 0; di < r.demoCall.issues.length; di++) h.push('<span>' + escapeHtml(r.demoCall.issues[di]) + '</span>');
+					h.push('</div>');
+				}
+			}
+		}
+
+		// Reference Pings
+		if (r.refPings && r.refPings.length > 0) {
+			h.push('<h2>Internet Baseline</h2>');
+			for (var rpi = 0; rpi < r.refPings.length; rpi++) {
+				var rp = r.refPings[rpi];
+				var rpOk = rp.ok && rp.time < 200;
+				h.push(row(rp.ok ? (rpOk ? 'pass' : 'warn') : 'fail', rp.ok ? (rpOk ? '&#10003;' : '&#9888;') : '&#10007;', escapeHtml(rp.name), rp.ok ? rp.time + 'ms' : (rp.error || 'Failed')));
+			}
+		}
+
+		// Path Trace
+		if (r.pathTrace) {
+			h.push('<h2>Path Trace</h2>');
+			if (r.pathTrace.error) {
+				h.push(row('fail', '&#10007;', 'Server Route', escapeHtml(r.pathTrace.error)));
+			} else {
+				var pt = r.pathTrace;
+				h.push(row(pt.stability >= 80 ? 'pass' : (pt.stability >= 50 ? 'warn' : 'fail'), pt.stability >= 80 ? '&#10003;' : '&#9888;', 'Stability', pt.stability + '% (' + (pt.stability >= 80 ? 'Stable' : 'Unstable') + ')'));
+				h.push('<div class="details">Avg: ' + pt.avg + 'ms | Min: ' + pt.min + 'ms | Max: ' + pt.max + 'ms | Jitter: ' + pt.jitter + 'ms</div>');
+				// Bar chart
+				h.push('<div class="bar-chart">');
+				for (var pi = 0; pi < pt.samples.length; pi++) {
+					var ps = pt.samples[pi];
+					var barH = ps.time > 0 ? Math.min(100, Math.max(5, Math.round((ps.time / (pt.max || 1)) * 100))) : 0;
+					var barCls = ps.time < 0 ? 'bar-fail' : (ps.time > pt.avg * 2 ? 'bar-spike' : 'bar-ok');
+					h.push('<div class="bar ' + barCls + '" style="height:' + barH + '%"></div>');
+				}
+				h.push('</div>');
+				h.push(row('pass', '&#128270;', 'NAT Type', escapeHtml(pt.natType)));
+				if (pt.iceInfo.localIP || pt.iceInfo.publicIP) {
+					var ips = [];
+					if (pt.iceInfo.localIP) ips.push('Local: ' + pt.iceInfo.localIP);
+					if (pt.iceInfo.publicIP) ips.push('Public: ' + pt.iceInfo.publicIP);
+					h.push('<div class="details">' + ips.join(' | ') + '</div>');
+				}
+				if (pt.issues && pt.issues.length > 0) {
+					h.push('<div class="issues">');
+					for (var pti = 0; pti < pt.issues.length; pti++) h.push('<span>' + escapeHtml(pt.issues[pti]) + '</span>');
+					h.push('</div>');
+				}
+			}
+		}
+
+		// Diagnosis
+		if (r.diagnosis) {
+			var d = r.diagnosis;
+			var sourceMap = { user: 'Your Network', server: 'VoIP Server', none: 'No Issues', unknown: 'Undetermined' };
+			var diagCls = d.source === 'none' ? 'diag-pass' : (d.source === 'server' ? 'diag-fail' : 'diag-warn');
+			h.push('<div class="diagnosis ' + diagCls + '">');
+			h.push('<div class="diag-source">Issue Source: ' + (sourceMap[d.source] || 'Undetermined') + '</div>');
+			if (d.issues.length > 0 && d.source !== 'none') {
+				h.push('<div class="diag-list"><strong>Findings:</strong>');
+				for (var fi = 0; fi < d.issues.length; fi++) h.push('<div class="diag-item">' + escapeHtml(d.issues[fi]) + '</div>');
+				h.push('</div>');
+			}
+			if (d.suggestions.length > 0) {
+				h.push('<div class="diag-list"><strong>' + (d.source === 'none' ? '' : 'Suggested Fixes:') + '</strong>');
+				for (var sj = 0; sj < d.suggestions.length; sj++) h.push('<div class="diag-item">' + escapeHtml(d.suggestions[sj]) + '</div>');
+				h.push('</div>');
+			}
+			h.push('</div>');
+		}
+
+		h.push('<div class="footer">Generated by FusionPBX WebRTC Phone</div>');
+		h.push('</body></html>');
+		return h.join('\n');
+	}
+
+	function downloadReportPDF() {
+		var html = buildReportHTML();
+		if (!html) return;
+		var win = window.open('', '_blank');
+		if (!win) {
+			alert(t('popupBlocked'));
+			return;
+		}
+		win.document.write(html);
+		win.document.close();
+		setTimeout(function () { win.print(); }, 400);
+	}
+
+	function sendReportEmail() {
+		var reportText = buildReportText();
+		var reportHtml = buildReportHTML();
+		if (!reportText) return;
+		var ext = state.selectedExtension || {};
+		var btn = document.getElementById('webrtc-send-report-btn');
+		if (btn) { btn.disabled = true; btn.textContent = t('sending'); }
+
+		fetch('/app/webrtc_phone/webrtc_phone_report.php', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				report: reportText,
+				report_html: reportHtml,
+				extension: ext.extension || ''
+			})
+		}).then(function (resp) {
+			return resp.json();
+		}).then(function (data) {
+			if (data.success) {
+				alert(t('reportSent'));
+			} else {
+				alert(t('reportFailed') + (data.message ? ': ' + data.message : ''));
+			}
+		}).catch(function (err) {
+			alert(t('reportFailed') + ': ' + err.message);
+		}).finally(function () {
+			if (btn) { btn.disabled = false; btn.textContent = t('sendReport'); }
+		});
+	}
+
 	// --- Public API ---
 
 	return {
@@ -3074,7 +3414,8 @@ var WebRTCPhone = (function () {
 		previewRingtone: previewRingtone,
 		openHistory: openHistory, closeHistory: closeHistory,
 		clearHistory: clearHistory, dialFromHistory: dialFromHistory,
-		openNetworkTest: openNetworkTest, closeNetworkTest: closeNetworkTest, runNetworkTest: runNetworkTest
+		openNetworkTest: openNetworkTest, closeNetworkTest: closeNetworkTest, runNetworkTest: runNetworkTest,
+		downloadReportPDF: downloadReportPDF, sendReportEmail: sendReportEmail
 	};
 
 })();
