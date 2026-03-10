@@ -114,6 +114,13 @@ You can modify this in **Advanced > Group Manager**.
 - Incoming call notifications with ringtone
 - Extension switching for multi-extension users
 - Call duration timer
+- Call history with quality ratings and one-click redial
+- Audio settings: ringtone selection, volume controls, device selection
+- Real-time call quality monitoring (MOS score, jitter, packet loss, RTT, codec)
+- Audio level indicators (MIC/SPK) during calls
+- Dynamic header color reflecting call quality
+- Network quality test with smart diagnosis (WSS, STUN, SIP ping, echo test, internet baseline)
+- Automatic fault isolation: identifies whether issues are on the user's network or the VoIP server
 - Dark mode support
 - Floating overlay that stays on top of all FusionPBX pages
 
@@ -210,6 +217,13 @@ After copying new files to the server, always:
 ### "No extensions assigned" error
 - Go to **Accounts > Extensions** and assign extensions to the user
 - The extension must be enabled and linked via **Extension Users**
+
+### Poor call quality
+- Click the **Network** tab in the phone and run the network test
+- Review the **Smart Diagnosis** section for the issue source and fix suggestions
+- If the diagnosis says **"Your Network"**: try a wired connection, close bandwidth-heavy apps, or switch networks
+- If the diagnosis says **"VoIP Server"**: check server load, codec settings, or contact your administrator
+- Ensure the FreeSWITCH echo extension `*9196` is enabled for the echo test to work
 
 ## File Structure
 

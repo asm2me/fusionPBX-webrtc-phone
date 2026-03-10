@@ -16,6 +16,20 @@ The phone appears as a floating dialer overlay on every FusionPBX page, automati
 - **In-call controls** - Mute, Hold, DTMF, Blind Transfer
 - **Incoming call notifications** - Ringtone, pulsing badge, auto-opens the phone panel
 - **Call timer** with hours:minutes:seconds display
+- **Call history** - Local history of recent calls with status, duration, and one-click redial
+- **Audio settings** - Configurable ringtone, ring/speaker volume, mic/speaker/ring device selection
+- **Real-time call quality monitoring** - Live MOS score, jitter, packet loss, RTT, and codec display during calls
+- **Audio level indicators** - Visual mic and speaker level meters during active calls
+- **Quality-aware header** - Phone header color changes dynamically based on call quality (green/blue/orange/red)
+- **Call quality history** - Quality rating and issue reasons saved with each call in the history
+- **Network quality test** - Comprehensive diagnostic tool with 6 tests:
+  - WSS server connectivity
+  - STUN server reachability and NAT traversal
+  - SIP signaling round-trip
+  - Echo test demo call (dials `*9196`, collects real RTP stats for 5 seconds)
+  - Reference latency checks against Cloudflare, Google, and Microsoft
+  - System jitter measurement
+- **Smart network diagnosis** - Automatically determines whether quality issues originate from the user's network or the VoIP server, with confidence rating and actionable fix suggestions
 - **Dark mode** support (follows system preference)
 - **Standalone page** available at Apps > WebRTC Phone
 - **FusionPBX native module** - follows standard app structure, permissions, menu integration, and default settings
@@ -166,6 +180,42 @@ webrtc_phone/
 - **FreeSWITCH** - SIP server with WebSocket transport
 - **FusionPBX** - Web interface and multi-tenant management layer
 
+## Call Quality Monitoring
+
+During active calls, the phone displays real-time quality metrics:
+
+- **MOS Score** (1.0 - 5.0) - Mean Opinion Score using the ITU-T G.107 E-model
+- **Quality Rating** - Excellent (MOS >= 4.0), Good (>= 3.5), Fair (>= 2.5), Poor (< 2.5)
+- **Metrics** - Jitter (ms), packet loss (%), round-trip time (ms), bitrate (kbps), codec
+- **Issue Detection** - Automatically flags high jitter, packet loss, latency, and low bitrate
+- **Audio Levels** - Real-time MIC and SPK level bars using Web Audio API
+- **Header Color** - Phone header turns green (excellent), blue (good), orange (fair), or red (poor)
+
+Quality data (average MOS, issues) is saved with each call in the history for later review.
+
+## Network Quality Test
+
+Access via the **Network** tab in the phone panel. Runs these tests:
+
+| Test | What It Checks |
+|------|---------------|
+| WSS Server | WebSocket Secure connectivity to your SIP server |
+| STUN Server | NAT traversal and public IP discovery |
+| SIP Signaling | SIP message round-trip through the registered UA |
+| Echo Test | Dials `*9196` for 5s, collects real RTP stats (packets, loss, jitter, RTT, bitrate) |
+| Internet Baseline | Latency to Cloudflare, Google, and Microsoft as reference points |
+| System Jitter | Local CPU/timer consistency check |
+
+### Smart Diagnosis
+
+After tests complete, the phone analyzes all results and provides:
+
+- **Issue Source** - "Your Network", "VoIP Server", or "No Issues"
+- **Findings** - Specific problems detected (e.g., "VoIP server response 450ms is much slower than internet baseline 40ms")
+- **Suggested Fixes** - Actionable recommendations (e.g., "Switch to wired connection", "Contact administrator to check server health")
+
+The diagnosis compares your VoIP server latency against third-party reference servers to determine fault isolation.
+
 ## Troubleshooting
 
 | Problem | Solution |
@@ -175,6 +225,8 @@ webrtc_phone/
 | "No extensions assigned" | Assign extensions to the user in Accounts > Extensions via Extension Users |
 | Phone button doesn't appear | Verify the include line was added to your theme template; check user has `webrtc_phone_view` permission |
 | Registration fails (Error) | Check extension password matches; verify SSL certificate is valid for WSS |
+| Poor call quality | Use the Network tab to run diagnostics; check the smart diagnosis for recommendations |
+| Echo test fails | Ensure FreeSWITCH extension `*9196` (echo) is enabled in your dialplan |
 
 ## Contributing
 

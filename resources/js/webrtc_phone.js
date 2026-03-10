@@ -381,6 +381,18 @@ var WebRTCPhone = (function () {
 			issueEl.innerHTML = q.issues.length > 0 ?
 				q.issues.map(function (i) { return '<span class="webrtc-quality-issue">' + escapeHtml(i) + '</span>'; }).join('') : '';
 		}
+
+		// Update header color based on call quality
+		var headerEl = document.querySelector('.webrtc-phone-header');
+		if (headerEl) {
+			var headerColors = {
+				excellent: '#2e7d32',
+				good: '#1a73e8',
+				fair: '#e65100',
+				poor: '#c62828'
+			};
+			headerEl.style.background = headerColors[q.rating] || '#1a73e8';
+		}
 	}
 
 	function getCallQualitySummary() {
@@ -421,22 +433,31 @@ var WebRTCPhone = (function () {
 	function runNetworkTest() {
 		if (state.networkTestRunning || !state.config) return;
 		state.networkTestRunning = true;
-		state.networkTestResults = { wss: null, stun: null, latency: null, jitterTest: null };
+		state.networkTestResults = { wss: null, stun: null, latency: null, jitterTest: null, sipPing: null, demoCall: null, refPings: null, diagnosis: null };
 		renderPhone();
 
 		var results = state.networkTestResults;
-		var testsRemaining = 3;
+		var testsRemaining = 5; // WSS, STUN+latency, jitter, SIP ping, reference pings (demo call runs separately)
 		function checkDone() {
 			testsRemaining--;
 			if (testsRemaining <= 0) {
-				state.networkTestRunning = false;
-				renderPhone();
+				// If registered, auto-run demo call after basic tests pass
+				if (state.registered && results.wss && results.wss.ok) {
+					runDemoCallTest();
+				} else {
+					state.networkTestRunning = false;
+					if (!state.registered) {
+						results.demoCall = { ok: false, error: 'Not registered - connect an extension first' };
+					}
+					results.diagnosis = generateDiagnosis(results);
+					renderPhone();
+				}
 			} else {
 				renderPhone();
 			}
 		}
 
-		// Test 1: WSS connectivity
+		// Test 1: WSS connectivity + round-trip
 		(function testWSS() {
 			var start = Date.now();
 			var ws = null;
@@ -535,6 +556,415 @@ var WebRTCPhone = (function () {
 				}
 			}, 50);
 		})();
+
+		// Test 4: SIP signaling ping (OPTIONS round-trip via registered UA)
+		(function testSIPPing() {
+			if (!state.ua || !state.registered) {
+				results.sipPing = { ok: false, time: 0, error: 'Not registered' };
+				checkDone();
+				return;
+			}
+			var start = Date.now();
+			var timeout = setTimeout(function () {
+				results.sipPing = { ok: false, time: 0, error: 'Timeout (5s)' };
+				checkDone();
+			}, 5000);
+			try {
+				var domain = state.config.domain;
+				var targetURI = 'sip:' + domain;
+				state.ua.sendMessage(targetURI, 'ping', {
+					contentType: 'text/plain',
+					eventHandlers: {
+						succeeded: function () {
+							clearTimeout(timeout);
+							results.sipPing = { ok: true, time: Date.now() - start };
+							checkDone();
+						},
+						failed: function (e) {
+							clearTimeout(timeout);
+							// A 405/other response still proves SIP signaling works
+							var elapsed = Date.now() - start;
+							if (elapsed < 4500) {
+								results.sipPing = { ok: true, time: elapsed, note: 'SIP response received' };
+							} else {
+								results.sipPing = { ok: false, time: 0, error: e && e.cause ? e.cause : 'Failed' };
+							}
+							checkDone();
+						}
+					}
+				});
+			} catch (e) {
+				clearTimeout(timeout);
+				results.sipPing = { ok: false, time: 0, error: e.message || 'SIP error' };
+				checkDone();
+			}
+		})();
+
+		// Test 5: Reference latency pings to third-party servers
+		(function testReferencePings() {
+			var refServers = [
+				{ name: 'Cloudflare', url: 'https://1.1.1.1/cdn-cgi/trace' },
+				{ name: 'Google', url: 'https://www.google.com/generate_204' },
+				{ name: 'Microsoft', url: 'https://www.microsoft.com/favicon.ico' }
+			];
+			var refResults = [];
+			var remaining = refServers.length;
+
+			function refDone() {
+				remaining--;
+				if (remaining <= 0) {
+					results.refPings = refResults;
+					checkDone();
+				}
+			}
+
+			for (var ri = 0; ri < refServers.length; ri++) {
+				(function (server) {
+					var start = Date.now();
+					var timeout = setTimeout(function () {
+						refResults.push({ name: server.name, ok: false, time: 0, error: 'Timeout' });
+						refDone();
+					}, 5000);
+					fetch(server.url, { mode: 'no-cors', cache: 'no-store' }).then(function () {
+						clearTimeout(timeout);
+						refResults.push({ name: server.name, ok: true, time: Date.now() - start });
+						refDone();
+					}).catch(function () {
+						clearTimeout(timeout);
+						// Even a CORS error means we reached the server, measure timing
+						var elapsed = Date.now() - start;
+						if (elapsed < 4500) {
+							refResults.push({ name: server.name, ok: true, time: elapsed });
+						} else {
+							refResults.push({ name: server.name, ok: false, time: 0, error: 'Unreachable' });
+						}
+						refDone();
+					});
+				})(refServers[ri]);
+			}
+		})();
+	}
+
+	// --- Smart Network Diagnosis ---
+	function generateDiagnosis(r) {
+		if (!r) return null;
+
+		var diagnosis = { source: 'unknown', confidence: 'low', issues: [], suggestions: [] };
+
+		// Gather metrics
+		var wssTime = (r.wss && r.wss.ok) ? r.wss.time : -1;
+		var localJitter = (r.jitterTest) ? r.jitterTest.jitter : -1;
+
+		// Reference ping analysis
+		var refAvg = -1, refOkCount = 0, refFailCount = 0;
+		if (r.refPings && r.refPings.length > 0) {
+			var refSum = 0, refCount = 0;
+			for (var i = 0; i < r.refPings.length; i++) {
+				if (r.refPings[i].ok) {
+					refSum += r.refPings[i].time;
+					refCount++;
+					refOkCount++;
+				} else {
+					refFailCount++;
+				}
+			}
+			if (refCount > 0) refAvg = Math.round(refSum / refCount);
+		}
+
+		// Demo call quality
+		var demoMos = (r.demoCall && r.demoCall.mos) ? r.demoCall.mos : -1;
+		var demoLoss = (r.demoCall && r.demoCall.packetLoss !== undefined) ? r.demoCall.packetLoss : -1;
+		var demoJitter = (r.demoCall && r.demoCall.jitter !== undefined) ? r.demoCall.jitter : -1;
+		var demoRtt = (r.demoCall && r.demoCall.rtt !== undefined) ? r.demoCall.rtt : -1;
+
+		// === Diagnosis Logic ===
+
+		// Case 1: All reference pings fail → user has no internet
+		if (refFailCount >= 3 || (refFailCount >= 2 && refOkCount === 0)) {
+			diagnosis.source = 'user';
+			diagnosis.confidence = 'high';
+			diagnosis.issues.push('Internet connection appears down or severely degraded');
+			diagnosis.suggestions.push('Check your internet connection (WiFi/Ethernet)');
+			diagnosis.suggestions.push('Try restarting your router or switching networks');
+			return diagnosis;
+		}
+
+		// Case 2: Reference pings high → user's internet is slow
+		if (refAvg > 200) {
+			diagnosis.source = 'user';
+			diagnosis.confidence = 'high';
+			diagnosis.issues.push('High internet latency (' + refAvg + 'ms avg to major servers)');
+			diagnosis.suggestions.push('Your internet connection is slow - switch to a wired connection if on WiFi');
+			diagnosis.suggestions.push('Close bandwidth-heavy apps (streaming, downloads, video calls)');
+			diagnosis.suggestions.push('Contact your ISP if the issue persists');
+		} else if (refAvg > 100) {
+			diagnosis.issues.push('Moderate internet latency (' + refAvg + 'ms avg)');
+		}
+
+		// Case 3: Compare server latency vs reference
+		if (wssTime > 0 && refAvg > 0) {
+			var serverToRefRatio = wssTime / refAvg;
+			if (serverToRefRatio > 3 && wssTime > 300) {
+				// Server is much slower than reference
+				diagnosis.source = 'server';
+				diagnosis.confidence = 'high';
+				diagnosis.issues.push('VoIP server response (' + wssTime + 'ms) is much slower than internet baseline (' + refAvg + 'ms)');
+				diagnosis.suggestions.push('The VoIP server may be overloaded or experiencing issues');
+				diagnosis.suggestions.push('Contact your system administrator to check server health');
+			} else if (serverToRefRatio > 2 && wssTime > 150) {
+				diagnosis.source = 'server';
+				diagnosis.confidence = 'medium';
+				diagnosis.issues.push('VoIP server latency (' + wssTime + 'ms) is elevated vs internet baseline (' + refAvg + 'ms)');
+				diagnosis.suggestions.push('Server may be under load or geographically distant');
+			} else if (wssTime > 300 && refAvg > 200) {
+				diagnosis.source = 'user';
+				diagnosis.confidence = 'medium';
+				diagnosis.issues.push('Both server and internet latency are high');
+				diagnosis.suggestions.push('Your overall network is slow - try a different network or wired connection');
+			}
+		}
+
+		// Case 4: WSS fails but references pass
+		if (r.wss && !r.wss.ok && refOkCount >= 2) {
+			diagnosis.source = 'server';
+			diagnosis.confidence = 'high';
+			diagnosis.issues.push('Cannot reach VoIP server but internet works fine');
+			diagnosis.suggestions.push('The VoIP server may be down or blocked by a firewall');
+			diagnosis.suggestions.push('Check if port ' + (state.config ? state.config.wss_port : '7443') + ' is blocked');
+			diagnosis.suggestions.push('Contact your administrator');
+		}
+
+		// Case 5: STUN fails
+		if (r.stun && !r.stun.ok) {
+			if (refOkCount >= 2) {
+				diagnosis.issues.push('STUN server unreachable - NAT traversal will fail');
+				diagnosis.suggestions.push('Your firewall may be blocking UDP traffic');
+				diagnosis.suggestions.push('Try disabling VPN if you are using one');
+			} else {
+				diagnosis.source = 'user';
+				diagnosis.issues.push('STUN failure likely due to poor connectivity');
+			}
+		}
+
+		// Case 6: High local jitter
+		if (localJitter > 30) {
+			diagnosis.source = diagnosis.source === 'unknown' ? 'user' : diagnosis.source;
+			diagnosis.issues.push('High system jitter (' + localJitter + 'ms) - CPU may be overloaded');
+			diagnosis.suggestions.push('Close unnecessary browser tabs and applications');
+			diagnosis.suggestions.push('Disable browser extensions that may consume resources');
+		}
+
+		// Case 7: Demo call analysis
+		if (demoMos > 0) {
+			if (demoLoss > 5) {
+				// High packet loss - determine cause
+				if (refAvg > 0 && refAvg < 80 && wssTime > 0 && wssTime < 200) {
+					// Good baseline but still losing packets → server or path issue
+					diagnosis.source = 'server';
+					diagnosis.confidence = 'medium';
+					diagnosis.issues.push('Packet loss (' + demoLoss.toFixed(1) + '%) despite good connectivity - possible server congestion');
+					diagnosis.suggestions.push('Ask your administrator to check server load and codec settings');
+				} else {
+					diagnosis.source = 'user';
+					diagnosis.issues.push('Packet loss (' + demoLoss.toFixed(1) + '%) likely from unstable connection');
+					diagnosis.suggestions.push('Use a wired Ethernet connection instead of WiFi');
+					diagnosis.suggestions.push('Check for network congestion on your local network');
+				}
+			}
+			if (demoJitter > 30 && localJitter <= 15) {
+				// Network jitter (not CPU jitter)
+				if (refAvg > 0 && refAvg < 80) {
+					diagnosis.source = 'server';
+					diagnosis.issues.push('Audio jitter (' + demoJitter + 'ms) on VoIP path but internet is stable');
+				} else {
+					diagnosis.source = 'user';
+					diagnosis.issues.push('Audio jitter (' + demoJitter + 'ms) from unstable network');
+					diagnosis.suggestions.push('Switch to a more stable network connection');
+				}
+			}
+			if (demoRtt > 200 && refAvg > 0 && refAvg < 80) {
+				diagnosis.source = 'server';
+				diagnosis.issues.push('High call RTT (' + demoRtt + 'ms) but internet baseline is good (' + refAvg + 'ms)');
+				diagnosis.suggestions.push('Server may be geographically distant or overloaded');
+			}
+		}
+
+		// If no issues found, all good
+		if (diagnosis.issues.length === 0) {
+			diagnosis.source = 'none';
+			diagnosis.confidence = 'high';
+			diagnosis.issues.push('No issues detected');
+			diagnosis.suggestions.push('Network is in good condition for VoIP calls');
+		}
+
+		// Set confidence if not already high
+		if (diagnosis.confidence === 'low' && diagnosis.issues.length > 0) {
+			diagnosis.confidence = refAvg > 0 ? 'medium' : 'low';
+		}
+
+		return diagnosis;
+	}
+
+	// Demo call test: calls FreeSWITCH echo extension *9196, collects RTP stats for ~5s, hangs up
+	function runDemoCallTest() {
+		var results = state.networkTestResults;
+		if (!state.ua || !state.registered || state.currentSession) {
+			results.demoCall = { ok: false, error: state.currentSession ? 'Call already active' : 'Not registered' };
+			state.networkTestRunning = false;
+			renderPhone();
+			return;
+		}
+
+		results.demoCall = { status: 'calling', ok: false };
+		renderPhone();
+
+		var domain = state.config.domain;
+		var echoURI = 'sip:*9196@' + domain;
+		var demoSession = null;
+		var demoPC = null;
+		var demoTimeout = null;
+		var statsCollected = [];
+
+		function finishDemoTest(result) {
+			if (demoTimeout) { clearTimeout(demoTimeout); demoTimeout = null; }
+			try { if (demoSession) demoSession.terminate(); } catch (e) {}
+			demoSession = null;
+			demoPC = null;
+			results.demoCall = result;
+			results.diagnosis = generateDiagnosis(results);
+			state.networkTestRunning = false;
+			renderPhone();
+		}
+
+		// Absolute timeout - 15s max
+		demoTimeout = setTimeout(function () {
+			finishDemoTest({ ok: false, error: 'Demo call timeout (15s)' });
+		}, 15000);
+
+		var eventHandlers = {
+			'peerconnection': function (data) {
+				demoPC = data.peerconnection;
+				demoPC.ontrack = function () {
+					// Audio received from echo server - no playback needed for test
+				};
+			},
+			'accepted': function () {
+				results.demoCall = { status: 'connected', ok: false };
+				renderPhone();
+				// Collect stats for 5 seconds
+				var statsCount = 0;
+				var prevBytesRecv = 0;
+				var prevTimestamp = 0;
+				var statsInterval = setInterval(function () {
+					if (!demoPC || !demoPC.getStats) { clearInterval(statsInterval); return; }
+					demoPC.getStats().then(function (stats) {
+						var inbound = null, pair = null;
+						stats.forEach(function (r) {
+							if (r.type === 'inbound-rtp' && r.kind === 'audio' && !r.isRemote) inbound = r;
+							if (r.type === 'candidate-pair' && r.nominated) pair = r;
+						});
+						if (inbound) {
+							var sample = {
+								jitter: (inbound.jitter || 0) * 1000,
+								packetsLost: inbound.packetsLost || 0,
+								packetsReceived: inbound.packetsReceived || 0,
+								bytesReceived: inbound.bytesReceived || 0,
+								rtt: pair ? (pair.currentRoundTripTime || 0) * 1000 : 0,
+								timestamp: inbound.timestamp || Date.now()
+							};
+							if (prevTimestamp > 0) {
+								var dt = (sample.timestamp - prevTimestamp) / 1000;
+								if (dt > 0) sample.bitrateIn = Math.round(((sample.bytesReceived - prevBytesRecv) * 8) / dt / 1000);
+							}
+							prevBytesRecv = sample.bytesReceived;
+							prevTimestamp = sample.timestamp;
+							statsCollected.push(sample);
+						}
+						statsCount++;
+						if (statsCount >= 5) {
+							clearInterval(statsInterval);
+							// Analyze results
+							var callResult = analyzeDemoStats(statsCollected);
+							finishDemoTest(callResult);
+						}
+					}).catch(function () {});
+				}, 1000);
+			},
+			'confirmed': function () {},
+			'ended': function (data) {
+				if (results.demoCall && results.demoCall.status === 'calling') {
+					finishDemoTest({ ok: false, error: 'Call ended: ' + (data.cause || 'unknown') });
+				}
+			},
+			'failed': function (data) {
+				var cause = data.cause || 'unknown';
+				finishDemoTest({ ok: false, error: 'Call failed: ' + cause });
+			},
+			'getusermediafailed': function () {
+				finishDemoTest({ ok: false, error: 'Microphone access denied' });
+			}
+		};
+
+		try {
+			demoSession = state.ua.call(echoURI, {
+				eventHandlers: eventHandlers,
+				mediaConstraints: getMicConstraints(),
+				pcConfig: { iceServers: getICEServers() },
+				rtcOfferConstraints: { offerToReceiveAudio: true, offerToReceiveVideo: false }
+			});
+		} catch (e) {
+			finishDemoTest({ ok: false, error: 'Call exception: ' + e.message });
+		}
+	}
+
+	function analyzeDemoStats(samples) {
+		if (samples.length === 0) return { ok: false, error: 'No RTP stats collected' };
+
+		var n = samples.length;
+		var last = samples[n - 1];
+
+		// Aggregate metrics
+		var totalPackets = last.packetsReceived;
+		var totalLost = last.packetsLost;
+		var packetLoss = totalPackets > 0 ? (totalLost / (totalPackets + totalLost)) * 100 : 0;
+		if (packetLoss < 0) packetLoss = 0;
+
+		var avgJitter = 0, avgRtt = 0, avgBitrate = 0, bitrateCount = 0;
+		for (var i = 0; i < n; i++) {
+			avgJitter += samples[i].jitter;
+			avgRtt += samples[i].rtt;
+			if (samples[i].bitrateIn > 0) { avgBitrate += samples[i].bitrateIn; bitrateCount++; }
+		}
+		avgJitter = Math.round(avgJitter / n);
+		avgRtt = Math.round(avgRtt / n);
+		avgBitrate = bitrateCount > 0 ? Math.round(avgBitrate / bitrateCount) : 0;
+
+		var audioReceived = totalPackets > 10;
+		var mos = calculateMOS(avgRtt, avgJitter, packetLoss);
+		var rating = mosToRating(mos);
+
+		var issues = [];
+		if (!audioReceived) issues.push('No audio received from server');
+		if (packetLoss > 5) issues.push('High packet loss: ' + packetLoss.toFixed(1) + '%');
+		else if (packetLoss > 1) issues.push('Packet loss: ' + packetLoss.toFixed(1) + '%');
+		if (avgJitter > 50) issues.push('High jitter: ' + avgJitter + 'ms');
+		else if (avgJitter > 20) issues.push('Elevated jitter: ' + avgJitter + 'ms');
+		if (avgRtt > 300) issues.push('High latency: ' + avgRtt + 'ms');
+		else if (avgRtt > 150) issues.push('Elevated latency: ' + avgRtt + 'ms');
+		if (avgBitrate > 0 && avgBitrate < 20) issues.push('Low bitrate: ' + avgBitrate + ' kbps');
+
+		return {
+			ok: audioReceived && packetLoss < 10,
+			audioReceived: audioReceived,
+			packetsReceived: totalPackets,
+			packetLoss: Math.round(packetLoss * 10) / 10,
+			jitter: avgJitter,
+			rtt: avgRtt,
+			bitrate: avgBitrate,
+			mos: mos,
+			rating: rating,
+			issues: issues
+		};
 	}
 
 	// --- Audio Level Monitoring ---
@@ -652,11 +1082,106 @@ var WebRTCPhone = (function () {
 				html += '</div>';
 			}
 
-			// Overall verdict
-			if (!state.networkTestRunning && r.wss !== null && r.stun !== null) {
-				var allOk = r.wss.ok && r.stun.ok;
-				html += '<div class="webrtc-net-verdict ' + (allOk ? 'webrtc-net-verdict-pass' : 'webrtc-net-verdict-fail') + '">';
-				html += allOk ? 'Network is ready for VoIP calls' : 'Network issues detected - calls may have problems';
+			// SIP Ping
+			if (r.sipPing !== null) {
+				html += '<div class="webrtc-net-result ' + (r.sipPing.ok ? 'webrtc-net-pass' : 'webrtc-net-fail') + '">';
+				html += '<span class="webrtc-net-icon">' + (r.sipPing.ok ? '&#10003;' : '&#10007;') + '</span>';
+				html += '<span class="webrtc-net-label">SIP Signaling</span>';
+				html += '<span class="webrtc-net-value">' + (r.sipPing.ok ? r.sipPing.time + 'ms' : escapeHtml(r.sipPing.error || 'Failed')) + '</span>';
+				html += '</div>';
+			}
+
+			// Demo Call
+			if (r.demoCall !== null) {
+				if (r.demoCall.status === 'calling') {
+					html += '<div class="webrtc-net-result webrtc-net-warn">';
+					html += '<span class="webrtc-net-icon">&#8987;</span>';
+					html += '<span class="webrtc-net-label">Echo Test</span>';
+					html += '<span class="webrtc-net-value">Dialing *9196...</span>';
+					html += '</div>';
+				} else if (r.demoCall.status === 'connected') {
+					html += '<div class="webrtc-net-result webrtc-net-warn">';
+					html += '<span class="webrtc-net-icon">&#8987;</span>';
+					html += '<span class="webrtc-net-label">Echo Test</span>';
+					html += '<span class="webrtc-net-value">Collecting audio stats...</span>';
+					html += '</div>';
+				} else if (r.demoCall.error) {
+					html += '<div class="webrtc-net-result webrtc-net-fail">';
+					html += '<span class="webrtc-net-icon">&#10007;</span>';
+					html += '<span class="webrtc-net-label">Echo Test</span>';
+					html += '<span class="webrtc-net-value">' + escapeHtml(r.demoCall.error) + '</span>';
+					html += '</div>';
+				} else {
+					// Completed demo call with stats
+					html += '<div class="webrtc-net-result ' + (r.demoCall.ok ? 'webrtc-net-pass' : 'webrtc-net-fail') + '">';
+					html += '<span class="webrtc-net-icon">' + (r.demoCall.ok ? '&#10003;' : '&#10007;') + '</span>';
+					html += '<span class="webrtc-net-label">Echo Test</span>';
+					html += '<span class="webrtc-net-value">' + (r.demoCall.ok ? r.demoCall.rating.charAt(0).toUpperCase() + r.demoCall.rating.slice(1) + ' (MOS ' + r.demoCall.mos.toFixed(1) + ')' : 'Failed') + '</span>';
+					html += '</div>';
+					if (r.demoCall.ok || r.demoCall.packetsReceived > 0) {
+						html += '<div class="webrtc-net-demo-details">';
+						html += '<span>Packets: ' + r.demoCall.packetsReceived + '</span>';
+						html += '<span>Loss: ' + r.demoCall.packetLoss + '%</span>';
+						html += '<span>Jitter: ' + r.demoCall.jitter + 'ms</span>';
+						html += '<span>RTT: ' + r.demoCall.rtt + 'ms</span>';
+						if (r.demoCall.bitrate > 0) html += '<span>Bitrate: ' + r.demoCall.bitrate + ' kbps</span>';
+						html += '</div>';
+					}
+					if (r.demoCall.issues && r.demoCall.issues.length > 0) {
+						html += '<div class="webrtc-net-demo-issues">';
+						for (var di = 0; di < r.demoCall.issues.length; di++) {
+							html += '<span class="webrtc-quality-issue">' + escapeHtml(r.demoCall.issues[di]) + '</span>';
+						}
+						html += '</div>';
+					}
+				}
+			}
+
+			// Reference pings
+			if (r.refPings && r.refPings.length > 0) {
+				html += '<div class="webrtc-net-section-label">Internet Baseline</div>';
+				for (var rpi = 0; rpi < r.refPings.length; rpi++) {
+					var rp = r.refPings[rpi];
+					var rpOk = rp.ok && rp.time < 200;
+					var rpClass = rp.ok ? (rpOk ? 'webrtc-net-pass' : 'webrtc-net-warn') : 'webrtc-net-fail';
+					html += '<div class="webrtc-net-result ' + rpClass + '">';
+					html += '<span class="webrtc-net-icon">' + (rp.ok ? (rpOk ? '&#10003;' : '&#9888;') : '&#10007;') + '</span>';
+					html += '<span class="webrtc-net-label">' + escapeHtml(rp.name) + '</span>';
+					html += '<span class="webrtc-net-value">' + (rp.ok ? rp.time + 'ms' : escapeHtml(rp.error || 'Failed')) + '</span>';
+					html += '</div>';
+				}
+			}
+
+			// Smart Diagnosis
+			if (r.diagnosis && !state.networkTestRunning) {
+				var d = r.diagnosis;
+				var sourceLabel = { user: 'Your Network', server: 'VoIP Server', none: 'No Issues', unknown: 'Undetermined' };
+				var sourceIcon = { user: '&#128187;', server: '&#9729;', none: '&#10003;', unknown: '&#63;' };
+				var diagClass = d.source === 'none' ? 'webrtc-net-verdict-pass' : (d.source === 'server' ? 'webrtc-net-verdict-fail' : (d.source === 'user' ? 'webrtc-net-verdict-warn' : 'webrtc-net-verdict-warn'));
+
+				html += '<div class="webrtc-net-diagnosis">';
+				html += '<div class="webrtc-net-section-label">Diagnosis</div>';
+				html += '<div class="webrtc-net-verdict ' + diagClass + '">';
+				html += '<span class="webrtc-net-diag-source">' + (sourceIcon[d.source] || '') + ' Issue source: <strong>' + (sourceLabel[d.source] || 'Unknown') + '</strong></span>';
+				html += '</div>';
+
+				if (d.issues.length > 0 && d.source !== 'none') {
+					html += '<div class="webrtc-net-diag-list">';
+					html += '<div class="webrtc-net-diag-heading">Findings:</div>';
+					for (var di2 = 0; di2 < d.issues.length; di2++) {
+						html += '<div class="webrtc-net-diag-item webrtc-net-diag-issue">' + escapeHtml(d.issues[di2]) + '</div>';
+					}
+					html += '</div>';
+				}
+
+				if (d.suggestions.length > 0) {
+					html += '<div class="webrtc-net-diag-list">';
+					html += '<div class="webrtc-net-diag-heading">' + (d.source === 'none' ? '' : 'Suggested Fixes:') + '</div>';
+					for (var si = 0; si < d.suggestions.length; si++) {
+						html += '<div class="webrtc-net-diag-item webrtc-net-diag-fix">' + escapeHtml(d.suggestions[si]) + '</div>';
+					}
+					html += '</div>';
+				}
 				html += '</div>';
 			}
 			html += '</div>';
@@ -1314,6 +1839,9 @@ var WebRTCPhone = (function () {
 		}
 		stopQualityMonitor();
 		stopAudioLevels();
+		// Reset header color to default
+		var headerEl = document.querySelector('.webrtc-phone-header');
+		if (headerEl) headerEl.style.background = '';
 		state.qualityStats = null;
 		state.qualityHistory = [];
 		state.prevStats = null;
