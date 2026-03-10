@@ -35,6 +35,20 @@ $v = '1.0.4';
 echo "<script src='/app/webrtc_phone/resources/js/jssip.min.js?v=".$v."'></script>\n";
 echo "<script src='/app/webrtc_phone/resources/js/webrtc_phone.js?v=".$v."'></script>\n";
 echo "<link rel='stylesheet' href='/app/webrtc_phone/resources/css/webrtc_phone.css?v=".$v."'>\n";
+
+// Inject translations for the JS UI
+$_webrtc_lang = $_SESSION['domain']['language']['code'] ?? 'en-us';
+$_webrtc_js_strings = [];
+foreach ($text as $key => $langs) {
+	if (strpos($key, 'js-') === 0) {
+		$jsKey = substr($key, 3);
+		$_webrtc_js_strings[$jsKey] = is_array($langs) ? ($langs[$_webrtc_lang] ?? ($langs['en-us'] ?? '')) : '';
+	}
+}
+if (!empty($_webrtc_js_strings)) {
+	echo "<script>window.webrtcPhoneLang = ".json_encode($_webrtc_js_strings, JSON_UNESCAPED_UNICODE).";</script>\n";
+}
+
 echo "<script>document.addEventListener('DOMContentLoaded', function(){ WebRTCPhone.init('webrtc-phone-mount'); });</script>\n";
 
 require_once "resources/footer.php";

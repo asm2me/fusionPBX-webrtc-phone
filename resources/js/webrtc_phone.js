@@ -7,6 +7,107 @@
 var WebRTCPhone = (function () {
 	'use strict';
 
+	// --- Internationalization ---
+	var defaultLang = {
+		phone: 'Phone',
+		call: 'Call',
+		hangUp: 'Hang Up',
+		answer: 'Answer',
+		reject: 'Reject',
+		mute: 'Mute',
+		unmute: 'Unmute',
+		hold: 'Hold',
+		resume: 'Resume',
+		transfer: 'Transfer',
+		transferTo: 'Transfer to:',
+		send: 'Send',
+		dialpad: 'Dialpad',
+		history: 'History',
+		network: 'Network',
+		settings: 'Settings',
+		idle: 'Idle',
+		connecting: 'Connecting...',
+		registered: 'Registered',
+		error: 'Error',
+		incomingCall: 'Incoming Call',
+		outgoingCall: 'Calling...',
+		inCall: 'In Call',
+		measuring: 'Measuring...',
+		noExtensions: 'No extensions assigned to your account.',
+		selectExtension: 'Select extension...',
+		connect: 'Connect',
+		disconnect: 'Disconnect',
+		noRecentCalls: 'No recent calls',
+		clearHistory: 'Clear History',
+		// Quality
+		excellent: 'Excellent',
+		good: 'Good',
+		fair: 'Fair',
+		poor: 'Poor',
+		// Network test
+		networkQualityTest: 'Network Quality Test',
+		runningTests: 'Running tests...',
+		wssServer: 'WSS Server',
+		stunServer: 'STUN Server',
+		latency: 'Latency',
+		systemJitter: 'System Jitter',
+		sipSignaling: 'SIP Signaling',
+		echoTest: 'Echo Test',
+		dialingEcho: 'Dialing *9196...',
+		collectingStats: 'Collecting audio stats...',
+		internetBaseline: 'Internet Baseline',
+		bandwidth: 'Bandwidth',
+		download: 'Download',
+		upload: 'Upload',
+		available: 'Available',
+		// Audio test
+		audioMicTest: 'Audio & Microphone Test',
+		microphone: 'Microphone',
+		echoReturn: 'Echo Return',
+		fullDuplex: 'Full Duplex',
+		twoWayAudio: 'Two-way audio confirmed',
+		audioPathIncomplete: 'Audio path incomplete',
+		strong: 'Strong',
+		normal: 'Normal',
+		weak: 'Weak',
+		silent: 'Silent',
+		// Diagnosis
+		diagnosis: 'Diagnosis',
+		issueSource: 'Issue source',
+		yourNetwork: 'Your Network',
+		voipServer: 'VoIP Server',
+		noIssues: 'No Issues',
+		undetermined: 'Undetermined',
+		findings: 'Findings:',
+		suggestedFixes: 'Suggested Fixes:',
+		runTest: 'Run Test',
+		reTest: 'Re-test',
+		close: 'Close',
+		// Audio settings
+		audioSettings: 'Audio Settings',
+		ringtone: 'Ringtone',
+		ringVolume: 'Ring Volume',
+		speakerVolume: 'Speaker Volume',
+		micDevice: 'Microphone',
+		speakerDevice: 'Speaker',
+		ringDevice: 'Ring Device',
+		defaultDevice: 'Default',
+		preview: 'Preview',
+		stop: 'Stop',
+		// Stats
+		packets: 'Packets',
+		recv: 'Recv',
+		sent: 'Sent',
+		loss: 'Loss',
+		jitter: 'Jitter',
+		rtt: 'RTT'
+	};
+
+	function t(key) {
+		var lang = window.webrtcPhoneLang || {};
+		return lang[key] || defaultLang[key] || key;
+	}
+
 	// Available ringtones
 	var ringtones = [
 		{ name: 'Classic US' },
@@ -365,7 +466,7 @@ var WebRTCPhone = (function () {
 		var q = state.qualityStats;
 		el.className = 'webrtc-quality-indicator webrtc-quality-' + q.rating;
 		el.innerHTML = '<span class="webrtc-quality-dots">' + getQualityIcon(q.rating) + '</span> ' +
-			'<span class="webrtc-quality-label">' + q.rating.charAt(0).toUpperCase() + q.rating.slice(1) + '</span>';
+			'<span class="webrtc-quality-label">' + t(q.rating) + '</span>';
 
 		var detailEl = document.getElementById('webrtc-quality-details');
 		if (detailEl) {
@@ -789,6 +890,62 @@ var WebRTCPhone = (function () {
 			}
 		}
 
+		// Case 8: Bandwidth analysis
+		var demoBitrateIn = (r.demoCall && r.demoCall.bitrate) ? r.demoCall.bitrate : -1;
+		var demoBitrateOut = (r.demoCall && r.demoCall.bitrateOut) ? r.demoCall.bitrateOut : -1;
+		var demoAvailBw = (r.demoCall && r.demoCall.availableBandwidth) ? r.demoCall.availableBandwidth : -1;
+		if (demoBitrateIn > 0 && demoBitrateIn < 20) {
+			diagnosis.issues.push('Download bitrate very low (' + demoBitrateIn + ' kbps)');
+			diagnosis.suggestions.push('Audio quality will be degraded - check for bandwidth-consuming apps');
+		}
+		if (demoBitrateOut > 0 && demoBitrateOut < 20) {
+			diagnosis.issues.push('Upload bitrate very low (' + demoBitrateOut + ' kbps)');
+			diagnosis.suggestions.push('Your upload speed may be insufficient - close uploading apps or switch networks');
+		}
+		if (demoAvailBw > 0 && demoAvailBw < 50) {
+			diagnosis.source = diagnosis.source === 'unknown' ? 'user' : diagnosis.source;
+			diagnosis.issues.push('Available bandwidth critically low (' + demoAvailBw + ' kbps)');
+			diagnosis.suggestions.push('VoIP needs at least 80-100 kbps - check your internet speed');
+		}
+
+		// Case 9: Audio/mic test analysis
+		var audioTest = (r.demoCall && r.demoCall.audioTest) ? r.demoCall.audioTest : null;
+		if (audioTest) {
+			if (!audioTest.mic.ok) {
+				diagnosis.source = 'user';
+				diagnosis.confidence = 'high';
+				diagnosis.issues.push('Microphone is not capturing audio');
+				diagnosis.suggestions.push('Check that the correct microphone is selected in Audio Settings');
+				diagnosis.suggestions.push('Ensure browser microphone permission is granted');
+				diagnosis.suggestions.push('Try a different microphone or check physical connections');
+			} else if (audioTest.mic.rating === 'weak') {
+				diagnosis.issues.push('Microphone signal is weak');
+				diagnosis.suggestions.push('Move closer to the microphone or increase mic gain in system settings');
+			}
+			if (audioTest.mic.ok && !audioTest.spk.ok) {
+				diagnosis.issues.push('One-way audio detected: mic works but no echo received from server');
+				diagnosis.suggestions.push('Server may have an audio processing issue or codec mismatch');
+				diagnosis.suggestions.push('Check FreeSWITCH echo extension (*9196) is working correctly');
+			}
+			if (!audioTest.mic.ok && audioTest.spk.ok) {
+				diagnosis.source = 'user';
+				diagnosis.issues.push('One-way audio: server sends audio but mic is silent');
+				diagnosis.suggestions.push('This is a local microphone issue, not a network problem');
+			}
+			if (audioTest.mic.ok && audioTest.spk.ok && audioTest.mic.activePercent < 40) {
+				diagnosis.issues.push('Intermittent microphone input (' + audioTest.mic.activePercent + '% active)');
+				diagnosis.suggestions.push('Check for mic auto-muting or noise suppression interfering');
+			}
+			if (audioTest.spk.ok && audioTest.spk.activePercent < 30) {
+				diagnosis.issues.push('Intermittent echo return (' + audioTest.spk.activePercent + '% active)');
+				if (refAvg > 0 && refAvg < 80) {
+					diagnosis.suggestions.push('Server may be dropping audio packets intermittently');
+				} else {
+					diagnosis.suggestions.push('Unstable network causing audio dropouts');
+				}
+			}
+		}
+
 		// If no issues found, all good
 		if (diagnosis.issues.length === 0) {
 			diagnosis.source = 'none';
@@ -824,9 +981,28 @@ var WebRTCPhone = (function () {
 		var demoPC = null;
 		var demoTimeout = null;
 		var statsCollected = [];
+		// Audio analysis state
+		var demoAudioCtx = null;
+		var demoMicAnalyser = null;
+		var demoSpkAnalyser = null;
+		var micLevelSamples = [];
+		var spkLevelSamples = [];
+		var audioSampleInterval = null;
+
+		function cleanupDemoAudio() {
+			if (audioSampleInterval) { clearInterval(audioSampleInterval); audioSampleInterval = null; }
+			if (demoAudioCtx) { try { demoAudioCtx.close(); } catch (e) {} demoAudioCtx = null; }
+			demoMicAnalyser = null;
+			demoSpkAnalyser = null;
+		}
 
 		function finishDemoTest(result) {
 			if (demoTimeout) { clearTimeout(demoTimeout); demoTimeout = null; }
+			cleanupDemoAudio();
+			// Attach audio analysis to result
+			if (micLevelSamples.length > 0 || spkLevelSamples.length > 0) {
+				result.audioTest = analyzeAudioLevels(micLevelSamples, spkLevelSamples);
+			}
 			try { if (demoSession) demoSession.terminate(); } catch (e) {}
 			demoSession = null;
 			demoPC = null;
@@ -844,23 +1020,60 @@ var WebRTCPhone = (function () {
 		var eventHandlers = {
 			'peerconnection': function (data) {
 				demoPC = data.peerconnection;
-				demoPC.ontrack = function () {
-					// Audio received from echo server - no playback needed for test
+				demoPC.ontrack = function (evt) {
+					// Set up audio analysers for mic and speaker
+					try {
+						var AudioCtx = window.AudioContext || window.webkitAudioContext;
+						if (!AudioCtx) return;
+						demoAudioCtx = new AudioCtx();
+
+						// Speaker (remote/inbound) analyser from ontrack stream
+						if (evt.streams && evt.streams[0]) {
+							var spkSource = demoAudioCtx.createMediaStreamSource(evt.streams[0]);
+							demoSpkAnalyser = demoAudioCtx.createAnalyser();
+							demoSpkAnalyser.fftSize = 256;
+							spkSource.connect(demoSpkAnalyser);
+						}
+
+						// Mic (local/outbound) analyser from senders
+						var senders = demoPC.getSenders();
+						for (var si = 0; si < senders.length; si++) {
+							if (senders[si].track && senders[si].track.kind === 'audio') {
+								var micStream = new MediaStream([senders[si].track]);
+								var micSource = demoAudioCtx.createMediaStreamSource(micStream);
+								demoMicAnalyser = demoAudioCtx.createAnalyser();
+								demoMicAnalyser.fftSize = 256;
+								micSource.connect(demoMicAnalyser);
+								break;
+							}
+						}
+					} catch (e) {
+						console.warn('Demo audio analyser setup failed:', e);
+					}
 				};
 			},
 			'accepted': function () {
 				results.demoCall = { status: 'connected', ok: false };
 				renderPhone();
+
+				// Start audio level sampling every 200ms
+				audioSampleInterval = setInterval(function () {
+					micLevelSamples.push(getDemoAnalyserLevel(demoMicAnalyser));
+					spkLevelSamples.push(getDemoAnalyserLevel(demoSpkAnalyser));
+				}, 200);
+
 				// Collect stats for 5 seconds
 				var statsCount = 0;
 				var prevBytesRecv = 0;
+				var prevBytesSent = 0;
 				var prevTimestamp = 0;
 				var statsInterval = setInterval(function () {
 					if (!demoPC || !demoPC.getStats) { clearInterval(statsInterval); return; }
 					demoPC.getStats().then(function (stats) {
-						var inbound = null, pair = null;
+						var inbound = null, outbound = null, pair = null;
 						stats.forEach(function (r) {
 							if (r.type === 'inbound-rtp' && r.kind === 'audio' && !r.isRemote) inbound = r;
+							if (r.type === 'outbound-rtp' && r.kind === 'audio' && !r.isRemote) outbound = r;
 							if (r.type === 'candidate-pair' && r.nominated) pair = r;
 						});
 						if (inbound) {
@@ -869,14 +1082,21 @@ var WebRTCPhone = (function () {
 								packetsLost: inbound.packetsLost || 0,
 								packetsReceived: inbound.packetsReceived || 0,
 								bytesReceived: inbound.bytesReceived || 0,
+								packetsSent: outbound ? (outbound.packetsSent || 0) : 0,
+								bytesSent: outbound ? (outbound.bytesSent || 0) : 0,
 								rtt: pair ? (pair.currentRoundTripTime || 0) * 1000 : 0,
+								availableOutgoingBitrate: pair ? (pair.availableOutgoingBitrate || 0) : 0,
 								timestamp: inbound.timestamp || Date.now()
 							};
 							if (prevTimestamp > 0) {
 								var dt = (sample.timestamp - prevTimestamp) / 1000;
-								if (dt > 0) sample.bitrateIn = Math.round(((sample.bytesReceived - prevBytesRecv) * 8) / dt / 1000);
+								if (dt > 0) {
+									sample.bitrateIn = Math.round(((sample.bytesReceived - prevBytesRecv) * 8) / dt / 1000);
+									sample.bitrateOut = Math.round(((sample.bytesSent - prevBytesSent) * 8) / dt / 1000);
+								}
 							}
 							prevBytesRecv = sample.bytesReceived;
+							prevBytesSent = sample.bytesSent;
 							prevTimestamp = sample.timestamp;
 							statsCollected.push(sample);
 						}
@@ -917,6 +1137,92 @@ var WebRTCPhone = (function () {
 		}
 	}
 
+	function getDemoAnalyserLevel(analyser) {
+		if (!analyser) return 0;
+		var data = new Uint8Array(analyser.frequencyBinCount);
+		analyser.getByteFrequencyData(data);
+		var sum = 0;
+		for (var i = 0; i < data.length; i++) sum += data[i];
+		var avg = sum / data.length;
+		return Math.min(100, Math.round((avg / 128) * 100));
+	}
+
+	function analyzeAudioLevels(micSamples, spkSamples) {
+		var result = { mic: {}, spk: {}, echoDetected: false, issues: [] };
+
+		// Mic analysis
+		var micSum = 0, micMax = 0, micAboveThreshold = 0;
+		for (var i = 0; i < micSamples.length; i++) {
+			micSum += micSamples[i];
+			if (micSamples[i] > micMax) micMax = micSamples[i];
+			if (micSamples[i] > 3) micAboveThreshold++;
+		}
+		var micAvg = micSamples.length > 0 ? Math.round(micSum / micSamples.length) : 0;
+		var micActivePercent = micSamples.length > 0 ? Math.round((micAboveThreshold / micSamples.length) * 100) : 0;
+		result.mic = { avg: micAvg, max: micMax, activePercent: micActivePercent, samples: micSamples.length };
+		result.mic.ok = micAvg > 2 || micMax > 10;
+		result.mic.rating = micAvg >= 15 ? 'strong' : (micAvg >= 5 ? 'normal' : (micMax > 10 ? 'weak' : 'silent'));
+
+		// Speaker analysis
+		var spkSum = 0, spkMax = 0, spkAboveThreshold = 0;
+		for (var j = 0; j < spkSamples.length; j++) {
+			spkSum += spkSamples[j];
+			if (spkSamples[j] > spkMax) spkMax = spkSamples[j];
+			if (spkSamples[j] > 3) spkAboveThreshold++;
+		}
+		var spkAvg = spkSamples.length > 0 ? Math.round(spkSum / spkSamples.length) : 0;
+		var spkActivePercent = spkSamples.length > 0 ? Math.round((spkAboveThreshold / spkSamples.length) * 100) : 0;
+		result.spk = { avg: spkAvg, max: spkMax, activePercent: spkActivePercent, samples: spkSamples.length };
+		result.spk.ok = spkAvg > 2 || spkMax > 10;
+		result.spk.rating = spkAvg >= 15 ? 'strong' : (spkAvg >= 5 ? 'normal' : (spkMax > 10 ? 'weak' : 'silent'));
+
+		// Echo detection: if mic is active AND speaker received audio back, echo path works
+		result.echoDetected = result.mic.ok && result.spk.ok;
+
+		// Issue detection
+		if (result.mic.rating === 'silent') {
+			result.issues.push('Microphone silent - no audio captured');
+		} else if (result.mic.rating === 'weak') {
+			result.issues.push('Microphone signal weak (avg level: ' + micAvg + '%)');
+		}
+
+		if (result.spk.rating === 'silent') {
+			if (result.mic.ok) {
+				result.issues.push('No echo received - server may not be returning audio');
+			} else {
+				result.issues.push('No audio received (mic also silent)');
+			}
+		} else if (result.spk.rating === 'weak') {
+			result.issues.push('Echo return signal weak (avg level: ' + spkAvg + '%)');
+		}
+
+		if (result.mic.ok && !result.spk.ok) {
+			result.issues.push('One-way audio: mic works but no sound from server');
+		} else if (!result.mic.ok && result.spk.ok) {
+			result.issues.push('One-way audio: receiving server audio but mic is not working');
+		}
+
+		// Audio clipping detection
+		if (micMax >= 95) {
+			result.issues.push('Mic audio may be clipping (peak: ' + micMax + '%) - lower mic gain');
+		}
+		if (spkMax >= 95) {
+			result.issues.push('Speaker audio may be clipping (peak: ' + spkMax + '%)');
+		}
+
+		// Intermittent audio
+		if (result.mic.ok && micActivePercent < 40) {
+			result.issues.push('Mic audio is intermittent (active only ' + micActivePercent + '% of the time)');
+		}
+		if (result.spk.ok && spkActivePercent < 30) {
+			result.issues.push('Echo audio is intermittent (received only ' + spkActivePercent + '% of the time)');
+		}
+
+		result.ok = result.mic.ok && result.spk.ok && result.issues.length === 0;
+
+		return result;
+	}
+
 	function analyzeDemoStats(samples) {
 		if (samples.length === 0) return { ok: false, error: 'No RTP stats collected' };
 
@@ -930,14 +1236,22 @@ var WebRTCPhone = (function () {
 		if (packetLoss < 0) packetLoss = 0;
 
 		var avgJitter = 0, avgRtt = 0, avgBitrate = 0, bitrateCount = 0;
+		var avgBitrateOut = 0, bitrateOutCount = 0;
+		var totalSent = last.packetsSent || 0;
+		var totalBytesSent = last.bytesSent || 0;
+		var availBw = 0, availBwCount = 0;
 		for (var i = 0; i < n; i++) {
 			avgJitter += samples[i].jitter;
 			avgRtt += samples[i].rtt;
 			if (samples[i].bitrateIn > 0) { avgBitrate += samples[i].bitrateIn; bitrateCount++; }
+			if (samples[i].bitrateOut > 0) { avgBitrateOut += samples[i].bitrateOut; bitrateOutCount++; }
+			if (samples[i].availableOutgoingBitrate > 0) { availBw += samples[i].availableOutgoingBitrate; availBwCount++; }
 		}
 		avgJitter = Math.round(avgJitter / n);
 		avgRtt = Math.round(avgRtt / n);
 		avgBitrate = bitrateCount > 0 ? Math.round(avgBitrate / bitrateCount) : 0;
+		avgBitrateOut = bitrateOutCount > 0 ? Math.round(avgBitrateOut / bitrateOutCount) : 0;
+		var avgAvailBw = availBwCount > 0 ? Math.round(availBw / availBwCount / 1000) : 0; // kbps
 
 		var audioReceived = totalPackets > 10;
 		var mos = calculateMOS(avgRtt, avgJitter, packetLoss);
@@ -951,16 +1265,21 @@ var WebRTCPhone = (function () {
 		else if (avgJitter > 20) issues.push('Elevated jitter: ' + avgJitter + 'ms');
 		if (avgRtt > 300) issues.push('High latency: ' + avgRtt + 'ms');
 		else if (avgRtt > 150) issues.push('Elevated latency: ' + avgRtt + 'ms');
-		if (avgBitrate > 0 && avgBitrate < 20) issues.push('Low bitrate: ' + avgBitrate + ' kbps');
+		if (avgBitrate > 0 && avgBitrate < 20) issues.push('Low download bitrate: ' + avgBitrate + ' kbps');
+		if (avgBitrateOut > 0 && avgBitrateOut < 20) issues.push('Low upload bitrate: ' + avgBitrateOut + ' kbps');
+		if (avgAvailBw > 0 && avgAvailBw < 50) issues.push('Low available bandwidth: ' + avgAvailBw + ' kbps');
 
 		return {
 			ok: audioReceived && packetLoss < 10,
 			audioReceived: audioReceived,
 			packetsReceived: totalPackets,
+			packetsSent: totalSent,
 			packetLoss: Math.round(packetLoss * 10) / 10,
 			jitter: avgJitter,
 			rtt: avgRtt,
 			bitrate: avgBitrate,
+			bitrateOut: avgBitrateOut,
+			availableBandwidth: avgAvailBw,
 			mos: mos,
 			rating: rating,
 			issues: issues
@@ -1039,10 +1358,10 @@ var WebRTCPhone = (function () {
 
 	function renderNetworkTestPanel() {
 		var html = '<div class="webrtc-network-test">';
-		html += '<div class="webrtc-network-test-title">Network Quality Test</div>';
+		html += '<div class="webrtc-network-test-title">' + t('networkQualityTest') + '</div>';
 
 		if (state.networkTestRunning) {
-			html += '<div class="webrtc-network-test-running">Running tests...</div>';
+			html += '<div class="webrtc-network-test-running">' + t('runningTests') + '</div>';
 		}
 
 		var r = state.networkTestResults;
@@ -1052,7 +1371,7 @@ var WebRTCPhone = (function () {
 			if (r.wss !== null) {
 				html += '<div class="webrtc-net-result ' + (r.wss.ok ? 'webrtc-net-pass' : 'webrtc-net-fail') + '">';
 				html += '<span class="webrtc-net-icon">' + (r.wss.ok ? '&#10003;' : '&#10007;') + '</span>';
-				html += '<span class="webrtc-net-label">WSS Server</span>';
+				html += '<span class="webrtc-net-label">' + t('wssServer') + '</span>';
 				html += '<span class="webrtc-net-value">' + (r.wss.ok ? r.wss.time + 'ms' : escapeHtml(r.wss.error)) + '</span>';
 				html += '</div>';
 			}
@@ -1060,7 +1379,7 @@ var WebRTCPhone = (function () {
 			if (r.stun !== null) {
 				html += '<div class="webrtc-net-result ' + (r.stun.ok ? 'webrtc-net-pass' : 'webrtc-net-fail') + '">';
 				html += '<span class="webrtc-net-icon">' + (r.stun.ok ? '&#10003;' : '&#10007;') + '</span>';
-				html += '<span class="webrtc-net-label">STUN Server</span>';
+				html += '<span class="webrtc-net-label">' + t('stunServer') + '</span>';
 				html += '<span class="webrtc-net-value">' + (r.stun.ok ? r.stun.time + 'ms' + (r.stun.ip ? ' (' + escapeHtml(r.stun.ip) + ')' : '') : escapeHtml(r.stun.error)) + '</span>';
 				html += '</div>';
 			}
@@ -1069,7 +1388,7 @@ var WebRTCPhone = (function () {
 				var latOk = r.latency.rtt > 0 && r.latency.rtt < 300;
 				html += '<div class="webrtc-net-result ' + (r.latency.rtt > 0 ? (latOk ? 'webrtc-net-pass' : 'webrtc-net-warn') : 'webrtc-net-fail') + '">';
 				html += '<span class="webrtc-net-icon">' + (r.latency.rtt > 0 ? (latOk ? '&#10003;' : '&#9888;') : '&#10007;') + '</span>';
-				html += '<span class="webrtc-net-label">Latency</span>';
+				html += '<span class="webrtc-net-label">' + t('latency') + '</span>';
 				html += '<span class="webrtc-net-value">' + (r.latency.rtt > 0 ? r.latency.rtt + 'ms' : escapeHtml(r.latency.error || 'N/A')) + '</span>';
 				html += '</div>';
 			}
@@ -1077,7 +1396,7 @@ var WebRTCPhone = (function () {
 			if (r.jitterTest !== null) {
 				html += '<div class="webrtc-net-result ' + (r.jitterTest.ok ? 'webrtc-net-pass' : 'webrtc-net-warn') + '">';
 				html += '<span class="webrtc-net-icon">' + (r.jitterTest.ok ? '&#10003;' : '&#9888;') + '</span>';
-				html += '<span class="webrtc-net-label">System Jitter</span>';
+				html += '<span class="webrtc-net-label">' + t('systemJitter') + '</span>';
 				html += '<span class="webrtc-net-value">' + r.jitterTest.jitter + 'ms</span>';
 				html += '</div>';
 			}
@@ -1086,7 +1405,7 @@ var WebRTCPhone = (function () {
 			if (r.sipPing !== null) {
 				html += '<div class="webrtc-net-result ' + (r.sipPing.ok ? 'webrtc-net-pass' : 'webrtc-net-fail') + '">';
 				html += '<span class="webrtc-net-icon">' + (r.sipPing.ok ? '&#10003;' : '&#10007;') + '</span>';
-				html += '<span class="webrtc-net-label">SIP Signaling</span>';
+				html += '<span class="webrtc-net-label">' + t('sipSignaling') + '</span>';
 				html += '<span class="webrtc-net-value">' + (r.sipPing.ok ? r.sipPing.time + 'ms' : escapeHtml(r.sipPing.error || 'Failed')) + '</span>';
 				html += '</div>';
 			}
@@ -1096,35 +1415,42 @@ var WebRTCPhone = (function () {
 				if (r.demoCall.status === 'calling') {
 					html += '<div class="webrtc-net-result webrtc-net-warn">';
 					html += '<span class="webrtc-net-icon">&#8987;</span>';
-					html += '<span class="webrtc-net-label">Echo Test</span>';
-					html += '<span class="webrtc-net-value">Dialing *9196...</span>';
+					html += '<span class="webrtc-net-label">' + t('echoTest') + '</span>';
+					html += '<span class="webrtc-net-value">' + t('dialingEcho') + '</span>';
 					html += '</div>';
 				} else if (r.demoCall.status === 'connected') {
 					html += '<div class="webrtc-net-result webrtc-net-warn">';
 					html += '<span class="webrtc-net-icon">&#8987;</span>';
-					html += '<span class="webrtc-net-label">Echo Test</span>';
-					html += '<span class="webrtc-net-value">Collecting audio stats...</span>';
+					html += '<span class="webrtc-net-label">' + t('echoTest') + '</span>';
+					html += '<span class="webrtc-net-value">' + t('collectingStats') + '</span>';
 					html += '</div>';
 				} else if (r.demoCall.error) {
 					html += '<div class="webrtc-net-result webrtc-net-fail">';
 					html += '<span class="webrtc-net-icon">&#10007;</span>';
-					html += '<span class="webrtc-net-label">Echo Test</span>';
+					html += '<span class="webrtc-net-label">' + t('echoTest') + '</span>';
 					html += '<span class="webrtc-net-value">' + escapeHtml(r.demoCall.error) + '</span>';
 					html += '</div>';
 				} else {
 					// Completed demo call with stats
 					html += '<div class="webrtc-net-result ' + (r.demoCall.ok ? 'webrtc-net-pass' : 'webrtc-net-fail') + '">';
 					html += '<span class="webrtc-net-icon">' + (r.demoCall.ok ? '&#10003;' : '&#10007;') + '</span>';
-					html += '<span class="webrtc-net-label">Echo Test</span>';
+					html += '<span class="webrtc-net-label">' + t('echoTest') + '</span>';
 					html += '<span class="webrtc-net-value">' + (r.demoCall.ok ? r.demoCall.rating.charAt(0).toUpperCase() + r.demoCall.rating.slice(1) + ' (MOS ' + r.demoCall.mos.toFixed(1) + ')' : 'Failed') + '</span>';
 					html += '</div>';
 					if (r.demoCall.ok || r.demoCall.packetsReceived > 0) {
 						html += '<div class="webrtc-net-demo-details">';
-						html += '<span>Packets: ' + r.demoCall.packetsReceived + '</span>';
-						html += '<span>Loss: ' + r.demoCall.packetLoss + '%</span>';
-						html += '<span>Jitter: ' + r.demoCall.jitter + 'ms</span>';
-						html += '<span>RTT: ' + r.demoCall.rtt + 'ms</span>';
-						if (r.demoCall.bitrate > 0) html += '<span>Bitrate: ' + r.demoCall.bitrate + ' kbps</span>';
+						html += '<span>' + t('recv') + ': ' + r.demoCall.packetsReceived + ' pkts</span>';
+						html += '<span>' + t('sent') + ': ' + (r.demoCall.packetsSent || 0) + ' pkts</span>';
+						html += '<span>' + t('loss') + ': ' + r.demoCall.packetLoss + '%</span>';
+						html += '<span>' + t('jitter') + ': ' + r.demoCall.jitter + 'ms</span>';
+						html += '<span>' + t('rtt') + ': ' + r.demoCall.rtt + 'ms</span>';
+						html += '</div>';
+						// Bandwidth details
+						html += '<div class="webrtc-net-section-label">' + t('bandwidth') + '</div>';
+						html += '<div class="webrtc-net-demo-details">';
+						if (r.demoCall.bitrate > 0) html += '<span>' + t('download') + ': ' + r.demoCall.bitrate + ' kbps</span>';
+						if (r.demoCall.bitrateOut > 0) html += '<span>' + t('upload') + ': ' + r.demoCall.bitrateOut + ' kbps</span>';
+						if (r.demoCall.availableBandwidth > 0) html += '<span>' + t('available') + ': ' + r.demoCall.availableBandwidth + ' kbps</span>';
 						html += '</div>';
 					}
 					if (r.demoCall.issues && r.demoCall.issues.length > 0) {
@@ -1134,12 +1460,47 @@ var WebRTCPhone = (function () {
 						}
 						html += '</div>';
 					}
+					// Audio/Mic Test Results
+					if (r.demoCall.audioTest) {
+						var at = r.demoCall.audioTest;
+						html += '<div class="webrtc-net-section-label">' + t('audioMicTest') + '</div>';
+						// Mic result
+						var micRatingLabel = t(at.mic.rating) || at.mic.rating;
+						var micClass = at.mic.ok ? (at.mic.rating === 'strong' || at.mic.rating === 'normal' ? 'webrtc-net-pass' : 'webrtc-net-warn') : 'webrtc-net-fail';
+						html += '<div class="webrtc-net-result ' + micClass + '">';
+						html += '<span class="webrtc-net-icon">' + (at.mic.ok ? '&#10003;' : '&#10007;') + '</span>';
+						html += '<span class="webrtc-net-label">' + t('microphone') + '</span>';
+						html += '<span class="webrtc-net-value">' + micRatingLabel.charAt(0).toUpperCase() + micRatingLabel.slice(1) + ' (avg ' + at.mic.avg + '%, peak ' + at.mic.max + '%)</span>';
+						html += '</div>';
+						// Speaker/echo result
+						var spkRatingLabel = t(at.spk.rating) || at.spk.rating;
+						var spkClass = at.spk.ok ? (at.spk.rating === 'strong' || at.spk.rating === 'normal' ? 'webrtc-net-pass' : 'webrtc-net-warn') : 'webrtc-net-fail';
+						html += '<div class="webrtc-net-result ' + spkClass + '">';
+						html += '<span class="webrtc-net-icon">' + (at.spk.ok ? '&#10003;' : '&#10007;') + '</span>';
+						html += '<span class="webrtc-net-label">' + t('echoReturn') + '</span>';
+						html += '<span class="webrtc-net-value">' + spkRatingLabel.charAt(0).toUpperCase() + spkRatingLabel.slice(1) + ' (avg ' + at.spk.avg + '%, peak ' + at.spk.max + '%)</span>';
+						html += '</div>';
+						// Echo path
+						html += '<div class="webrtc-net-result ' + (at.echoDetected ? 'webrtc-net-pass' : 'webrtc-net-fail') + '">';
+						html += '<span class="webrtc-net-icon">' + (at.echoDetected ? '&#10003;' : '&#10007;') + '</span>';
+						html += '<span class="webrtc-net-label">' + t('fullDuplex') + '</span>';
+						html += '<span class="webrtc-net-value">' + (at.echoDetected ? t('twoWayAudio') : t('audioPathIncomplete')) + '</span>';
+						html += '</div>';
+						// Audio issues
+						if (at.issues && at.issues.length > 0) {
+							html += '<div class="webrtc-net-demo-issues">';
+							for (var ai = 0; ai < at.issues.length; ai++) {
+								html += '<span class="webrtc-quality-issue">' + escapeHtml(at.issues[ai]) + '</span>';
+							}
+							html += '</div>';
+						}
+					}
 				}
 			}
 
 			// Reference pings
 			if (r.refPings && r.refPings.length > 0) {
-				html += '<div class="webrtc-net-section-label">Internet Baseline</div>';
+				html += '<div class="webrtc-net-section-label">' + t('internetBaseline') + '</div>';
 				for (var rpi = 0; rpi < r.refPings.length; rpi++) {
 					var rp = r.refPings[rpi];
 					var rpOk = rp.ok && rp.time < 200;
@@ -1155,19 +1516,19 @@ var WebRTCPhone = (function () {
 			// Smart Diagnosis
 			if (r.diagnosis && !state.networkTestRunning) {
 				var d = r.diagnosis;
-				var sourceLabel = { user: 'Your Network', server: 'VoIP Server', none: 'No Issues', unknown: 'Undetermined' };
+				var sourceLabel = { user: t('yourNetwork'), server: t('voipServer'), none: t('noIssues'), unknown: t('undetermined') };
 				var sourceIcon = { user: '&#128187;', server: '&#9729;', none: '&#10003;', unknown: '&#63;' };
 				var diagClass = d.source === 'none' ? 'webrtc-net-verdict-pass' : (d.source === 'server' ? 'webrtc-net-verdict-fail' : (d.source === 'user' ? 'webrtc-net-verdict-warn' : 'webrtc-net-verdict-warn'));
 
 				html += '<div class="webrtc-net-diagnosis">';
-				html += '<div class="webrtc-net-section-label">Diagnosis</div>';
+				html += '<div class="webrtc-net-section-label">' + t('diagnosis') + '</div>';
 				html += '<div class="webrtc-net-verdict ' + diagClass + '">';
-				html += '<span class="webrtc-net-diag-source">' + (sourceIcon[d.source] || '') + ' Issue source: <strong>' + (sourceLabel[d.source] || 'Unknown') + '</strong></span>';
+				html += '<span class="webrtc-net-diag-source">' + (sourceIcon[d.source] || '') + ' ' + t('issueSource') + ': <strong>' + (sourceLabel[d.source] || t('undetermined')) + '</strong></span>';
 				html += '</div>';
 
 				if (d.issues.length > 0 && d.source !== 'none') {
 					html += '<div class="webrtc-net-diag-list">';
-					html += '<div class="webrtc-net-diag-heading">Findings:</div>';
+					html += '<div class="webrtc-net-diag-heading">' + t('findings') + '</div>';
 					for (var di2 = 0; di2 < d.issues.length; di2++) {
 						html += '<div class="webrtc-net-diag-item webrtc-net-diag-issue">' + escapeHtml(d.issues[di2]) + '</div>';
 					}
@@ -1176,7 +1537,7 @@ var WebRTCPhone = (function () {
 
 				if (d.suggestions.length > 0) {
 					html += '<div class="webrtc-net-diag-list">';
-					html += '<div class="webrtc-net-diag-heading">' + (d.source === 'none' ? '' : 'Suggested Fixes:') + '</div>';
+					html += '<div class="webrtc-net-diag-heading">' + (d.source === 'none' ? '' : t('suggestedFixes')) + '</div>';
 					for (var si = 0; si < d.suggestions.length; si++) {
 						html += '<div class="webrtc-net-diag-item webrtc-net-diag-fix">' + escapeHtml(d.suggestions[si]) + '</div>';
 					}
@@ -1189,9 +1550,9 @@ var WebRTCPhone = (function () {
 
 		html += '<div class="webrtc-network-test-actions">';
 		if (!state.networkTestRunning) {
-			html += '<button class="webrtc-btn webrtc-btn-sm webrtc-btn-primary" onclick="WebRTCPhone.runNetworkTest()">' + (r ? 'Re-test' : 'Run Test') + '</button>';
+			html += '<button class="webrtc-btn webrtc-btn-sm webrtc-btn-primary" onclick="WebRTCPhone.runNetworkTest()">' + (r ? t('reTest') : t('runTest')) + '</button>';
 		}
-		html += '<button class="webrtc-btn webrtc-btn-sm webrtc-btn-secondary" onclick="WebRTCPhone.closeNetworkTest()">Close</button>';
+		html += '<button class="webrtc-btn webrtc-btn-sm webrtc-btn-secondary" onclick="WebRTCPhone.closeNetworkTest()">' + t('close') + '</button>';
 		html += '</div></div>';
 		return html;
 	}
@@ -2011,13 +2372,13 @@ var WebRTCPhone = (function () {
 		if (!state.mountEl) return;
 		var html = '<div class="webrtc-phone-inner">';
 		html += '<div class="webrtc-phone-header">';
-		html += '<span class="webrtc-phone-title">WebRTC Phone</span>';
-		html += '<button class="webrtc-close-btn" onclick="WebRTCPhone.toggle()" title="Close">&times;</button>';
+		html += '<span class="webrtc-phone-title">' + t('phone') + '</span>';
+		html += '<button class="webrtc-close-btn" onclick="WebRTCPhone.toggle()" title="' + t('close') + '">&times;</button>';
 		html += '</div>';
 		html += '<div class="webrtc-phone-body webrtc-ext-selector">';
-		html += '<label for="webrtc-ext-select">Select Extension:</label>';
+		html += '<label for="webrtc-ext-select">' + t('selectExtension') + ':</label>';
 		html += '<select id="webrtc-ext-select" class="webrtc-select">';
-		html += '<option value="">-- Choose Extension --</option>';
+		html += '<option value="">-- ' + t('selectExtension') + ' --</option>';
 		for (var i = 0; i < state.extensions.length; i++) {
 			var ext = state.extensions[i];
 			var label = ext.extension;
@@ -2026,7 +2387,7 @@ var WebRTCPhone = (function () {
 			html += '<option value="' + i + '">' + escapeHtml(label) + '</option>';
 		}
 		html += '</select>';
-		html += '<button class="webrtc-btn webrtc-btn-primary" onclick="WebRTCPhone.selectExtension()">Connect</button>';
+		html += '<button class="webrtc-btn webrtc-btn-primary" onclick="WebRTCPhone.selectExtension()">' + t('connect') + '</button>';
 		html += '</div></div>';
 		state.mountEl.innerHTML = html;
 	}
@@ -2051,9 +2412,9 @@ var WebRTCPhone = (function () {
 			html += ' <small>(' + escapeHtml(ext.caller_id_name) + ')</small>';
 		html += '</span>';
 		html += '<span id="webrtc-status" class="webrtc-status webrtc-status-' + (state.registered ? 'registered' : 'connecting') + '">';
-		html += state.registered ? 'Registered' : 'Connecting...';
+		html += state.registered ? t('registered') : t('connecting');
 		html += '</span>';
-		html += '<button class="webrtc-settings-btn' + (state.showSettings ? ' webrtc-settings-btn-active' : '') + '" onclick="WebRTCPhone.openSettings()" title="Audio Settings">';
+		html += '<button class="webrtc-settings-btn' + (state.showSettings ? ' webrtc-settings-btn-active' : '') + '" onclick="WebRTCPhone.openSettings()" title="' + t('audioSettings') + '">';
 		html += '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="currentColor">';
 		html += '<path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.63-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>';
 		html += '</svg></button>';
@@ -2084,29 +2445,29 @@ var WebRTCPhone = (function () {
 			} else if (state.callState === 'ringing_in') {
 				html += '<div class="webrtc-call-info">';
 				html += '<div class="webrtc-call-icon webrtc-call-icon-incoming">&#9742;</div>';
-				html += '<div class="webrtc-call-label">Incoming Call</div>';
+				html += '<div class="webrtc-call-label">' + t('incomingCall') + '</div>';
 				html += '<div class="webrtc-call-number">' + getRemoteIdentity() + '</div>';
 				html += '<div class="webrtc-call-actions">';
-				html += '<button class="webrtc-btn webrtc-btn-answer" onclick="WebRTCPhone.answer()">Answer</button>';
-				html += '<button class="webrtc-btn webrtc-btn-reject" onclick="WebRTCPhone.reject()">Reject</button>';
+				html += '<button class="webrtc-btn webrtc-btn-answer" onclick="WebRTCPhone.answer()">' + t('answer') + '</button>';
+				html += '<button class="webrtc-btn webrtc-btn-reject" onclick="WebRTCPhone.reject()">' + t('reject') + '</button>';
 				html += '</div></div>';
 			} else if (state.callState === 'ringing_out') {
 				html += '<div class="webrtc-call-info">';
 				html += '<div class="webrtc-call-icon">&#9742;</div>';
-				html += '<div class="webrtc-call-label">Calling...</div>';
+				html += '<div class="webrtc-call-label">' + t('outgoingCall') + '</div>';
 				html += '<div class="webrtc-call-number">' + escapeHtml(state.dialInput) + '</div>';
 				html += '<div class="webrtc-call-actions">';
-				html += '<button class="webrtc-btn webrtc-btn-hangup" onclick="WebRTCPhone.hangup()">Cancel</button>';
+				html += '<button class="webrtc-btn webrtc-btn-hangup" onclick="WebRTCPhone.hangup()">' + t('hangUp') + '</button>';
 				html += '</div></div>';
 			} else if (state.callState === 'in_call') {
 				html += '<div class="webrtc-call-info">';
 				html += '<div class="webrtc-call-icon webrtc-call-icon-active">&#9742;</div>';
-				html += '<div class="webrtc-call-label">In Call</div>';
+				html += '<div class="webrtc-call-label">' + t('inCall') + '</div>';
 				html += '<div class="webrtc-call-number">' + getRemoteIdentity() + '</div>';
 				html += '<div id="webrtc-call-timer" class="webrtc-call-timer">' + formatDuration(state.callDuration) + '</div>';
 				// Quality indicator
 				html += '<div id="webrtc-quality-indicator" class="webrtc-quality-indicator webrtc-quality-unknown">';
-				html += '<span class="webrtc-quality-dots">&#9675;&#9675;&#9675;&#9675;</span> <span class="webrtc-quality-label">Measuring...</span>';
+				html += '<span class="webrtc-quality-dots">&#9675;&#9675;&#9675;&#9675;</span> <span class="webrtc-quality-label">' + t('measuring') + '</span>';
 				html += '</div>';
 				html += '<div id="webrtc-quality-details" class="webrtc-quality-details"></div>';
 				html += '<div id="webrtc-quality-issues" class="webrtc-quality-issues"></div>';
@@ -2121,14 +2482,14 @@ var WebRTCPhone = (function () {
 				html += '<div class="webrtc-audio-level-bar-bg"><div id="webrtc-spk-level-bar" class="webrtc-audio-level-bar" style="width:0%"></div></div>';
 				html += '</div></div>';
 				html += '<div class="webrtc-call-actions">';
-				html += '<button class="webrtc-btn webrtc-btn-sm ' + (state.muted ? 'webrtc-btn-active' : '') + '" onclick="WebRTCPhone.toggleMute()">' + (state.muted ? 'Unmute' : 'Mute') + '</button>';
-				html += '<button class="webrtc-btn webrtc-btn-sm ' + (state.held ? 'webrtc-btn-active' : '') + '" onclick="WebRTCPhone.toggleHold()">' + (state.held ? 'Resume' : 'Hold') + '</button>';
-				html += '<button class="webrtc-btn webrtc-btn-hangup" onclick="WebRTCPhone.hangup()">Hang Up</button>';
+				html += '<button class="webrtc-btn webrtc-btn-sm ' + (state.muted ? 'webrtc-btn-active' : '') + '" onclick="WebRTCPhone.toggleMute()">' + (state.muted ? t('unmute') : t('mute')) + '</button>';
+				html += '<button class="webrtc-btn webrtc-btn-sm ' + (state.held ? 'webrtc-btn-active' : '') + '" onclick="WebRTCPhone.toggleHold()">' + (state.held ? t('resume') : t('hold')) + '</button>';
+				html += '<button class="webrtc-btn webrtc-btn-hangup" onclick="WebRTCPhone.hangup()">' + t('hangUp') + '</button>';
 				html += '</div>';
 				html += renderInCallDTMF();
 				html += '<div class="webrtc-transfer">';
-				html += '<input type="text" id="webrtc-transfer-input" class="webrtc-input webrtc-input-sm" placeholder="Transfer to...">';
-				html += '<button class="webrtc-btn webrtc-btn-sm webrtc-btn-primary" onclick="WebRTCPhone.transfer()">Xfer</button>';
+				html += '<input type="text" id="webrtc-transfer-input" class="webrtc-input webrtc-input-sm" placeholder="' + t('transferTo') + '">';
+				html += '<button class="webrtc-btn webrtc-btn-sm webrtc-btn-primary" onclick="WebRTCPhone.transfer()">' + t('transfer') + '</button>';
 				html += '</div></div>';
 			}
 		}
@@ -2150,26 +2511,26 @@ var WebRTCPhone = (function () {
 		var html = '<div class="webrtc-settings-panel">';
 
 		html += '<div class="webrtc-settings-section">';
-		html += '<div class="webrtc-settings-title">&#127925; Ringtone</div>';
+		html += '<div class="webrtc-settings-title">&#127925; ' + t('ringtone') + '</div>';
 		html += '<div class="webrtc-settings-row">';
 		html += '<select class="webrtc-select webrtc-select-sm" style="flex:1" onchange="WebRTCPhone.setRingtone(this.value)">';
 		for (var i = 0; i < ringtones.length; i++) {
 			html += '<option value="' + i + '"' + (i === as.ringtoneIndex ? ' selected' : '') + '>' + escapeHtml(ringtones[i].name) + '</option>';
 		}
 		html += '</select>';
-		html += '<button id="webrtc-preview-btn" class="webrtc-btn webrtc-btn-sm webrtc-btn-secondary" onclick="WebRTCPhone.previewRingtone()">' + (state.previewingRingtone ? 'Stop' : 'Preview') + '</button>';
+		html += '<button id="webrtc-preview-btn" class="webrtc-btn webrtc-btn-sm webrtc-btn-secondary" onclick="WebRTCPhone.previewRingtone()">' + (state.previewingRingtone ? t('stop') : t('preview')) + '</button>';
 		html += '</div>';
 		html += '<div class="webrtc-volume-row">';
-		html += '<span class="webrtc-volume-label">Ring Vol</span>';
+		html += '<span class="webrtc-volume-label">' + t('ringVolume') + '</span>';
 		html += '<input type="range" class="webrtc-volume-slider" min="0" max="1" step="0.05" value="' + as.ringVolume + '" oninput="document.getElementById(\'webrtc-ring-vol-pct\').textContent=Math.round(this.value*100)+\'%\';WebRTCPhone.setRingVolume(this.value)">';
 		html += '<span id="webrtc-ring-vol-pct" class="webrtc-volume-pct">' + ringVolPct + '%</span>';
 		html += '</div></div>';
 
 		html += '<div class="webrtc-settings-section">';
-		html += '<div class="webrtc-settings-title">&#128276; Ring Device</div>';
+		html += '<div class="webrtc-settings-title">&#128276; ' + t('ringDevice') + '</div>';
 		if (sinkIdSupported) {
 			html += '<select class="webrtc-select webrtc-select-sm" onchange="WebRTCPhone.setRingDevice(this.value)">';
-			html += '<option value="default"' + (as.ringDeviceId === 'default' ? ' selected' : '') + '>Default</option>';
+			html += '<option value="default"' + (as.ringDeviceId === 'default' ? ' selected' : '') + '>' + t('defaultDevice') + '</option>';
 			for (var j = 0; j < devices.outputs.length; j++) {
 				var dj = devices.outputs[j];
 				html += '<option value="' + escapeHtml(dj.id) + '"' + (dj.id === as.ringDeviceId ? ' selected' : '') + '>' + escapeHtml(dj.label) + '</option>';
@@ -2182,10 +2543,10 @@ var WebRTCPhone = (function () {
 		html += '</div>';
 
 		html += '<div class="webrtc-settings-section">';
-		html += '<div class="webrtc-settings-title">&#128266; Speaker</div>';
+		html += '<div class="webrtc-settings-title">&#128266; ' + t('speakerDevice') + '</div>';
 		if (sinkIdSupported) {
 			html += '<select class="webrtc-select webrtc-select-sm" onchange="WebRTCPhone.setSpeakerDevice(this.value)">';
-			html += '<option value="default"' + (as.speakerDeviceId === 'default' ? ' selected' : '') + '>Default</option>';
+			html += '<option value="default"' + (as.speakerDeviceId === 'default' ? ' selected' : '') + '>' + t('defaultDevice') + '</option>';
 			for (var k = 0; k < devices.outputs.length; k++) {
 				var dk = devices.outputs[k];
 				html += '<option value="' + escapeHtml(dk.id) + '"' + (dk.id === as.speakerDeviceId ? ' selected' : '') + '>' + escapeHtml(dk.label) + '</option>';
@@ -2193,15 +2554,15 @@ var WebRTCPhone = (function () {
 			html += '</select>';
 		}
 		html += '<div class="webrtc-volume-row">';
-		html += '<span class="webrtc-volume-label">Volume</span>';
+		html += '<span class="webrtc-volume-label">' + t('speakerVolume') + '</span>';
 		html += '<input type="range" class="webrtc-volume-slider" min="0" max="1" step="0.05" value="' + as.speakerVolume + '" oninput="document.getElementById(\'webrtc-spk-vol-pct\').textContent=Math.round(this.value*100)+\'%\';WebRTCPhone.setSpeakerVolume(this.value)">';
 		html += '<span id="webrtc-spk-vol-pct" class="webrtc-volume-pct">' + spkVolPct + '%</span>';
 		html += '</div></div>';
 
 		html += '<div class="webrtc-settings-section">';
-		html += '<div class="webrtc-settings-title">&#127908; Microphone</div>';
+		html += '<div class="webrtc-settings-title">&#127908; ' + t('microphone') + '</div>';
 		html += '<select class="webrtc-select webrtc-select-sm" onchange="WebRTCPhone.setMicDevice(this.value)">';
-		html += '<option value="default"' + (as.micDeviceId === 'default' ? ' selected' : '') + '>Default</option>';
+		html += '<option value="default"' + (as.micDeviceId === 'default' ? ' selected' : '') + '>' + t('defaultDevice') + '</option>';
 		for (var m = 0; m < devices.inputs.length; m++) {
 			var dm = devices.inputs[m];
 			html += '<option value="' + escapeHtml(dm.id) + '"' + (dm.id === as.micDeviceId ? ' selected' : '') + '>' + escapeHtml(dm.label) + '</option>';
@@ -2218,9 +2579,9 @@ var WebRTCPhone = (function () {
 	function renderTabs() {
 		var activeTab = state.showNetworkTest ? 'network' : (state.showHistory ? 'history' : 'keypad');
 		var html = '<div class="webrtc-tabs">';
-		html += '<button class="webrtc-tab' + (activeTab === 'keypad' ? ' webrtc-tab-active' : '') + '" onclick="WebRTCPhone.closeHistory();WebRTCPhone.closeNetworkTest()">Keypad</button>';
-		html += '<button class="webrtc-tab' + (activeTab === 'history' ? ' webrtc-tab-active' : '') + '" onclick="WebRTCPhone.closeNetworkTest();WebRTCPhone.openHistory()">Recent</button>';
-		html += '<button class="webrtc-tab' + (activeTab === 'network' ? ' webrtc-tab-active' : '') + '" onclick="WebRTCPhone.closeHistory();WebRTCPhone.openNetworkTest()">Network</button>';
+		html += '<button class="webrtc-tab' + (activeTab === 'keypad' ? ' webrtc-tab-active' : '') + '" onclick="WebRTCPhone.closeHistory();WebRTCPhone.closeNetworkTest()">' + t('dialpad') + '</button>';
+		html += '<button class="webrtc-tab' + (activeTab === 'history' ? ' webrtc-tab-active' : '') + '" onclick="WebRTCPhone.closeNetworkTest();WebRTCPhone.openHistory()">' + t('history') + '</button>';
+		html += '<button class="webrtc-tab' + (activeTab === 'network' ? ' webrtc-tab-active' : '') + '" onclick="WebRTCPhone.closeHistory();WebRTCPhone.openNetworkTest()">' + t('network') + '</button>';
 		html += '</div>';
 		return html;
 	}
@@ -2228,7 +2589,7 @@ var WebRTCPhone = (function () {
 	function renderHistoryPanel() {
 		var html = '<div class="webrtc-history">';
 		if (state.callHistory.length === 0) {
-			html += '<div class="webrtc-history-empty">No recent calls</div>';
+			html += '<div class="webrtc-history-empty">' + t('noRecentCalls') + '</div>';
 		} else {
 			html += '<div class="webrtc-history-list">';
 			for (var i = 0; i < state.callHistory.length; i++) {
@@ -2267,7 +2628,7 @@ var WebRTCPhone = (function () {
 				html += '</div>';
 			}
 			html += '</div>';
-			html += '<button class="webrtc-btn webrtc-btn-sm webrtc-history-clear" onclick="WebRTCPhone.clearHistory()">Clear History</button>';
+			html += '<button class="webrtc-btn webrtc-btn-sm webrtc-history-clear" onclick="WebRTCPhone.clearHistory()">' + t('clearHistory') + '</button>';
 		}
 		html += '</div>';
 		return html;
