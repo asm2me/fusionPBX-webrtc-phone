@@ -112,6 +112,13 @@
 	$text['js-loss']['en-us'] = "Loss";
 	$text['js-jitter']['en-us'] = "Jitter";
 	$text['js-rtt']['en-us'] = "RTT";
+	$text['js-pathTrace']['en-us'] = "Path Trace";
+	$text['js-serverRoute']['en-us'] = "Server Route";
+	$text['js-stability']['en-us'] = "Stability";
+	$text['js-natType']['en-us'] = "NAT Type";
+	$text['js-pingProfile']['en-us'] = "Ping Profile";
+	$text['js-pathStable']['en-us'] = "Path Stable";
+	$text['js-pathUnstable']['en-us'] = "Path Unstable";
 
 	// ===================== Arabic (ar-eg) =====================
 	$text['title-webrtc_phone']['ar-eg'] = "هاتف WebRTC";
@@ -224,6 +231,13 @@
 	$text['js-loss']['ar-eg'] = "فقدان";
 	$text['js-jitter']['ar-eg'] = "ارتعاش";
 	$text['js-rtt']['ar-eg'] = "RTT";
+	$text['js-pathTrace']['ar-eg'] = "تتبع المسار";
+	$text['js-serverRoute']['ar-eg'] = "مسار الخادم";
+	$text['js-stability']['ar-eg'] = "الاستقرار";
+	$text['js-natType']['ar-eg'] = "نوع NAT";
+	$text['js-pingProfile']['ar-eg'] = "ملف الاستجابة";
+	$text['js-pathStable']['ar-eg'] = "المسار مستقر";
+	$text['js-pathUnstable']['ar-eg'] = "المسار غير مستقر";
 
 	// Copy Arabic to all common Arabic locale variants
 	$_ar_variants = ['ar-sa', 'ar-ae', 'ar-jo', 'ar-lb', 'ar-sy', 'ar-iq', 'ar-kw', 'ar-bh', 'ar-qa', 'ar-om', 'ar-ye', 'ar-ly', 'ar-tn', 'ar-dz', 'ar-ma'];

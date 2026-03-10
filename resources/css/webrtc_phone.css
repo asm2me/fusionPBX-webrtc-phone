@@ -1017,6 +1017,27 @@
 	color: #2e7d32;
 }
 
+.webrtc-ping-timeline {
+	display: flex;
+	align-items: flex-end;
+	gap: 2px;
+	height: 40px;
+	padding: 4px 0;
+	border-bottom: 1px solid #e0e0e0;
+	margin: 4px 0;
+}
+
+.webrtc-ping-bar {
+	flex: 1;
+	min-width: 4px;
+	border-radius: 2px 2px 0 0;
+	transition: height 0.2s;
+}
+
+.webrtc-ping-bar-ok { background: #4caf50; }
+.webrtc-ping-bar-spike { background: #ff9800; }
+.webrtc-ping-bar-fail { background: #f44336; height: 100% !important; opacity: 0.4; }
+
 .webrtc-network-test-actions {
 	display: flex;
 	gap: 8px;
@@ -1214,6 +1235,7 @@
 	.webrtc-net-diag-fix { color: #81c784; }
 	.webrtc-net-diag-issue::before { background: #ef9a9a; }
 	.webrtc-net-diag-fix::before { background: #81c784; }
+	.webrtc-ping-timeline { border-bottom-color: #444; }
 
 	/* Audio levels dark mode */
 	.webrtc-audio-level-label { color: #aaa; }

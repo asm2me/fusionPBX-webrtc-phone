@@ -71,6 +71,14 @@ var WebRTCPhone = (function () {
 		normal: 'Normal',
 		weak: 'Weak',
 		silent: 'Silent',
+		// Path trace
+		pathTrace: 'Path Trace',
+		serverRoute: 'Server Route',
+		stability: 'Stability',
+		natType: 'NAT Type',
+		pingProfile: 'Ping Profile',
+		pathStable: 'Path Stable',
+		pathUnstable: 'Path Unstable',
 		// Diagnosis
 		diagnosis: 'Diagnosis',
 		issueSource: 'Issue source',
@@ -534,11 +542,11 @@ var WebRTCPhone = (function () {
 	function runNetworkTest() {
 		if (state.networkTestRunning || !state.config) return;
 		state.networkTestRunning = true;
-		state.networkTestResults = { wss: null, stun: null, latency: null, jitterTest: null, sipPing: null, demoCall: null, refPings: null, diagnosis: null };
+		state.networkTestResults = { wss: null, stun: null, latency: null, jitterTest: null, sipPing: null, demoCall: null, refPings: null, diagnosis: null, pathTrace: null };
 		renderPhone();
 
 		var results = state.networkTestResults;
-		var testsRemaining = 5; // WSS, STUN+latency, jitter, SIP ping, reference pings (demo call runs separately)
+		var testsRemaining = 6; // WSS, STUN+latency, jitter, SIP ping, reference pings, path trace (demo call runs separately)
 		function checkDone() {
 			testsRemaining--;
 			if (testsRemaining <= 0) {
@@ -744,6 +752,176 @@ var WebRTCPhone = (function () {
 				})(refServers[ri]);
 			}
 		})();
+
+		// Test 6: Path trace - multi-ping latency profile + ICE candidate path analysis
+		(function testPathTrace() {
+			if (!state.config) {
+				results.pathTrace = { ok: false, error: 'No config' };
+				checkDone();
+				return;
+			}
+			var domain = state.config.domain;
+			var wssPort = state.config.wss_port || 7443;
+			var pingCount = 10;
+			var pingSamples = [];
+			var completed = 0;
+			var iceInfo = { candidates: [], localIP: '', publicIP: '', candidateTypes: [] };
+
+			// Part A: Rapid sequential WSS pings to build latency profile
+			function doPing(index) {
+				if (index >= pingCount) {
+					finishPathTrace();
+					return;
+				}
+				var ws = null;
+				var start = Date.now();
+				var timeout = setTimeout(function () {
+					pingSamples.push({ hop: index + 1, time: -1, error: 'timeout' });
+					try { ws.close(); } catch (e) {}
+					completed++;
+					doPing(index + 1);
+				}, 3000);
+				try {
+					ws = new WebSocket('wss://' + domain + ':' + wssPort);
+					ws.onopen = function () {
+						clearTimeout(timeout);
+						var elapsed = Date.now() - start;
+						pingSamples.push({ hop: index + 1, time: elapsed });
+						ws.close();
+						completed++;
+						// Small delay between pings for realistic spacing
+						setTimeout(function () { doPing(index + 1); }, 50);
+					};
+					ws.onerror = function () {
+						clearTimeout(timeout);
+						pingSamples.push({ hop: index + 1, time: -1, error: 'refused' });
+						completed++;
+						doPing(index + 1);
+					};
+				} catch (e) {
+					clearTimeout(timeout);
+					pingSamples.push({ hop: index + 1, time: -1, error: e.message });
+					completed++;
+					doPing(index + 1);
+				}
+			}
+
+			// Part B: ICE candidate gathering for path info
+			try {
+				var pc2 = new RTCPeerConnection({ iceServers: getICEServers() });
+				pc2.createDataChannel('trace');
+				pc2.onicecandidate = function (e) {
+					if (e.candidate) {
+						var c = e.candidate;
+						iceInfo.candidates.push({
+							type: c.type || 'unknown',
+							protocol: c.protocol || '',
+							address: c.address || c.ip || '',
+							port: c.port || 0,
+							priority: c.priority || 0
+						});
+						if (c.type === 'host' && c.address) iceInfo.localIP = c.address;
+						if (c.type === 'srflx' && c.address) iceInfo.publicIP = c.address;
+						if (iceInfo.candidateTypes.indexOf(c.type) === -1) iceInfo.candidateTypes.push(c.type);
+					}
+				};
+				pc2.onicegatheringstatechange = function () {
+					if (pc2.iceGatheringState === 'complete') {
+						pc2.close();
+					}
+				};
+				pc2.createOffer().then(function (offer) {
+					return pc2.setLocalDescription(offer);
+				}).catch(function () {});
+			} catch (e) {}
+
+			// Start pings
+			doPing(0);
+
+			function finishPathTrace() {
+				// Analyze ping samples
+				var validPings = [];
+				var failedCount = 0;
+				for (var i = 0; i < pingSamples.length; i++) {
+					if (pingSamples[i].time > 0) {
+						validPings.push(pingSamples[i].time);
+					} else {
+						failedCount++;
+					}
+				}
+
+				if (validPings.length === 0) {
+					results.pathTrace = { ok: false, error: 'All pings failed', iceInfo: iceInfo, samples: pingSamples };
+					checkDone();
+					return;
+				}
+
+				// Statistics
+				var sum = 0, min = 99999, max = 0;
+				for (var j = 0; j < validPings.length; j++) {
+					sum += validPings[j];
+					if (validPings[j] < min) min = validPings[j];
+					if (validPings[j] > max) max = validPings[j];
+				}
+				var avg = Math.round(sum / validPings.length);
+				var jitterSum = 0;
+				for (var k = 1; k < validPings.length; k++) {
+					jitterSum += Math.abs(validPings[k] - validPings[k - 1]);
+				}
+				var jitter = validPings.length > 1 ? Math.round(jitterSum / (validPings.length - 1)) : 0;
+
+				// Detect spikes (>2x average)
+				var spikes = 0;
+				for (var s = 0; s < validPings.length; s++) {
+					if (validPings[s] > avg * 2) spikes++;
+				}
+
+				// Stability score (0-100)
+				var stability = 100;
+				if (jitter > 50) stability -= 30;
+				else if (jitter > 20) stability -= 15;
+				if (spikes > 2) stability -= 20;
+				else if (spikes > 0) stability -= 10;
+				if (failedCount > 3) stability -= 30;
+				else if (failedCount > 0) stability -= failedCount * 5;
+				if (max - min > 200) stability -= 20;
+				else if (max - min > 100) stability -= 10;
+				if (stability < 0) stability = 0;
+
+				var issues = [];
+				if (failedCount > 0) issues.push(failedCount + '/' + pingCount + ' pings failed');
+				if (spikes > 0) issues.push(spikes + ' latency spikes detected (>' + (avg * 2) + 'ms)');
+				if (jitter > 30) issues.push('High path jitter: ' + jitter + 'ms');
+				if (max - min > 150) issues.push('Wide latency range: ' + min + '-' + max + 'ms');
+
+				// NAT type estimation
+				var natType = 'Unknown';
+				if (iceInfo.candidateTypes.indexOf('relay') >= 0) {
+					natType = 'Symmetric NAT (TURN relay needed)';
+				} else if (iceInfo.candidateTypes.indexOf('srflx') >= 0) {
+					natType = 'Cone NAT (direct connection OK)';
+				} else if (iceInfo.candidateTypes.indexOf('host') >= 0) {
+					natType = 'No NAT / Direct';
+				}
+
+				results.pathTrace = {
+					ok: stability >= 50,
+					samples: pingSamples,
+					avg: avg,
+					min: min,
+					max: max,
+					jitter: jitter,
+					spikes: spikes,
+					failedPings: failedCount,
+					totalPings: pingCount,
+					stability: stability,
+					natType: natType,
+					iceInfo: iceInfo,
+					issues: issues
+				};
+				checkDone();
+			}
+		})();
 	}
 
 	// --- Smart Network Diagnosis ---
@@ -890,7 +1068,39 @@ var WebRTCPhone = (function () {
 			}
 		}
 
-		// Case 8: Bandwidth analysis
+		// Case 8: Path trace analysis
+		if (r.pathTrace && !r.pathTrace.error) {
+			var pt = r.pathTrace;
+			if (pt.stability < 50) {
+				diagnosis.issues.push('Server path is unstable (stability: ' + pt.stability + '%)');
+				if (refAvg > 0 && refAvg < 80) {
+					diagnosis.source = 'server';
+					diagnosis.confidence = 'high';
+					diagnosis.suggestions.push('The route to the VoIP server has high instability despite good internet');
+					diagnosis.suggestions.push('This may indicate routing issues or server-side network problems');
+				} else {
+					diagnosis.source = 'user';
+					diagnosis.suggestions.push('Your network connection is unstable - try a wired connection');
+				}
+			}
+			if (pt.failedPings > 3) {
+				diagnosis.issues.push(pt.failedPings + ' of ' + pt.totalPings + ' server pings failed');
+				diagnosis.suggestions.push('Packet loss to server is significant - connection may be unreliable');
+			}
+			if (pt.spikes > 2) {
+				diagnosis.issues.push('Multiple latency spikes detected on server path');
+				if (refAvg > 0 && refAvg < 80) {
+					diagnosis.source = 'server';
+					diagnosis.suggestions.push('Spikes suggest congestion or routing changes on the path to the server');
+				}
+			}
+			if (pt.natType && pt.natType.indexOf('Symmetric') >= 0) {
+				diagnosis.issues.push('Symmetric NAT detected - may cause audio issues');
+				diagnosis.suggestions.push('Configure a TURN server for reliable media relay through symmetric NAT');
+			}
+		}
+
+		// Case 9: Bandwidth analysis
 		var demoBitrateIn = (r.demoCall && r.demoCall.bitrate) ? r.demoCall.bitrate : -1;
 		var demoBitrateOut = (r.demoCall && r.demoCall.bitrateOut) ? r.demoCall.bitrateOut : -1;
 		var demoAvailBw = (r.demoCall && r.demoCall.availableBandwidth) ? r.demoCall.availableBandwidth : -1;
@@ -1445,13 +1655,35 @@ var WebRTCPhone = (function () {
 						html += '<span>' + t('jitter') + ': ' + r.demoCall.jitter + 'ms</span>';
 						html += '<span>' + t('rtt') + ': ' + r.demoCall.rtt + 'ms</span>';
 						html += '</div>';
-						// Bandwidth details
-						html += '<div class="webrtc-net-section-label">' + t('bandwidth') + '</div>';
-						html += '<div class="webrtc-net-demo-details">';
-						if (r.demoCall.bitrate > 0) html += '<span>' + t('download') + ': ' + r.demoCall.bitrate + ' kbps</span>';
-						if (r.demoCall.bitrateOut > 0) html += '<span>' + t('upload') + ': ' + r.demoCall.bitrateOut + ' kbps</span>';
-						if (r.demoCall.availableBandwidth > 0) html += '<span>' + t('available') + ': ' + r.demoCall.availableBandwidth + ' kbps</span>';
-						html += '</div>';
+						// Bandwidth / Speed Test (UDP via RTP to VoIP server)
+						html += '<div class="webrtc-net-section-label">' + t('bandwidth') + ' (UDP ' + t('serverRoute') + ')</div>';
+						if (r.demoCall.bitrate > 0) {
+							var dlOk = r.demoCall.bitrate >= 40;
+							var dlWarn = r.demoCall.bitrate >= 20 && r.demoCall.bitrate < 40;
+							html += '<div class="webrtc-net-result ' + (dlOk ? 'webrtc-net-pass' : (dlWarn ? 'webrtc-net-warn' : 'webrtc-net-fail')) + '">';
+							html += '<span class="webrtc-net-icon">' + (dlOk ? '&#10003;' : (dlWarn ? '&#9888;' : '&#10007;')) + '</span>';
+							html += '<span class="webrtc-net-label">' + t('download') + '</span>';
+							html += '<span class="webrtc-net-value">' + r.demoCall.bitrate + ' kbps</span>';
+							html += '</div>';
+						}
+						if (r.demoCall.bitrateOut > 0) {
+							var ulOk = r.demoCall.bitrateOut >= 40;
+							var ulWarn = r.demoCall.bitrateOut >= 20 && r.demoCall.bitrateOut < 40;
+							html += '<div class="webrtc-net-result ' + (ulOk ? 'webrtc-net-pass' : (ulWarn ? 'webrtc-net-warn' : 'webrtc-net-fail')) + '">';
+							html += '<span class="webrtc-net-icon">' + (ulOk ? '&#10003;' : (ulWarn ? '&#9888;' : '&#10007;')) + '</span>';
+							html += '<span class="webrtc-net-label">' + t('upload') + '</span>';
+							html += '<span class="webrtc-net-value">' + r.demoCall.bitrateOut + ' kbps</span>';
+							html += '</div>';
+						}
+						if (r.demoCall.availableBandwidth > 0) {
+							var bwOk = r.demoCall.availableBandwidth >= 100;
+							var bwWarn = r.demoCall.availableBandwidth >= 50;
+							html += '<div class="webrtc-net-result ' + (bwOk ? 'webrtc-net-pass' : (bwWarn ? 'webrtc-net-warn' : 'webrtc-net-fail')) + '">';
+							html += '<span class="webrtc-net-icon">' + (bwOk ? '&#10003;' : (bwWarn ? '&#9888;' : '&#10007;')) + '</span>';
+							html += '<span class="webrtc-net-label">' + t('available') + '</span>';
+							html += '<span class="webrtc-net-value">' + r.demoCall.availableBandwidth + ' kbps</span>';
+							html += '</div>';
+						}
 					}
 					if (r.demoCall.issues && r.demoCall.issues.length > 0) {
 						html += '<div class="webrtc-net-demo-issues">';
@@ -1510,6 +1742,67 @@ var WebRTCPhone = (function () {
 					html += '<span class="webrtc-net-label">' + escapeHtml(rp.name) + '</span>';
 					html += '<span class="webrtc-net-value">' + (rp.ok ? rp.time + 'ms' : escapeHtml(rp.error || 'Failed')) + '</span>';
 					html += '</div>';
+				}
+			}
+
+			// Path Trace
+			if (r.pathTrace && !state.networkTestRunning) {
+				var pt = r.pathTrace;
+				html += '<div class="webrtc-net-section-label">' + t('pathTrace') + '</div>';
+				if (pt.error) {
+					html += '<div class="webrtc-net-result webrtc-net-fail">';
+					html += '<span class="webrtc-net-icon">&#10007;</span>';
+					html += '<span class="webrtc-net-label">' + t('serverRoute') + '</span>';
+					html += '<span class="webrtc-net-value">' + escapeHtml(pt.error) + '</span>';
+					html += '</div>';
+				} else {
+					// Stability indicator
+					var stabClass = pt.stability >= 80 ? 'webrtc-net-pass' : (pt.stability >= 50 ? 'webrtc-net-warn' : 'webrtc-net-fail');
+					var stabIcon = pt.stability >= 80 ? '&#10003;' : (pt.stability >= 50 ? '&#9888;' : '&#10007;');
+					html += '<div class="webrtc-net-result ' + stabClass + '">';
+					html += '<span class="webrtc-net-icon">' + stabIcon + '</span>';
+					html += '<span class="webrtc-net-label">' + t('stability') + '</span>';
+					html += '<span class="webrtc-net-value">' + pt.stability + '% (' + (pt.stability >= 80 ? t('pathStable') : t('pathUnstable')) + ')</span>';
+					html += '</div>';
+					// Ping profile
+					html += '<div class="webrtc-net-demo-details">';
+					html += '<span>Avg: ' + pt.avg + 'ms</span>';
+					html += '<span>Min: ' + pt.min + 'ms</span>';
+					html += '<span>Max: ' + pt.max + 'ms</span>';
+					html += '<span>' + t('jitter') + ': ' + pt.jitter + 'ms</span>';
+					if (pt.spikes > 0) html += '<span>Spikes: ' + pt.spikes + '</span>';
+					if (pt.failedPings > 0) html += '<span>Failed: ' + pt.failedPings + '/' + pt.totalPings + '</span>';
+					html += '</div>';
+					// Ping timeline visual
+					html += '<div class="webrtc-ping-timeline">';
+					for (var pi = 0; pi < pt.samples.length; pi++) {
+						var ps = pt.samples[pi];
+						var barH = ps.time > 0 ? Math.min(100, Math.max(5, Math.round((ps.time / (pt.max || 1)) * 100))) : 0;
+						var barClass = ps.time < 0 ? 'webrtc-ping-bar-fail' : (ps.time > pt.avg * 2 ? 'webrtc-ping-bar-spike' : 'webrtc-ping-bar-ok');
+						html += '<div class="webrtc-ping-bar ' + barClass + '" style="height:' + barH + '%" title="' + (ps.time > 0 ? ps.time + 'ms' : 'failed') + '"></div>';
+					}
+					html += '</div>';
+					// NAT type
+					html += '<div class="webrtc-net-result webrtc-net-pass">';
+					html += '<span class="webrtc-net-icon">&#128270;</span>';
+					html += '<span class="webrtc-net-label">' + t('natType') + '</span>';
+					html += '<span class="webrtc-net-value">' + escapeHtml(pt.natType) + '</span>';
+					html += '</div>';
+					// ICE candidate IPs
+					if (pt.iceInfo.localIP || pt.iceInfo.publicIP) {
+						html += '<div class="webrtc-net-demo-details">';
+						if (pt.iceInfo.localIP) html += '<span>Local: ' + escapeHtml(pt.iceInfo.localIP) + '</span>';
+						if (pt.iceInfo.publicIP) html += '<span>Public: ' + escapeHtml(pt.iceInfo.publicIP) + '</span>';
+						html += '</div>';
+					}
+					// Path trace issues
+					if (pt.issues && pt.issues.length > 0) {
+						html += '<div class="webrtc-net-demo-issues">';
+						for (var pti = 0; pti < pt.issues.length; pti++) {
+							html += '<span class="webrtc-quality-issue">' + escapeHtml(pt.issues[pti]) + '</span>';
+						}
+						html += '</div>';
+					}
 				}
 			}
 
