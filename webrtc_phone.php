@@ -36,27 +36,37 @@ echo "<script src='/app/webrtc_phone/resources/js/jssip.min.js?v=".$v."'></scrip
 echo "<script src='/app/webrtc_phone/resources/js/webrtc_phone.js?v=".$v."'></script>\n";
 echo "<link rel='stylesheet' href='/app/webrtc_phone/resources/css/webrtc_phone.css?v=".$v."'>\n";
 
-// Inject translations for the JS UI - load raw language arrays directly
-$_webrtc_lang = $_SESSION['domain']['language']['code'] ?? 'en-us';
+// Inject translations for the JS UI
+$_webrtc_lang = 'en-us';
+if (!empty($_SESSION['domain']['language']['code'])) {
+	$_webrtc_lang = $_SESSION['domain']['language']['code'];
+} elseif (!empty($_SESSION['language'])) {
+	$_webrtc_lang = $_SESSION['language'];
+}
+
+// Load our translations fresh (isolated from the page's $text)
 $_webrtc_text = [];
-$_text_save = $text ?? null;
-$text = [];
-require __DIR__.'/app_languages.php';
-$_webrtc_text = $text;
-$text = $_text_save;
-unset($_text_save);
+(function() use (&$_webrtc_text) {
+	$text = [];
+	require __DIR__.'/app_languages.php';
+	$_webrtc_text = $text;
+})();
 
 $_webrtc_js_strings = [];
-foreach ($_webrtc_text as $key => $langs) {
-	if (strpos($key, 'js-') === 0 && is_array($langs)) {
-		$jsKey = substr($key, 3);
-		$_webrtc_js_strings[$jsKey] = $langs[$_webrtc_lang] ?? ($langs['en-us'] ?? '');
+foreach ($_webrtc_text as $_wk => $_wv) {
+	if (strpos($_wk, 'js-') === 0 && is_array($_wv)) {
+		$_jk = substr($_wk, 3);
+		if (isset($_wv[$_webrtc_lang])) {
+			$_webrtc_js_strings[$_jk] = $_wv[$_webrtc_lang];
+		} elseif (isset($_wv['en-us'])) {
+			$_webrtc_js_strings[$_jk] = $_wv['en-us'];
+		}
 	}
 }
-unset($_webrtc_text);
-if (!empty($_webrtc_js_strings)) {
-	echo "<script>window.webrtcPhoneLang = ".json_encode($_webrtc_js_strings, JSON_UNESCAPED_UNICODE).";</script>\n";
-}
+unset($_webrtc_text, $_wk, $_wv, $_jk);
+
+echo "<!-- webrtc_phone lang: ".htmlspecialchars($_webrtc_lang)." keys: ".count($_webrtc_js_strings)." -->\n";
+echo "<script>window.webrtcPhoneLang = ".json_encode($_webrtc_js_strings, JSON_UNESCAPED_UNICODE).";</script>\n";
 unset($_webrtc_js_strings, $_webrtc_lang);
 
 echo "<script>document.addEventListener('DOMContentLoaded', function(){ WebRTCPhone.init('webrtc-phone-mount'); });</script>\n";
