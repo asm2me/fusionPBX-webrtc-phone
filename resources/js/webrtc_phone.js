@@ -1335,7 +1335,7 @@ var WebRTCPhone = (function () {
 				}, 1000);
 			},
 			'confirmed': function () {
-				if (results.demoCall && results.demoCall.status \!== 'connected') {
+				if (results.demoCall && results.demoCall.status !== 'connected') {
 					results.demoCall = { status: 'connected', ok: false };
 					renderPhone();
 				}
