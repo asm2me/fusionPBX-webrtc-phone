@@ -719,7 +719,7 @@ var WebRTCPhone = (function () {
 		// Test 5: Reference latency pings to third-party servers
 		(function testReferencePings() {
 			var refServers = [
-				{ name: 'Cloudflare', url: 'https://1.1.1.1/cdn-cgi/trace' },
+				{ name: 'Cloudflare', url: 'https://1.1.1.1/favicon.ico' },
 				{ name: 'Google', url: 'https://www.google.com/generate_204' },
 				{ name: 'Microsoft', url: 'https://www.microsoft.com/favicon.ico' }
 			];

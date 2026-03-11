@@ -8,7 +8,9 @@
       "Bash(node fix_ice_diag.js)",
       "Bash(node fix_timer_ice.js)",
       "Bash(/tmp/fix_comment.py:*)",
-      "Bash(python /tmp/fix_comment.py)"
+      "Bash(python /tmp/fix_comment.py)",
+      "Bash(/tmp/fix_corb.py:*)",
+      "Bash(python /tmp/fix_corb.py)"
     ]
   }
 }
