@@ -53,7 +53,7 @@ var WebRTCPhone = (function () {
 		systemJitter: 'System Jitter',
 		sipSignaling: 'SIP Signaling',
 		echoTest: 'Echo Test',
-		dialingEcho: 'Dialing *9196...',
+		dialingEcho: 'Dialing *9198...',
 		collectingStats: 'Collecting audio stats...',
 		internetBaseline: 'Internet Baseline',
 		bandwidth: 'Bandwidth',
@@ -1142,7 +1142,7 @@ var WebRTCPhone = (function () {
 			if (audioTest.mic.ok && !audioTest.spk.ok) {
 				diagnosis.issues.push('One-way audio detected: mic works but no echo received from server');
 				diagnosis.suggestions.push('Server may have an audio processing issue or codec mismatch');
-				diagnosis.suggestions.push('Check FreeSWITCH echo extension (*9196) is working correctly');
+				diagnosis.suggestions.push('Check FreeSWITCH echo extension (*9198) is working correctly');
 			}
 			if (!audioTest.mic.ok && audioTest.spk.ok) {
 				diagnosis.source = 'user';
@@ -1179,7 +1179,7 @@ var WebRTCPhone = (function () {
 		return diagnosis;
 	}
 
-	// Demo call test: calls FreeSWITCH echo extension *9196, collects RTP stats for ~5s, hangs up
+	// Demo call test: calls FreeSWITCH echo extension *9198, collects RTP stats for ~5s, hangs up
 	function runDemoCallTest() {
 		var results = state.networkTestResults;
 		if (!state.ua || !state.registered || state.currentSession) {
@@ -1193,7 +1193,7 @@ var WebRTCPhone = (function () {
 		renderPhone();
 
 		var domain = state.config.domain;
-		var echoURI = 'sip:*9196@' + domain;
+		var echoURI = 'sip:*9198@' + domain;
 		var demoSession = null;
 		var demoPC = null;
 		var demoTimeout = null;
@@ -3136,7 +3136,7 @@ var WebRTCPhone = (function () {
 		h.push('.hop-table td{padding:1px 4px;border-bottom:1px solid #f0f0f0;}');
 		h.push('.hop-ok{color:#4caf50;} .hop-spike{color:#ff9800;} .hop-fail{color:#f44336;}');
 		h.push('.footer{margin-top:8px;padding-top:6px;border-top:1px solid #ddd;color:#999;font-size:10px;text-align:center;}');
-		h.push('@media print{body{margin:0;padding:6px;width:100%;} @page{size:landscape;margin:8mm;}}');
+		h.push('@media print{body{margin:0;padding:6px;width:100%;} @page{size:landscape;margin:8mm;} .cols{display:table !important;width:100% !important;} .col{display:table-cell !important;overflow:visible !important;} .hop-table{page-break-inside:avoid;} h2{page-break-after:avoid;}}');
 		h.push('</style></head><body>');
 
 		// Header with info
@@ -3214,38 +3214,47 @@ var WebRTCPhone = (function () {
 			h.push('<h2>Path Trace</h2>');
 			if (r.pathTrace.error) {
 				h.push(row('fail', '&#10007;', 'Server Route', escapeHtml(r.pathTrace.error)));
-			} else {
+			}
+			if (!r.pathTrace.error || (r.pathTrace.samples && r.pathTrace.samples.length > 0)) {
 				var pt = r.pathTrace;
-				h.push(row(pt.stability >= 80 ? 'pass' : (pt.stability >= 50 ? 'warn' : 'fail'), pt.stability >= 80 ? '&#10003;' : '&#9888;', 'Stability', pt.stability + '% (' + (pt.stability >= 80 ? 'Stable' : 'Unstable') + ')'));
-				h.push('<div class="details">Avg:' + pt.avg + 'ms Min:' + pt.min + 'ms Max:' + pt.max + 'ms Jitter:' + pt.jitter + 'ms</div>');
-				// Bar chart
-				h.push('<div class="bar-chart">');
-				for (var pi = 0; pi < pt.samples.length; pi++) {
-					var ps = pt.samples[pi];
-					var barH = ps.time > 0 ? Math.min(100, Math.max(5, Math.round((ps.time / (pt.max || 1)) * 100))) : 0;
-					var barCls = ps.time < 0 ? 'bar-fail' : (ps.time > pt.avg * 2 ? 'bar-spike' : 'bar-ok');
-					h.push('<div class="bar ' + barCls + '" style="height:' + barH + '%"></div>');
+				if (!r.pathTrace.error) {
+					h.push(row(pt.stability >= 80 ? 'pass' : (pt.stability >= 50 ? 'warn' : 'fail'), pt.stability >= 80 ? '&#10003;' : '&#9888;', 'Stability', pt.stability + '% (' + (pt.stability >= 80 ? 'Stable' : 'Unstable') + ')'));
+					h.push('<div class="details">Avg:' + pt.avg + 'ms Min:' + pt.min + 'ms Max:' + pt.max + 'ms Jitter:' + pt.jitter + 'ms</div>');
+					// Bar chart
+					h.push('<div class="bar-chart">');
+					for (var pi = 0; pi < pt.samples.length; pi++) {
+						var ps = pt.samples[pi];
+						var barH = ps.time > 0 ? Math.min(100, Math.max(5, Math.round((ps.time / (pt.max || 1)) * 100))) : 0;
+						var barCls = ps.time < 0 ? 'bar-fail' : (ps.time > pt.avg * 2 ? 'bar-spike' : 'bar-ok');
+						h.push('<div class="bar ' + barCls + '" style="height:' + barH + '%"></div>');
+					}
+					h.push('</div>');
 				}
-				h.push('</div>');
-				// Traceroute nodes table
-				var ptDomain = state.config ? state.config.domain : 'N/A';
-				var ptPublicIP = pt.iceInfo.publicIP || '';
-				var ptLocalIP = pt.iceInfo.localIP || '';
-				h.push('<table class="hop-table">');
-				h.push('<tr><th>Hop</th><th>Server</th><th>IP</th><th>Latency</th><th>Status</th></tr>');
-				for (var hi = 0; hi < pt.samples.length; hi++) {
-					var hs = pt.samples[hi];
-					var hCls = hs.time < 0 ? 'hop-fail' : (hs.time > pt.avg * 2 ? 'hop-spike' : 'hop-ok');
-					var hStatus = hs.time < 0 ? 'Failed' : (hs.time > pt.avg * 2 ? 'Spike' : 'OK');
-					h.push('<tr class="' + hCls + '">');
-					h.push('<td>' + hs.hop + '</td>');
-					h.push('<td>' + escapeHtml(ptDomain) + '</td>');
-					h.push('<td>' + (ptPublicIP || ptLocalIP || 'N/A') + '</td>');
-					h.push('<td>' + (hs.time > 0 ? hs.time + 'ms' : '---') + '</td>');
-					h.push('<td>' + hStatus + '</td>');
-					h.push('</tr>');
+				// Traceroute nodes table (shown even on partial failure)
+				if (pt.samples && pt.samples.length > 0) {
+					var ptDomain = state.config ? state.config.domain : 'N/A';
+					var ptPublicIP = pt.iceInfo && pt.iceInfo.publicIP ? pt.iceInfo.publicIP : '';
+					var ptLocalIP = pt.iceInfo && pt.iceInfo.localIP ? pt.iceInfo.localIP : '';
+					var ptAvg = pt.avg || 0;
+					h.push('<table class="hop-table">');
+					h.push('<tr><th>Hop</th><th>Server</th><th>IP</th><th>Latency</th><th>Status</th></tr>');
+					for (var hi = 0; hi < pt.samples.length; hi++) {
+						var hs = pt.samples[hi];
+						var hCls = hs.time < 0 ? 'hop-fail' : (ptAvg > 0 && hs.time > ptAvg * 2 ? 'hop-spike' : 'hop-ok');
+						var hStatus = hs.time < 0 ? 'Failed' : (ptAvg > 0 && hs.time > ptAvg * 2 ? 'Spike' : 'OK');
+						h.push('<tr class="' + hCls + '">');
+						h.push('<td>' + hs.hop + '</td>');
+						h.push('<td>' + escapeHtml(ptDomain) + '</td>');
+						h.push('<td>' + (ptPublicIP || ptLocalIP || 'N/A') + '</td>');
+						h.push('<td>' + (hs.time > 0 ? hs.time + 'ms' : '---') + '</td>');
+						h.push('<td>' + hStatus + '</td>');
+						h.push('</tr>');
+					}
+					h.push('</table>');
 				}
-				h.push('</table>');
+			}
+			if (!r.pathTrace.error) {
+				var pt = r.pathTrace;
 				h.push(row('pass', '&#128270;', 'NAT Type', escapeHtml(pt.natType)));
 				if (pt.iceInfo.localIP || pt.iceInfo.publicIP) {
 					var ips2 = [];
