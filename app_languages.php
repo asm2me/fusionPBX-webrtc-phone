@@ -68,7 +68,7 @@
 	$text['js-systemJitter']['en-us'] = "System Jitter";
 	$text['js-sipSignaling']['en-us'] = "SIP Signaling";
 	$text['js-echoTest']['en-us'] = "Echo Test";
-	$text['js-dialingEcho']['en-us'] = "Dialing *9196...";
+	$text['js-dialingEcho']['en-us'] = "Dialing *9198...";
 	$text['js-collectingStats']['en-us'] = "Collecting audio stats...";
 	$text['js-internetBaseline']['en-us'] = "Internet Baseline";
 	$text['js-bandwidth']['en-us'] = "Bandwidth";
@@ -193,7 +193,7 @@
 	$text['js-systemJitter']['ar-eg'] = "ارتعاش النظام";
 	$text['js-sipSignaling']['ar-eg'] = "إشارات SIP";
 	$text['js-echoTest']['ar-eg'] = "اختبار الصدى";
-	$text['js-dialingEcho']['ar-eg'] = "جاري الاتصال بـ *9196...";
+	$text['js-dialingEcho']['ar-eg'] = "جاري الاتصال بـ *9198...";
 	$text['js-collectingStats']['ar-eg'] = "جاري جمع إحصائيات الصوت...";
 	$text['js-internetBaseline']['ar-eg'] = "خط أساس الإنترنت";
 	$text['js-bandwidth']['ar-eg'] = "عرض النطاق";
@@ -311,7 +311,7 @@
 	$text['js-systemJitter']['fr-fr'] = "Gigue système";
 	$text['js-sipSignaling']['fr-fr'] = "Signalisation SIP";
 	$text['js-echoTest']['fr-fr'] = "Test d'écho";
-	$text['js-dialingEcho']['fr-fr'] = "Appel *9196...";
+	$text['js-dialingEcho']['fr-fr'] = "Appel *9198...";
 	$text['js-collectingStats']['fr-fr'] = "Collecte des statistiques audio...";
 	$text['js-internetBaseline']['fr-fr'] = "Référence Internet";
 	$text['js-bandwidth']['fr-fr'] = "Bande passante";

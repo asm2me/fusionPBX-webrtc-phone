@@ -1324,10 +1324,22 @@ var WebRTCPhone = (function () {
 							var callResult = analyzeDemoStats(statsCollected);
 							finishDemoTest(callResult);
 						}
-					}).catch(function () {});
+					}).catch(function () {
+						statsCount++;
+						if (statsCount >= 5) {
+							clearInterval(statsInterval);
+							var callResult = analyzeDemoStats(statsCollected);
+							finishDemoTest(callResult);
+						}
+					});
 				}, 1000);
 			},
-			'confirmed': function () {},
+			'confirmed': function () {
+				if (results.demoCall && results.demoCall.status \!== 'connected') {
+					results.demoCall = { status: 'connected', ok: false };
+					renderPhone();
+				}
+			},
 			'ended': function (data) {
 				if (results.demoCall && results.demoCall.status === 'calling') {
 					finishDemoTest({ ok: false, error: 'Call ended: ' + (data.cause || 'unknown') });
