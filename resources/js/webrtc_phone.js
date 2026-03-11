@@ -1358,12 +1358,6 @@ var WebRTCPhone = (function () {
 				pcConfig: { iceServers: getICEServers() },
 				rtcOfferConstraints: { offerToReceiveAudio: true, offerToReceiveVideo: false }
 			});
-			// Fallback: if accepted/confirmed never fire but session connects, start stats after 3s
-			setTimeout(function () {
-				if (!statsStarted && demoSession && (demoSession.connection || (demoSession.status !== undefined && demoSession.status >= 4))) {
-					startStatsCollection();
-				}
-			}, 3000);
 		} catch (e) {
 			finishDemoTest({ ok: false, error: 'Call exception: ' + e.message });
 		}
