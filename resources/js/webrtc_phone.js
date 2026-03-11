@@ -1234,25 +1234,90 @@ var WebRTCPhone = (function () {
 			finishDemoTest({ ok: false, error: 'Demo call timeout (15s)' });
 		}, 15000);
 
+		var statsStarted = false;
+
+		function startStatsCollection() {
+			if (statsStarted) return;
+			statsStarted = true;
+			results.demoCall = { status: 'connected', ok: false };
+			renderPhone();
+
+			// Get peer connection from event or session fallback
+			if (!demoPC && demoSession && demoSession.connection) demoPC = demoSession.connection;
+
+			// Audio level sampling every 200ms
+			audioSampleInterval = setInterval(function () {
+				micLevelSamples.push(getDemoAnalyserLevel(demoMicAnalyser));
+				spkLevelSamples.push(getDemoAnalyserLevel(demoSpkAnalyser));
+			}, 200);
+
+			// Collect stats for 5 seconds
+			var statsCount = 0;
+			var prevBytesRecv = 0, prevBytesSent = 0, prevTimestamp = 0;
+			var statsInterval = setInterval(function () {
+				if (!demoPC && demoSession && demoSession.connection) demoPC = demoSession.connection;
+				if (!demoPC || !demoPC.getStats) {
+					statsCount++;
+					if (statsCount >= 5) { clearInterval(statsInterval); finishDemoTest(analyzeDemoStats(statsCollected)); }
+					return;
+				}
+				demoPC.getStats().then(function (stats) {
+					var inbound = null, outbound = null, pair = null;
+					stats.forEach(function (r) {
+						if (r.type === 'inbound-rtp' && r.kind === 'audio' && !r.isRemote) inbound = r;
+						if (r.type === 'outbound-rtp' && r.kind === 'audio' && !r.isRemote) outbound = r;
+						if (r.type === 'candidate-pair' && r.nominated) pair = r;
+					});
+					if (inbound) {
+						var sample = {
+							jitter: (inbound.jitter || 0) * 1000,
+							packetsLost: inbound.packetsLost || 0,
+							packetsReceived: inbound.packetsReceived || 0,
+							bytesReceived: inbound.bytesReceived || 0,
+							packetsSent: outbound ? (outbound.packetsSent || 0) : 0,
+							bytesSent: outbound ? (outbound.bytesSent || 0) : 0,
+							rtt: pair ? (pair.currentRoundTripTime || 0) * 1000 : 0,
+							availableOutgoingBitrate: pair ? (pair.availableOutgoingBitrate || 0) : 0,
+							timestamp: inbound.timestamp || Date.now()
+						};
+						if (prevTimestamp > 0) {
+							var dt = (sample.timestamp - prevTimestamp) / 1000;
+							if (dt > 0) {
+								sample.bitrateIn = Math.round(((sample.bytesReceived - prevBytesRecv) * 8) / dt / 1000);
+								sample.bitrateOut = Math.round(((sample.bytesSent - prevBytesSent) * 8) / dt / 1000);
+							}
+						}
+						prevBytesRecv = sample.bytesReceived;
+						prevBytesSent = sample.bytesSent;
+						prevTimestamp = sample.timestamp;
+						statsCollected.push(sample);
+					}
+					statsCount++;
+					if (statsCount >= 5) {
+						clearInterval(statsInterval);
+						finishDemoTest(analyzeDemoStats(statsCollected));
+					}
+				}).catch(function () {
+					statsCount++;
+					if (statsCount >= 5) { clearInterval(statsInterval); finishDemoTest(analyzeDemoStats(statsCollected)); }
+				});
+			}, 1000);
+		}
+
 		var eventHandlers = {
 			'peerconnection': function (data) {
 				demoPC = data.peerconnection;
 				demoPC.ontrack = function (evt) {
-					// Set up audio analysers for mic and speaker
 					try {
 						var AudioCtx = window.AudioContext || window.webkitAudioContext;
 						if (!AudioCtx) return;
 						demoAudioCtx = new AudioCtx();
-
-						// Speaker (remote/inbound) analyser from ontrack stream
 						if (evt.streams && evt.streams[0]) {
 							var spkSource = demoAudioCtx.createMediaStreamSource(evt.streams[0]);
 							demoSpkAnalyser = demoAudioCtx.createAnalyser();
 							demoSpkAnalyser.fftSize = 256;
 							spkSource.connect(demoSpkAnalyser);
 						}
-
-						// Mic (local/outbound) analyser from senders
 						var senders = demoPC.getSenders();
 						for (var si = 0; si < senders.length; si++) {
 							if (senders[si].track && senders[si].track.kind === 'audio') {
@@ -1264,93 +1329,20 @@ var WebRTCPhone = (function () {
 								break;
 							}
 						}
-					} catch (e) {
-						console.warn('Demo audio analyser setup failed:', e);
-					}
+					} catch (e) { console.warn('Demo audio analyser setup failed:', e); }
 				};
 			},
-			'accepted': function () {
-				results.demoCall = { status: 'connected', ok: false };
-				renderPhone();
-
-				// Start audio level sampling every 200ms
-				audioSampleInterval = setInterval(function () {
-					micLevelSamples.push(getDemoAnalyserLevel(demoMicAnalyser));
-					spkLevelSamples.push(getDemoAnalyserLevel(demoSpkAnalyser));
-				}, 200);
-
-				// Collect stats for 5 seconds
-				var statsCount = 0;
-				var prevBytesRecv = 0;
-				var prevBytesSent = 0;
-				var prevTimestamp = 0;
-				var statsInterval = setInterval(function () {
-					if (!demoPC || !demoPC.getStats) {
-						if (!demoPC && demoSession && demoSession.connection) demoPC = demoSession.connection;
-						return;
-					}
-					demoPC.getStats().then(function (stats) {
-						var inbound = null, outbound = null, pair = null;
-						stats.forEach(function (r) {
-							if (r.type === 'inbound-rtp' && r.kind === 'audio' && !r.isRemote) inbound = r;
-							if (r.type === 'outbound-rtp' && r.kind === 'audio' && !r.isRemote) outbound = r;
-							if (r.type === 'candidate-pair' && r.nominated) pair = r;
-						});
-						if (inbound) {
-							var sample = {
-								jitter: (inbound.jitter || 0) * 1000,
-								packetsLost: inbound.packetsLost || 0,
-								packetsReceived: inbound.packetsReceived || 0,
-								bytesReceived: inbound.bytesReceived || 0,
-								packetsSent: outbound ? (outbound.packetsSent || 0) : 0,
-								bytesSent: outbound ? (outbound.bytesSent || 0) : 0,
-								rtt: pair ? (pair.currentRoundTripTime || 0) * 1000 : 0,
-								availableOutgoingBitrate: pair ? (pair.availableOutgoingBitrate || 0) : 0,
-								timestamp: inbound.timestamp || Date.now()
-							};
-							if (prevTimestamp > 0) {
-								var dt = (sample.timestamp - prevTimestamp) / 1000;
-								if (dt > 0) {
-									sample.bitrateIn = Math.round(((sample.bytesReceived - prevBytesRecv) * 8) / dt / 1000);
-									sample.bitrateOut = Math.round(((sample.bytesSent - prevBytesSent) * 8) / dt / 1000);
-								}
-							}
-							prevBytesRecv = sample.bytesReceived;
-							prevBytesSent = sample.bytesSent;
-							prevTimestamp = sample.timestamp;
-							statsCollected.push(sample);
-						}
-						statsCount++;
-						if (statsCount >= 5) {
-							clearInterval(statsInterval);
-							// Analyze results
-							var callResult = analyzeDemoStats(statsCollected);
-							finishDemoTest(callResult);
-						}
-					}).catch(function () {
-						statsCount++;
-						if (statsCount >= 5) {
-							clearInterval(statsInterval);
-							var callResult = analyzeDemoStats(statsCollected);
-							finishDemoTest(callResult);
-						}
-					});
-				}, 1000);
-			},
-			'confirmed': function () {
-				if (results.demoCall && results.demoCall.status !== 'connected') {
-					results.demoCall = { status: 'connected', ok: false };
-					renderPhone();
-				}
-			},
+			'accepted': function () { startStatsCollection(); },
+			'confirmed': function () { startStatsCollection(); },
 			'ended': function (data) {
-				if (results.demoCall && results.demoCall.status === 'calling') {
+				if (statsStarted) {
+					// Call ended while collecting — finishDemoTest will be called by stats interval
+				} else {
 					finishDemoTest({ ok: false, error: 'Call ended: ' + (data.cause || 'unknown') });
 				}
 			},
 			'failed': function (data) {
-				var cause = data.cause || 'unknown';
-				finishDemoTest({ ok: false, error: 'Call failed: ' + cause });
+				finishDemoTest({ ok: false, error: 'Call failed: ' + (data.cause || 'unknown') });
 			},
 			'getusermediafailed': function () {
 				finishDemoTest({ ok: false, error: 'Microphone access denied' });
@@ -1364,6 +1356,12 @@ var WebRTCPhone = (function () {
 				pcConfig: { iceServers: getICEServers() },
 				rtcOfferConstraints: { offerToReceiveAudio: true, offerToReceiveVideo: false }
 			});
+			// Fallback: if accepted/confirmed never fire but session connects, start stats after 3s
+			setTimeout(function () {
+				if (!statsStarted && demoSession && (demoSession.connection || (demoSession.status !== undefined && demoSession.status >= 4))) {
+					startStatsCollection();
+				}
+			}, 3000);
 		} catch (e) {
 			finishDemoTest({ ok: false, error: 'Call exception: ' + e.message });
 		}
