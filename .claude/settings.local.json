@@ -6,7 +6,9 @@
       "Bash(node fix_diag.js)",
       "Bash(node fix_confirmed.js)",
       "Bash(node fix_ice_diag.js)",
-      "Bash(node fix_timer_ice.js)"
+      "Bash(node fix_timer_ice.js)",
+      "Bash(/tmp/fix_comment.py:*)",
+      "Bash(python /tmp/fix_comment.py)"
     ]
   }
 }

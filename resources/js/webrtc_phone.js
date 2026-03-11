@@ -53,7 +53,7 @@ var WebRTCPhone = (function () {
 		systemJitter: 'System Jitter',
 		sipSignaling: 'SIP Signaling',
 		echoTest: 'Echo Test',
-		dialingEcho: 'Dialing *9198...',
+		dialingEcho: 'Dialing *9196...',
 		collectingStats: 'Collecting audio stats...',
 		internetBaseline: 'Internet Baseline',
 		bandwidth: 'Bandwidth',
@@ -1142,7 +1142,7 @@ var WebRTCPhone = (function () {
 			if (audioTest.mic.ok && !audioTest.spk.ok) {
 				diagnosis.issues.push('One-way audio detected: mic works but no echo received from server');
 				diagnosis.suggestions.push('Server may have an audio processing issue or codec mismatch');
-				diagnosis.suggestions.push('Check FreeSWITCH echo extension (*9198) is working correctly');
+				diagnosis.suggestions.push('Check FreeSWITCH echo extension (*9196) is working correctly');
 			}
 			if (!audioTest.mic.ok && audioTest.spk.ok) {
 				diagnosis.source = 'user';
@@ -1179,7 +1179,7 @@ var WebRTCPhone = (function () {
 		return diagnosis;
 	}
 
-	// Demo call test: calls FreeSWITCH echo extension *9198, collects RTP stats for ~5s, hangs up
+	// Demo call test: calls FreeSWITCH echo extension *9196, collects RTP stats for ~8s, hangs up
 	function runDemoCallTest() {
 		var results = state.networkTestResults;
 		if (!state.ua || !state.registered || state.currentSession) {
@@ -1193,7 +1193,7 @@ var WebRTCPhone = (function () {
 		renderPhone();
 
 		var domain = state.config.domain;
-		var echoURI = 'sip:*9198@' + domain;
+		var echoURI = 'sip:*9196@' + domain;
 		var demoSession = null;
 		var demoPC = null;
 		var demoTimeout = null;
@@ -1251,14 +1251,14 @@ var WebRTCPhone = (function () {
 				spkLevelSamples.push(getDemoAnalyserLevel(demoSpkAnalyser));
 			}, 200);
 
-			// Collect stats for 5 seconds
+			// Collect stats for 8 seconds
 			var statsCount = 0;
 			var prevBytesRecv = 0, prevBytesSent = 0, prevTimestamp = 0;
 			var statsInterval = setInterval(function () {
 				if (!demoPC && demoSession && demoSession.connection) demoPC = demoSession.connection;
 				if (!demoPC || !demoPC.getStats) {
 					statsCount++;
-					if (statsCount >= 5) { clearInterval(statsInterval); finishDemoTest(analyzeDemoStats(statsCollected)); }
+					if (statsCount >= 8) { clearInterval(statsInterval); finishDemoTest(analyzeDemoStats(statsCollected)); }
 					return;
 				}
 				demoPC.getStats().then(function (stats) {
@@ -1294,13 +1294,13 @@ var WebRTCPhone = (function () {
 						statsCollected.push(sample);
 					}
 					statsCount++;
-					if (statsCount >= 5) {
+					if (statsCount >= 8) {
 						clearInterval(statsInterval);
 						finishDemoTest(analyzeDemoStats(statsCollected));
 					}
 				}).catch(function () {
 					statsCount++;
-					if (statsCount >= 5) { clearInterval(statsInterval); finishDemoTest(analyzeDemoStats(statsCollected)); }
+					if (statsCount >= 8) { clearInterval(statsInterval); finishDemoTest(analyzeDemoStats(statsCollected)); }
 				});
 			}, 1000);
 		}
