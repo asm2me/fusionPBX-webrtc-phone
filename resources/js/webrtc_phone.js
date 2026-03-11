@@ -1264,9 +1264,9 @@ var WebRTCPhone = (function () {
 				demoPC.getStats().then(function (stats) {
 					var inbound = null, outbound = null, pair = null;
 					stats.forEach(function (r) {
-						var isAudio = !r.kind || r.kind === 'audio' || r.mediaType === 'audio';
-						if ((r.type === 'inbound-rtp' || r.type === 'ssrc') && isAudio && r.isRemote !== true) inbound = r;
-						if ((r.type === 'outbound-rtp' || r.type === 'ssrc') && isAudio && r.isRemote !== true && r.packetsSent !== undefined) outbound = r;
+						// No kind/isRemote filter: voice-only call has exactly one inbound and one outbound RTP stream
+						if (r.type === 'inbound-rtp' || r.type === 'ssrc') inbound = r;
+						if (r.type === 'outbound-rtp') outbound = r;
 						if (r.type === 'candidate-pair' && (r.nominated || r.state === 'succeeded')) { if (!pair || r.nominated) pair = r; }
 					});
 						if (!inbound) console.warn("[EchoTest] No inbound-rtp. Stat types:", Array.from(stats).map(function(r){return r.type+'/'+r.kind;}));
