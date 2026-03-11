@@ -1269,7 +1269,7 @@ var WebRTCPhone = (function () {
 						if (r.type === 'outbound-rtp') outbound = r;
 						if (r.type === 'candidate-pair' && (r.nominated || r.state === 'succeeded')) { if (!pair || r.nominated) pair = r; }
 					});
-						if (!inbound) console.warn("[EchoTest] No inbound-rtp. Stat types:", Array.from(stats).map(function(r){return r.type+'/'+r.kind;}));
+						if (!inbound) { var _t=[]; stats.forEach(function(r){_t.push(r.type+"/"+r.kind);}); console.warn("[EchoTest] No inbound-rtp. Types:", _t); }
 					if (inbound) {
 						var sample = {
 							jitter: (inbound.jitter || 0) * 1000,
