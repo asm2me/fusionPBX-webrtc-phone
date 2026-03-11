@@ -1264,9 +1264,10 @@ var WebRTCPhone = (function () {
 				demoPC.getStats().then(function (stats) {
 					var inbound = null, outbound = null, pair = null;
 					stats.forEach(function (r) {
-						if (r.type === 'inbound-rtp' && r.kind === 'audio' && !r.isRemote) inbound = r;
-						if (r.type === 'outbound-rtp' && r.kind === 'audio' && !r.isRemote) outbound = r;
-						if (r.type === 'candidate-pair' && r.nominated) pair = r;
+						var isAudio = (r.kind === 'audio' || r.mediaType === 'audio');
+						if ((r.type === 'inbound-rtp' || r.type === 'ssrc') && isAudio && r.isRemote !== true) inbound = r;
+						if ((r.type === 'outbound-rtp' || r.type === 'ssrc') && isAudio && r.isRemote !== true && r.packetsSent !== undefined) outbound = r;
+						if (r.type === 'candidate-pair' && (r.nominated || r.state === 'succeeded')) { if (!pair || r.nominated) pair = r; }
 					});
 					if (inbound) {
 						var sample = {
