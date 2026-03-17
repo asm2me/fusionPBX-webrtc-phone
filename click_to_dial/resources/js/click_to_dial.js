@@ -714,7 +714,7 @@
 				if (ev.type === 'answer') {
 					// Add ice-lite if not present — makes browser the controlling agent
 					if (ev.sdp.indexOf('a=ice-lite') === -1) {
-						ev.sdp = ev.sdp.replace(/(v=0\r?\n)/, '$1a=ice-lite\r\n');
+						ev.sdp = ev.sdp.replace(/(m=audio)/, 'a=ice-lite\r\n$1');
 						console.log('CTD: Added ice-lite to answer SDP');
 					}
 					console.log('CTD: Modified answer SDP:\n' + ev.sdp);
