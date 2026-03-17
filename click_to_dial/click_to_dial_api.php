@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 header('Content-Type: application/json');
 
 //includes
-$document_root = dirname(__DIR__, 2);
+$document_root = dirname(__DIR__, 3);
 require_once $document_root."/resources/require.php";
 
 //get the token from header or query parameter

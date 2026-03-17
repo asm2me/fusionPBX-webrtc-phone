@@ -10,7 +10,7 @@
 */
 
 //includes
-$document_root = dirname(__DIR__, 2);
+$document_root = dirname(__DIR__, 3);
 require_once $document_root."/resources/require.php";
 
 //create the table if it doesn't exist

@@ -9,7 +9,7 @@
 */
 
 //includes
-$document_root = dirname(__DIR__, 2);
+$document_root = dirname(__DIR__, 3);
 require_once $document_root."/resources/require.php";
 require_once $document_root."/resources/check_auth.php";
 
