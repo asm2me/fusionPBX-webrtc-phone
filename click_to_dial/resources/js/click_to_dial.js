@@ -177,25 +177,29 @@
 
 	// --- Load JsSIP ---
 	function loadJsSIP(callback) {
-		if (window.JsSIP) { state.jssipLoaded = true; callback(); return; }
+		if (window.JsSIP) { console.log('CTD: JsSIP already loaded'); state.jssipLoaded = true; callback(); return; }
+		console.log('CTD: Loading JsSIP from', CTD_SERVER + '/app/webrtc_phone/resources/js/jssip.min.js');
 		var s = document.createElement('script');
 		s.src = CTD_SERVER + '/app/webrtc_phone/resources/js/jssip.min.js';
-		s.onload = function () { state.jssipLoaded = true; callback(); };
+		s.onload = function () { console.log('CTD: JsSIP loaded successfully'); state.jssipLoaded = true; callback(); };
 		s.onerror = function () { console.error('CTD: Failed to load JsSIP'); renderStatus('Failed to load phone library.'); };
 		document.head.appendChild(s);
 	}
 
 	// --- Fetch Config ---
 	function fetchConfig(callback) {
+		var apiUrl = CTD_SERVER + '/app/webrtc_phone/click_to_dial/click_to_dial_api.php?token=' + encodeURIComponent(CTD_TOKEN);
+		console.log('CTD: Fetching config from', apiUrl);
 		var xhr = new XMLHttpRequest();
-		xhr.open('GET', CTD_SERVER + '/app/webrtc_phone/click_to_dial/click_to_dial_api.php?token=' + encodeURIComponent(CTD_TOKEN), true);
-		xhr.setRequestHeader('X-CTD-Token', CTD_TOKEN);
+		xhr.open('GET', apiUrl, true);
 		xhr.onreadystatechange = function () {
 			if (xhr.readyState === 4) {
+				console.log('CTD: API response status:', xhr.status);
 				if (xhr.status === 200) {
 					try {
 						var data = JSON.parse(xhr.responseText);
-						if (data.error) { renderStatus('Configuration error: ' + data.error); return; }
+						console.log('CTD: Config loaded, domain:', data.domain, 'ext:', data.extension, 'dest:', data.destination_number);
+						if (data.error) { console.error('CTD: API error:', data.error); renderStatus('Configuration error: ' + data.error); return; }
 						state.config = data;
 						state.destinationNumber = data.destination_number || '';
 						state.departments = data.departments || [];
@@ -206,12 +210,18 @@
 						}
 						callback();
 					} catch (e) {
+						console.error('CTD: Failed to parse config response:', e, xhr.responseText.substring(0, 200));
 						renderStatus('Failed to parse configuration.');
 					}
 				} else {
+					console.error('CTD: API request failed, status:', xhr.status, 'response:', xhr.responseText.substring(0, 200));
 					renderStatus('Failed to load configuration (HTTP ' + xhr.status + ').');
 				}
 			}
+		};
+		xhr.onerror = function () {
+			console.error('CTD: Network error fetching config (CORS blocked or network failure)');
+			renderStatus('Network error loading configuration.');
 		};
 		xhr.send();
 	}
@@ -239,6 +249,8 @@
 		var wssUrl = 'wss://' + cfg.domain + ':' + cfg.wss_port;
 		var sipUri = 'sip:' + cfg.extension + '@' + cfg.domain;
 
+		console.log('CTD: Registering SIP -', sipUri, 'via', wssUrl);
+
 		try {
 			var socket = new JsSIP.WebSocketInterface(wssUrl);
 			var configuration = {
@@ -253,23 +265,29 @@
 
 			state.ua = new JsSIP.UA(configuration);
 
+			state.ua.on('connected', function () {
+				console.log('CTD: WebSocket connected');
+			});
 			state.ua.on('registered', function () {
+				console.log('CTD: SIP registered successfully');
 				state.registered = true;
 				updateFAB();
 				if (state.visible) renderPanel();
 			});
 			state.ua.on('unregistered', function () {
+				console.log('CTD: SIP unregistered');
 				state.registered = false;
 				updateFAB();
 				if (state.visible) renderPanel();
 			});
 			state.ua.on('registrationFailed', function (e) {
 				state.registered = false;
-				console.error('CTD: Registration failed', e.cause);
+				console.error('CTD: SIP registration failed -', e.cause);
 				updateFAB();
 				if (state.visible) renderPanel();
 			});
 			state.ua.on('disconnected', function () {
+				console.log('CTD: WebSocket disconnected');
 				state.registered = false;
 				if (state.session) endCall();
 				else { updateFAB(); if (state.visible) renderPanel(); }
@@ -787,11 +805,14 @@
 
 	// --- Init ---
 	function init() {
+		console.log('CTD: Initializing Click-to-Dial, server:', CTD_SERVER);
 		injectCSS();
 		fetchConfig(function () {
+			console.log('CTD: Config loaded, building UI');
 			buildUI();
 			bindClickToDial();
 			loadJsSIP(function () {
+				console.log('CTD: JsSIP ready, starting SIP registration');
 				registerSIP();
 			});
 		});

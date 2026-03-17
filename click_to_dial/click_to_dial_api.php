@@ -9,14 +9,13 @@
 	Returns WSS config and extension credentials for the associated token.
 */
 
-//allow cross-origin requests
-$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-if (!empty($origin)) {
-	header('Access-Control-Allow-Origin: ' . $origin);
-	header('Access-Control-Allow-Methods: GET, OPTIONS');
-	header('Access-Control-Allow-Headers: Content-Type, X-CTD-Token');
-	header('Access-Control-Max-Age: 86400');
-}
+//allow cross-origin requests — always send CORS headers
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
+header('Access-Control-Allow-Origin: ' . $origin);
+header('Access-Control-Allow-Methods: GET, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, X-CTD-Token');
+header('Access-Control-Allow-Credentials: false');
+header('Access-Control-Max-Age: 86400');
 
 //handle preflight
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
