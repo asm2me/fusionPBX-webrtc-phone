@@ -706,18 +706,17 @@
 		try {
 			state.session = state.ua.call(targetURI, options);
 
-			// Strip ICE from FreeSWITCH answer SDP — FS doesn't respond to ICE
-			// STUN binding requests, so ICE always fails. By removing ICE attrs
-			// from the answer, the browser skips ICE and sends RTP directly to
-			// the c= line address (which is FS's public IP).
+			// Fix ICE negotiation with FreeSWITCH:
+			// FS includes ICE credentials but doesn't properly respond to STUN
+			// binding requests. Adding ice-lite to the answer tells the browser
+			// that FS is a lite ICE agent, changing connectivity check behavior.
 			state.session.on('sdp', function (ev) {
 				if (ev.type === 'answer') {
-					console.log('CTD: Stripping ICE from answer SDP for direct RTP');
-					ev.sdp = ev.sdp.replace(/a=ice-ufrag:.*\r?\n/g, '');
-					ev.sdp = ev.sdp.replace(/a=ice-pwd:.*\r?\n/g, '');
-					ev.sdp = ev.sdp.replace(/a=candidate:.*\r?\n/g, '');
-					ev.sdp = ev.sdp.replace(/a=end-of-candidates\r?\n/g, '');
-					ev.sdp = ev.sdp.replace(/a=ice-options:.*\r?\n/g, '');
+					// Add ice-lite if not present — makes browser the controlling agent
+					if (ev.sdp.indexOf('a=ice-lite') === -1) {
+						ev.sdp = ev.sdp.replace(/(v=0\r?\n)/, '$1a=ice-lite\r\n');
+						console.log('CTD: Added ice-lite to answer SDP');
+					}
 					console.log('CTD: Modified answer SDP:\n' + ev.sdp);
 				}
 			});
