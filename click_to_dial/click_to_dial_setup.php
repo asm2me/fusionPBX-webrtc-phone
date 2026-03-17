@@ -28,6 +28,25 @@ if (empty($domain_uuid)) {
 	exit;
 }
 
+//ensure required database columns exist (self-healing for upgrades)
+$database = new database;
+$needed_columns = [
+	"destination_number varchar(64) DEFAULT ''",
+	"departments text DEFAULT ''",
+	"destinations text DEFAULT '[]'",
+	"lazy_registration varchar(10) DEFAULT 'false'",
+	"show_dtmf varchar(10) DEFAULT 'true'",
+	"button_shadow varchar(20) DEFAULT 'normal'",
+	"button_orientation varchar(20) DEFAULT 'horizontal'"
+];
+foreach ($needed_columns as $col_def) {
+	$col_name = explode(' ', $col_def)[0];
+	$sql = "ALTER TABLE v_click_to_dial_tokens ADD COLUMN IF NOT EXISTS " . $col_def;
+	try { $database->execute($sql); } catch (Exception $e) {}
+	unset($sql);
+}
+unset($needed_columns, $col_def, $col_name);
+
 //handle form actions
 $action = $_POST['action'] ?? '';
 $message = '';
