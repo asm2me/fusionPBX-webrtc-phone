@@ -581,33 +581,60 @@
 			'peerconnection': function (data) {
 				var pc = data.peerconnection;
 
-				pc.addEventListener('icegatheringstatechange', function () {
-					console.log('CTD: ICE gathering state:', pc.iceGatheringState);
-					if (pc.iceGatheringState === 'complete') {
-						// Log the final local SDP with all candidates
+				// ICE optimization: complete gathering once srflx candidate is found
+				// Without this, ICE gathering hangs forever on some networks (TCP candidates timeout)
+				var iceCompleted = false;
+				var srflxTimer = null;
+				var absoluteTimer = setTimeout(function () {
+					if (!iceCompleted) {
+						iceCompleted = true;
+						clearTimeout(srflxTimer);
+						console.log('CTD: ICE absolute timeout (10s), forcing completion');
+						// Log what we have so far
 						var sdp = pc.localDescription ? pc.localDescription.sdp : '';
-						var candidateCount = (sdp.match(/a=candidate/g) || []).length;
-						console.log('CTD: ICE gathering complete, ' + candidateCount + ' candidates in SDP');
+						console.log('CTD: SDP candidates at timeout:', (sdp.match(/a=candidate/g) || []).length);
+						try { pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); } catch (e) {}
 					}
-				});
+				}, 10000);
 
 				pc.addEventListener('icecandidate', function (e) {
 					if (!e.candidate) {
-						console.log('CTD: ICE gathering finished (null candidate)');
+						iceCompleted = true;
+						clearTimeout(srflxTimer);
+						clearTimeout(absoluteTimer);
+						var sdp = pc.localDescription ? pc.localDescription.sdp : '';
+						console.log('CTD: ICE gathering complete,', (sdp.match(/a=candidate/g) || []).length, 'candidates in SDP');
 						return;
 					}
 					console.log('CTD: ICE candidate:', e.candidate.type, e.candidate.protocol, e.candidate.address || '');
+					if (e.candidate.type === 'srflx' && !iceCompleted) {
+						clearTimeout(srflxTimer);
+						clearTimeout(absoluteTimer);
+						srflxTimer = setTimeout(function () {
+							if (!iceCompleted) {
+								iceCompleted = true;
+								var sdp = pc.localDescription ? pc.localDescription.sdp : '';
+								console.log('CTD: srflx found, completing ICE after 500ms,', (sdp.match(/a=candidate/g) || []).length, 'candidates');
+								try { pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); } catch (e) {}
+							}
+						}, 500);
+					}
 				});
 
 				pc.addEventListener('iceconnectionstatechange', function () {
 					console.log('CTD: ICE connection state:', pc.iceConnectionState);
+					if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+						console.log('CTD: ICE connected! RTP should flow now');
+					}
 					if (pc.iceConnectionState === 'failed') {
-						// Log failed state details
+						console.error('CTD: ICE FAILED - checking candidate pairs');
 						pc.getStats().then(function (stats) {
 							stats.forEach(function (r) {
 								if (r.type === 'candidate-pair') {
-									console.log('CTD: Candidate pair:', r.state, 'local:', r.localCandidateId, 'remote:', r.remoteCandidateId, 'nominated:', r.nominated);
+									console.log('CTD: Pair:', r.state, 'nominated:', r.nominated, 'bytesSent:', r.bytesSent, 'bytesRecv:', r.bytesReceived);
 								}
+								if (r.type === 'local-candidate') console.log('CTD: Local:', r.candidateType, r.protocol, r.address, r.port);
+								if (r.type === 'remote-candidate') console.log('CTD: Remote:', r.candidateType, r.protocol, r.address, r.port);
 							});
 						}).catch(function () {});
 					}
