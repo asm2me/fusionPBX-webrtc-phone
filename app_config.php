@@ -59,5 +59,32 @@
 	$apps[$x]['default_settings'][$y]['default_setting_value'] = "stun:stun.l.google.com:19302";
 	$apps[$x]['default_settings'][$y]['default_setting_enabled'] = "true";
 	$apps[$x]['default_settings'][$y]['default_setting_description'] = "STUN server for NAT traversal.";
+	$y++;
+
+	$apps[$x]['default_settings'][$y]['default_setting_uuid'] = "e5f6a7b8-c9d0-1234-efab-345678901234";
+	$apps[$x]['default_settings'][$y]['default_setting_category'] = "webrtc_phone";
+	$apps[$x]['default_settings'][$y]['default_setting_subcategory'] = "turn_server";
+	$apps[$x]['default_settings'][$y]['default_setting_name'] = "text";
+	$apps[$x]['default_settings'][$y]['default_setting_value'] = "";
+	$apps[$x]['default_settings'][$y]['default_setting_enabled'] = "false";
+	$apps[$x]['default_settings'][$y]['default_setting_description'] = "TURN server URL (e.g. turn:mt.voipat.com:3478). Leave empty to disable.";
+	$y++;
+
+	$apps[$x]['default_settings'][$y]['default_setting_uuid'] = "f6a7b8c9-d0e1-2345-fabc-456789012345";
+	$apps[$x]['default_settings'][$y]['default_setting_category'] = "webrtc_phone";
+	$apps[$x]['default_settings'][$y]['default_setting_subcategory'] = "turn_username";
+	$apps[$x]['default_settings'][$y]['default_setting_name'] = "text";
+	$apps[$x]['default_settings'][$y]['default_setting_value'] = "";
+	$apps[$x]['default_settings'][$y]['default_setting_enabled'] = "false";
+	$apps[$x]['default_settings'][$y]['default_setting_description'] = "TURN server username for authentication.";
+	$y++;
+
+	$apps[$x]['default_settings'][$y]['default_setting_uuid'] = "a7b8c9d0-e1f2-3456-abcd-567890123456";
+	$apps[$x]['default_settings'][$y]['default_setting_category'] = "webrtc_phone";
+	$apps[$x]['default_settings'][$y]['default_setting_subcategory'] = "turn_password";
+	$apps[$x]['default_settings'][$y]['default_setting_name'] = "text";
+	$apps[$x]['default_settings'][$y]['default_setting_value'] = "";
+	$apps[$x]['default_settings'][$y]['default_setting_enabled'] = "false";
+	$apps[$x]['default_settings'][$y]['default_setting_description'] = "TURN server password for authentication.";
 
 ?>

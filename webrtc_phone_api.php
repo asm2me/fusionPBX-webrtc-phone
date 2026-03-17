@@ -37,6 +37,9 @@ if (empty($domain_uuid) || empty($user_uuid)) {
 //get wss settings from default settings
 $wss_port = $_SESSION['webrtc_phone']['wss_port']['text'] ?? '7443';
 $stun_server = $_SESSION['webrtc_phone']['stun_server']['text'] ?? 'stun:stun.l.google.com:19302';
+$turn_server = $_SESSION['webrtc_phone']['turn_server']['text'] ?? '';
+$turn_username = $_SESSION['webrtc_phone']['turn_username']['text'] ?? '';
+$turn_password = $_SESSION['webrtc_phone']['turn_password']['text'] ?? '';
 $webrtc_enabled = $_SESSION['webrtc_phone']['enabled']['boolean'] ?? 'true';
 
 if ($webrtc_enabled !== 'true') {
@@ -69,6 +72,9 @@ $response = [
 	'domain' => $domain_name,
 	'wss_port' => $wss_port,
 	'stun_server' => $stun_server,
+	'turn_server' => $turn_server,
+	'turn_username' => $turn_username,
+	'turn_password' => $turn_password,
 	'extensions' => []
 ];
 

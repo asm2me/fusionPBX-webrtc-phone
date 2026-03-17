@@ -110,6 +110,21 @@ $wss_port = $wss_row['default_setting_value'] ?? '7443';
 $parameters = ['subcategory' => 'stun_server'];
 $stun_row = $database->select($sql, $parameters, 'row');
 $stun_server = $stun_row['default_setting_value'] ?? 'stun:stun.l.google.com:19302';
+
+//get turn_server
+$parameters = ['subcategory' => 'turn_server'];
+$turn_row = $database->select($sql, $parameters, 'row');
+$turn_server = $turn_row['default_setting_value'] ?? '';
+
+//get turn_username
+$parameters = ['subcategory' => 'turn_username'];
+$turn_user_row = $database->select($sql, $parameters, 'row');
+$turn_username = $turn_user_row['default_setting_value'] ?? '';
+
+//get turn_password
+$parameters = ['subcategory' => 'turn_password'];
+$turn_pass_row = $database->select($sql, $parameters, 'row');
+$turn_password = $turn_pass_row['default_setting_value'] ?? '';
 unset($sql, $parameters);
 
 //parse departments list
@@ -131,6 +146,9 @@ $response = [
 	'domain' => $row['domain_name'],
 	'wss_port' => $wss_port,
 	'stun_server' => $stun_server,
+	'turn_server' => $turn_server,
+	'turn_username' => $turn_username,
+	'turn_password' => $turn_password,
 	'extension' => $row['extension'],
 	'password' => $row['password'],
 	'caller_id_name' => $row['effective_caller_id_name'] ?? $row['extension'],

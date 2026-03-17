@@ -562,6 +562,22 @@
 		if (state.config.stun_server) {
 			iceServers.push({ urls: state.config.stun_server });
 		}
+		// Add TURN server if configured (essential for restrictive NATs/firewalls)
+		if (state.config.turn_server) {
+			var turnConfig = { urls: state.config.turn_server };
+			if (state.config.turn_username) turnConfig.username = state.config.turn_username;
+			if (state.config.turn_password) turnConfig.credential = state.config.turn_password;
+			iceServers.push(turnConfig);
+			// Also add TURNS (TLS) variant if using standard turn: URL
+			if (state.config.turn_server.indexOf('turn:') === 0) {
+				var turnsUrl = state.config.turn_server.replace('turn:', 'turns:').replace(':3478', ':5349');
+				var turnsConfig = { urls: turnsUrl };
+				if (state.config.turn_username) turnsConfig.username = state.config.turn_username;
+				if (state.config.turn_password) turnsConfig.credential = state.config.turn_password;
+				iceServers.push(turnsConfig);
+			}
+			console.log('CTD: TURN server configured:', state.config.turn_server);
+		}
 
 		// Build caller ID display name: "Name [Department]"
 		var displayName = state.callerName;

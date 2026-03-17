@@ -2105,6 +2105,19 @@ var WebRTCPhone = (function () {
 		if (state.config && state.config.stun_server) {
 			servers.push({ urls: state.config.stun_server });
 		}
+		// Add TURN server if configured
+		if (state.config && state.config.turn_server) {
+			var turnConfig = { urls: state.config.turn_server };
+			if (state.config.turn_username) turnConfig.username = state.config.turn_username;
+			if (state.config.turn_password) turnConfig.credential = state.config.turn_password;
+			servers.push(turnConfig);
+			if (state.config.turn_server.indexOf('turn:') === 0) {
+				var turnsConfig = { urls: state.config.turn_server.replace('turn:', 'turns:').replace(':3478', ':5349') };
+				if (state.config.turn_username) turnsConfig.username = state.config.turn_username;
+				if (state.config.turn_password) turnsConfig.credential = state.config.turn_password;
+				servers.push(turnsConfig);
+			}
+		}
 		return servers;
 	}
 
