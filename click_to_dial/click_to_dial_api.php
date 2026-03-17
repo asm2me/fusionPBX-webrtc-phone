@@ -48,6 +48,7 @@ if (empty($token) || strlen($token) < 32) {
 //look up the token in the database
 $sql = "SELECT t.click_to_dial_token_uuid, t.domain_uuid, t.extension_uuid, ";
 $sql .= "t.allowed_origins, t.token_enabled, t.button_color, t.button_position, t.button_label, ";
+$sql .= "t.destination_number, t.departments, ";
 $sql .= "e.extension, e.password, e.effective_caller_id_name, e.effective_caller_id_number, ";
 $sql .= "d.domain_name ";
 $sql .= "FROM v_click_to_dial_tokens AS t ";
@@ -112,6 +113,13 @@ $stun_row = $database->select($sql, $parameters, 'row');
 $stun_server = $stun_row['default_setting_value'] ?? 'stun:stun.l.google.com:19302';
 unset($sql, $parameters);
 
+//parse departments list
+$departments_raw = trim($row['departments'] ?? '');
+$departments_list = [];
+if (!empty($departments_raw)) {
+	$departments_list = array_values(array_filter(array_map('trim', explode("\n", $departments_raw))));
+}
+
 //build response
 $response = [
 	'domain' => $row['domain_name'],
@@ -121,6 +129,8 @@ $response = [
 	'password' => $row['password'],
 	'caller_id_name' => $row['effective_caller_id_name'] ?? $row['extension'],
 	'caller_id_number' => $row['effective_caller_id_number'] ?? $row['extension'],
+	'destination_number' => $row['destination_number'] ?? '',
+	'departments' => $departments_list,
 	'ui' => [
 		'button_color' => $row['button_color'] ?? '#1a73e8',
 		'button_position' => $row['button_position'] ?? 'bottom-right',

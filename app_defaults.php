@@ -61,6 +61,8 @@ if ($domains_processed == 1) {
 	$sql .= "api_token varchar(128) NOT NULL UNIQUE, ";
 	$sql .= "token_name varchar(255), ";
 	$sql .= "allowed_origins text, ";
+	$sql .= "destination_number varchar(64) DEFAULT '', ";
+	$sql .= "departments text DEFAULT '', ";
 	$sql .= "button_color varchar(20) DEFAULT '#1a73e8', ";
 	$sql .= "button_position varchar(20) DEFAULT 'bottom-right', ";
 	$sql .= "button_label varchar(100) DEFAULT '', ";
@@ -71,6 +73,13 @@ if ($domains_processed == 1) {
 	$sql .= "update_user uuid ";
 	$sql .= ") ";
 	$database = new database;
+	$database->execute($sql);
+	unset($sql);
+
+	//add destination_number and departments columns if they don't exist (upgrade path)
+	$sql = "ALTER TABLE v_click_to_dial_tokens ADD COLUMN IF NOT EXISTS destination_number varchar(64) DEFAULT '' ";
+	$database->execute($sql);
+	$sql = "ALTER TABLE v_click_to_dial_tokens ADD COLUMN IF NOT EXISTS departments text DEFAULT '' ";
 	$database->execute($sql);
 	unset($sql);
 }
