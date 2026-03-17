@@ -581,43 +581,36 @@
 			'peerconnection': function (data) {
 				var pc = data.peerconnection;
 
-				// ICE gathering optimization: end early once srflx candidate found
-				var iceCompleted = false;
-				var srflxTimer = null;
-				var absoluteTimer = setTimeout(function () {
-					if (!iceCompleted) {
-						console.log('CTD: ICE absolute timeout (10s), completing');
-						iceCompleted = true;
-						clearTimeout(srflxTimer);
-						try { pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); } catch (e) {}
+				pc.addEventListener('icegatheringstatechange', function () {
+					console.log('CTD: ICE gathering state:', pc.iceGatheringState);
+					if (pc.iceGatheringState === 'complete') {
+						// Log the final local SDP with all candidates
+						var sdp = pc.localDescription ? pc.localDescription.sdp : '';
+						var candidateCount = (sdp.match(/a=candidate/g) || []).length;
+						console.log('CTD: ICE gathering complete, ' + candidateCount + ' candidates in SDP');
 					}
-				}, 10000);
+				});
 
 				pc.addEventListener('icecandidate', function (e) {
 					if (!e.candidate) {
-						iceCompleted = true;
-						clearTimeout(srflxTimer);
-						clearTimeout(absoluteTimer);
-						console.log('CTD: ICE gathering complete');
+						console.log('CTD: ICE gathering finished (null candidate)');
 						return;
 					}
-					console.log('CTD: ICE candidate:', e.candidate.type, e.candidate.protocol);
-					if (e.candidate.type === 'srflx' && !iceCompleted) {
-						// Found server-reflexive candidate, finish soon
-						clearTimeout(srflxTimer);
-						clearTimeout(absoluteTimer);
-						srflxTimer = setTimeout(function () {
-							if (!iceCompleted) {
-								console.log('CTD: srflx found, completing ICE after 500ms');
-								iceCompleted = true;
-								try { pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); } catch (e) {}
-							}
-						}, 500);
-					}
+					console.log('CTD: ICE candidate:', e.candidate.type, e.candidate.protocol, e.candidate.address || '');
 				});
 
 				pc.addEventListener('iceconnectionstatechange', function () {
 					console.log('CTD: ICE connection state:', pc.iceConnectionState);
+					if (pc.iceConnectionState === 'failed') {
+						// Log failed state details
+						pc.getStats().then(function (stats) {
+							stats.forEach(function (r) {
+								if (r.type === 'candidate-pair') {
+									console.log('CTD: Candidate pair:', r.state, 'local:', r.localCandidateId, 'remote:', r.remoteCandidateId, 'nominated:', r.nominated);
+								}
+							});
+						}).catch(function () {});
+					}
 				});
 
 				pc.addEventListener('connectionstatechange', function () {
@@ -638,8 +631,15 @@
 			},
 			'accepted': function (data) {
 				console.log('CTD: Call accepted');
+				// Log local SDP (our offer)
+				try {
+					var localSdp = state.session.connection.localDescription.sdp;
+					var localCandidates = (localSdp.match(/a=candidate/g) || []).length;
+					console.log('CTD: Local SDP has', localCandidates, 'candidates');
+					console.log('CTD: Local SDP:\n' + localSdp);
+				} catch (e) {}
 				if (data && data.response && data.response.body) {
-					console.log('CTD: Remote SDP (answer) received, length:', data.response.body.length);
+					console.log('CTD: Remote SDP (answer):\n' + data.response.body);
 				}
 				state.callState = 'in_call';
 				state.view = 'in_call';
