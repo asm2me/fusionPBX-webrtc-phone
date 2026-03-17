@@ -705,6 +705,23 @@
 		console.log('CTD: Calling', targetURI, 'with display name:', displayName);
 		try {
 			state.session = state.ua.call(targetURI, options);
+
+			// Strip ICE from FreeSWITCH answer SDP — FS doesn't respond to ICE
+			// STUN binding requests, so ICE always fails. By removing ICE attrs
+			// from the answer, the browser skips ICE and sends RTP directly to
+			// the c= line address (which is FS's public IP).
+			state.session.on('sdp', function (ev) {
+				if (ev.type === 'answer') {
+					console.log('CTD: Stripping ICE from answer SDP for direct RTP');
+					ev.sdp = ev.sdp.replace(/a=ice-ufrag:.*\r?\n/g, '');
+					ev.sdp = ev.sdp.replace(/a=ice-pwd:.*\r?\n/g, '');
+					ev.sdp = ev.sdp.replace(/a=candidate:.*\r?\n/g, '');
+					ev.sdp = ev.sdp.replace(/a=end-of-candidates\r?\n/g, '');
+					ev.sdp = ev.sdp.replace(/a=ice-options:.*\r?\n/g, '');
+					console.log('CTD: Modified answer SDP:\n' + ev.sdp);
+				}
+			});
+
 			console.log('CTD: ua.call() succeeded, session created');
 			state.callState = 'ringing_out';
 			state.view = 'calling';
