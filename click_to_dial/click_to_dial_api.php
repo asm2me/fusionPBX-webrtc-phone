@@ -46,8 +46,8 @@ if (empty($token) || strlen($token) < 32) {
 
 //look up the token in the database
 $sql = "SELECT t.click_to_dial_token_uuid, t.domain_uuid, t.extension_uuid, ";
-$sql .= "t.allowed_origins, t.token_enabled, t.button_color, t.button_position, t.button_label, ";
-$sql .= "t.destination_number, t.departments, ";
+$sql .= "t.allowed_origins, t.token_enabled, t.button_color, t.button_position, t.button_label, t.button_shadow, t.button_orientation, ";
+$sql .= "t.destination_number, t.departments, t.destinations, t.lazy_registration, t.show_dtmf, ";
 $sql .= "e.extension, e.password, e.effective_caller_id_name, e.effective_caller_id_number, ";
 $sql .= "d.domain_name ";
 $sql .= "FROM v_click_to_dial_tokens AS t ";
@@ -119,6 +119,13 @@ if (!empty($departments_raw)) {
 	$departments_list = array_values(array_filter(array_map('trim', explode("\n", $departments_raw))));
 }
 
+//parse destinations JSON
+$destinations_raw = $row['destinations'] ?? '[]';
+$destinations_parsed = json_decode($destinations_raw, true);
+if (!is_array($destinations_parsed)) {
+	$destinations_parsed = [];
+}
+
 //build response
 $response = [
 	'domain' => $row['domain_name'],
@@ -129,11 +136,16 @@ $response = [
 	'caller_id_name' => $row['effective_caller_id_name'] ?? $row['extension'],
 	'caller_id_number' => $row['effective_caller_id_number'] ?? $row['extension'],
 	'destination_number' => $row['destination_number'] ?? '',
+	'destinations' => $destinations_parsed,
 	'departments' => $departments_list,
+	'lazy_registration' => ($row['lazy_registration'] ?? 'false') === 'true',
+	'show_dtmf' => ($row['show_dtmf'] ?? 'true') === 'true',
 	'ui' => [
 		'button_color' => $row['button_color'] ?? '#1a73e8',
 		'button_position' => $row['button_position'] ?? 'bottom-right',
-		'button_label' => $row['button_label'] ?? ''
+		'button_label' => $row['button_label'] ?? '',
+		'button_shadow' => $row['button_shadow'] ?? 'normal',
+		'button_orientation' => $row['button_orientation'] ?? 'horizontal'
 	]
 ];
 

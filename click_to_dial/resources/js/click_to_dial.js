@@ -6,8 +6,9 @@
 	Flow:
 	1. Visitor clicks the floating phone button
 	2. Visitor fills in: Name, Phone Number, Department
-	3. Widget calls the configured destination number
-	4. Visitor's info is passed as Caller ID via SIP headers
+	3. If multiple destinations configured, visitor picks one
+	4. Widget calls the configured destination number
+	5. Visitor's info is passed as Caller ID via SIP headers
 
 	Usage:
 	<script src="https://your-pbx.com/app/webrtc_phone/click_to_dial/resources/js/click_to_dial.js"
@@ -61,6 +62,8 @@
 		uiColor: '#1a73e8',
 		position: 'bottom-right',
 		buttonLabel: '',
+		buttonShadow: 'normal',
+		buttonOrientation: 'horizontal',
 		jssipLoaded: false,
 		// Visitor info
 		callerName: '',
@@ -70,7 +73,14 @@
 		formError: '',
 		// Config from server
 		destinationNumber: '',
-		departments: []
+		departments: [],
+		// New state fields
+		view: 'form',           // form, pick_dest, calling, in_call, ended
+		destinations: [],        // array of {label, number}
+		selectedDest: null,      // the chosen destination {label, number}
+		lazyRegistration: false,
+		showDtmf: true,
+		pendingCall: false       // true when waiting for registration to complete before dialing
 	};
 
 	// --- Inject CSS ---
@@ -83,13 +93,33 @@
 			'#ctd-container.ctd-bottom-left{bottom:24px;left:24px}',
 			'#ctd-container.ctd-top-right{top:24px;right:24px}',
 			'#ctd-container.ctd-top-left{top:24px;left:24px}',
+			'#ctd-container.ctd-middle-right{top:50%;right:0;transform:translateY(-50%);display:flex;align-items:center}',
+			'#ctd-container.ctd-middle-left{top:50%;left:0;transform:translateY(-50%);display:flex;align-items:center;flex-direction:row-reverse}',
 			// FAB
-			'#ctd-fab{display:flex;align-items:center;gap:8px;padding:0 16px;height:52px;border-radius:26px;border:none;cursor:pointer;color:#fff;font-size:14px;font-weight:600;box-shadow:0 4px 14px rgba(0,0,0,.3);transition:transform .2s,box-shadow .2s}',
-			'#ctd-fab:hover{transform:scale(1.05);box-shadow:0 6px 20px rgba(0,0,0,.35)}',
+			'#ctd-fab{display:flex;align-items:center;gap:8px;padding:0 16px;height:52px;border-radius:26px;border:none;cursor:pointer;color:#fff;font-size:14px;font-weight:600;transition:transform .2s,box-shadow .2s}',
+			'#ctd-fab:hover{transform:scale(1.05)}',
 			'#ctd-fab:active{transform:scale(.95)}',
 			'#ctd-fab svg{width:22px;height:22px;flex-shrink:0}',
 			'#ctd-fab .ctd-fab-label{white-space:nowrap}',
 			'#ctd-fab.ctd-fab-icon-only{width:52px;padding:0;justify-content:center;border-radius:50%}',
+			// Shadow variants
+			'#ctd-fab.ctd-shadow-none{box-shadow:none}',
+			'#ctd-fab.ctd-shadow-none:hover{box-shadow:none}',
+			'#ctd-fab.ctd-shadow-subtle{box-shadow:0 2px 6px rgba(0,0,0,.15)}',
+			'#ctd-fab.ctd-shadow-subtle:hover{box-shadow:0 3px 10px rgba(0,0,0,.2)}',
+			'#ctd-fab.ctd-shadow-normal{box-shadow:0 4px 14px rgba(0,0,0,.3)}',
+			'#ctd-fab.ctd-shadow-normal:hover{box-shadow:0 6px 20px rgba(0,0,0,.35)}',
+			'#ctd-fab.ctd-shadow-large{box-shadow:0 8px 28px rgba(0,0,0,.4)}',
+			'#ctd-fab.ctd-shadow-large:hover{box-shadow:0 12px 36px rgba(0,0,0,.45)}',
+			// Vertical orientation (for docked side positions)
+			'#ctd-fab.ctd-orient-vertical{writing-mode:vertical-lr;text-orientation:mixed;padding:16px 0;width:52px;height:auto;border-radius:0 26px 26px 0}',
+			'#ctd-fab.ctd-orient-vertical svg{transform:rotate(0deg)}',
+			'#ctd-fab.ctd-orient-vertical .ctd-fab-label{writing-mode:vertical-lr}',
+			// Docked middle button shapes
+			'.ctd-middle-right #ctd-fab.ctd-orient-vertical{border-radius:26px 0 0 26px}',
+			'.ctd-middle-left #ctd-fab.ctd-orient-vertical{border-radius:0 26px 26px 0}',
+			'.ctd-middle-right #ctd-fab.ctd-orient-horizontal{border-radius:26px 0 0 26px}',
+			'.ctd-middle-left #ctd-fab.ctd-orient-horizontal{border-radius:0 26px 26px 0}',
 			// Badge
 			'.ctd-badge{position:absolute;top:-4px;right:-4px;background:#e53935;color:#fff;font-size:10px;font-weight:700;width:18px;height:18px;border-radius:50%;display:none;align-items:center;justify-content:center;animation:ctd-pulse 1.5s infinite}',
 			'.ctd-badge.ctd-show{display:flex}',
@@ -101,6 +131,8 @@
 			'.ctd-top-right #ctd-panel,.ctd-top-left #ctd-panel{top:62px}',
 			'.ctd-bottom-right #ctd-panel,.ctd-top-right #ctd-panel{right:0}',
 			'.ctd-bottom-left #ctd-panel,.ctd-top-left #ctd-panel{left:0}',
+			'.ctd-middle-right #ctd-panel{right:62px;top:50%;transform:translateY(-50%)}',
+			'.ctd-middle-left #ctd-panel{left:62px;top:50%;transform:translateY(-50%)}',
 			// Header
 			'.ctd-header{color:#fff;padding:12px 14px;display:flex;align-items:center;gap:8px}',
 			'.ctd-header-title{flex:1;font-size:14px;font-weight:600}',
@@ -153,6 +185,18 @@
 			'.ctd-dot:nth-child(2){animation-delay:.2s}',
 			'.ctd-dot:nth-child(3){animation-delay:.4s}',
 			'@keyframes ctd-bounce{to{opacity:.3;transform:translateY(-4px)}}',
+			// Destination picker
+			'.ctd-dest-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}',
+			'.ctd-dest-btn{width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;cursor:pointer;text-align:left;font-size:14px;font-weight:500;color:#333;transition:border-color .2s,background .2s;display:flex;align-items:center;gap:10px}',
+			'.ctd-dest-btn:hover{border-color:#1a73e8;background:#f0f7ff}',
+			'.ctd-dest-btn svg{flex-shrink:0;color:#1a73e8}',
+			'.ctd-dest-btn-label{flex:1}',
+			// Caller summary
+			'.ctd-summary{background:#f5f5f5;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#555}',
+			'.ctd-summary strong{color:#333}',
+			// Back button
+			'.ctd-btn-back-link{display:inline-block;color:#1a73e8;font-size:13px;cursor:pointer;margin-bottom:10px;border:none;background:none;padding:0}',
+			'.ctd-btn-back-link:hover{text-decoration:underline}',
 			// Dark mode
 			'@media(prefers-color-scheme:dark){',
 			'#ctd-panel{background:#1e1e1e}',
@@ -166,6 +210,12 @@
 			'.ctd-dtmf-key{background:#2a2a2a;color:#e0e0e0}',
 			'.ctd-dtmf-key:hover{background:#333}',
 			'.ctd-btn-newcall{background:#2a2a2a;color:#bbb}',
+			'.ctd-dest-btn{background:#2a2a2a;border-color:#444;color:#e0e0e0}',
+			'.ctd-dest-btn:hover{border-color:#1a73e8;background:#1a3a5c}',
+			'.ctd-dest-btn svg{color:#5ba3f5}',
+			'.ctd-summary{background:#2a2a2a;color:#bbb}',
+			'.ctd-summary strong{color:#e0e0e0}',
+			'.ctd-btn-back-link{color:#5ba3f5}',
 			'}'
 		].join('\n');
 
@@ -203,10 +253,33 @@
 						state.config = data;
 						state.destinationNumber = data.destination_number || '';
 						state.departments = data.departments || [];
+
+						// Parse destinations
+						if (data.destinations && data.destinations.length > 0) {
+							state.destinations = data.destinations;
+							console.log('CTD: Multiple destinations configured:', state.destinations.length);
+						} else if (data.destination_number) {
+							state.destinations = [{ label: '', number: data.destination_number }];
+							console.log('CTD: Single destination configured:', data.destination_number);
+						} else {
+							state.destinations = [];
+							console.log('CTD: No destinations configured');
+						}
+
+						// Parse lazy registration
+						state.lazyRegistration = !!data.lazy_registration;
+						console.log('CTD: Lazy registration:', state.lazyRegistration);
+
+						// Parse show DTMF (default true)
+						state.showDtmf = (data.show_dtmf !== undefined) ? !!data.show_dtmf : true;
+						console.log('CTD: Show DTMF:', state.showDtmf);
+
 						if (data.ui) {
 							state.uiColor = data.ui.button_color || '#1a73e8';
 							state.position = data.ui.button_position || 'bottom-right';
 							state.buttonLabel = data.ui.button_label || '';
+							state.buttonShadow = data.ui.button_shadow || 'normal';
+							state.buttonOrientation = data.ui.button_orientation || 'horizontal';
 						}
 						callback();
 					} catch (e) {
@@ -272,7 +345,15 @@
 				console.log('CTD: SIP registered successfully');
 				state.registered = true;
 				updateFAB();
-				renderPanel();
+
+				// If we have a pending call (lazy registration), trigger it now
+				if (state.pendingCall) {
+					console.log('CTD: Pending call detected after registration, dialing now');
+					state.pendingCall = false;
+					makeCall(state.selectedDest.number);
+				} else {
+					renderPanel();
+				}
 			});
 			state.ua.on('unregistered', function () {
 				console.log('CTD: SIP unregistered');
@@ -283,6 +364,15 @@
 			state.ua.on('registrationFailed', function (e) {
 				state.registered = false;
 				console.error('CTD: SIP registration failed -', e.cause);
+
+				// If pending call was waiting, cancel it
+				if (state.pendingCall) {
+					console.log('CTD: Registration failed while pending call');
+					state.pendingCall = false;
+					state.view = 'form';
+					state.formError = 'Connection failed. Please try again.';
+				}
+
 				updateFAB();
 				renderPanel();
 			});
@@ -302,16 +392,21 @@
 			state.ua.start();
 		} catch (e) {
 			console.error('CTD: SIP error', e);
+			if (state.pendingCall) {
+				state.pendingCall = false;
+				state.view = 'form';
+				state.formError = 'Connection error. Please try again.';
+			}
 			renderStatus('Connection error.');
 		}
 	}
 
 	// --- Call Functions ---
-	function makeCall() {
-		if (!state.ua || !state.registered || !state.destinationNumber) return;
+	function makeCall(destNumber) {
+		if (!state.ua || !state.registered || !destNumber) return;
 
 		var domain = state.config.domain;
-		var target = state.destinationNumber;
+		var target = destNumber;
 		var targetURI = 'sip:' + target + '@' + domain;
 
 		var iceServers = [];
@@ -346,15 +441,17 @@
 					state.remoteAudio.play().catch(function () {});
 				};
 				pc.addEventListener('connectionstatechange', function () {
-					if (pc.connectionState === 'connected' && state.callState === 'in_call' && !state.callTimer) startCallTimer();
+					if (pc.connectionState === 'connected' && state.view === 'in_call' && !state.callTimer) startCallTimer();
 				});
 			},
 			'accepted': function () {
 				state.callState = 'in_call';
+				state.view = 'in_call';
 				renderPanel();
 			},
 			'confirmed': function () {
 				state.callState = 'in_call';
+				state.view = 'in_call';
 				if (state.session && !state.remoteAudio.srcObject) attachRemoteAudio(state.session);
 				renderPanel();
 			},
@@ -381,6 +478,7 @@
 		try {
 			state.session = state.ua.call(targetURI, options);
 			state.callState = 'ringing_out';
+			state.view = 'calling';
 			state.muted = false;
 			state.held = false;
 			showPanel();
@@ -388,6 +486,27 @@
 		} catch (e) {
 			console.error('CTD: Call exception', e);
 			endCall();
+		}
+	}
+
+	function startCall() {
+		if (!state.selectedDest) {
+			console.error('CTD: No destination selected');
+			return;
+		}
+
+		console.log('CTD: startCall, destination:', state.selectedDest.number, 'registered:', state.registered);
+
+		if (state.registered) {
+			// Already registered, dial immediately
+			makeCall(state.selectedDest.number);
+		} else {
+			// Lazy registration mode: register first, then dial
+			console.log('CTD: Not registered, starting lazy registration before call');
+			state.pendingCall = true;
+			state.view = 'calling';
+			renderPanel();
+			registerSIP();
 		}
 	}
 
@@ -446,6 +565,7 @@
 		state.callState = 'idle';
 		state.muted = false;
 		state.held = false;
+		state.view = 'ended';
 		if (state.remoteAudio) state.remoteAudio.srcObject = null;
 		updateFAB();
 		renderPanel();
@@ -457,6 +577,8 @@
 		state.callerDepartment = '';
 		state.formSubmitted = false;
 		state.formError = '';
+		state.selectedDest = null;
+		state.view = 'form';
 		renderPanel();
 	}
 
@@ -491,7 +613,9 @@
 		var fab = document.createElement('button');
 		fab.id = 'ctd-fab';
 		fab.style.background = state.uiColor;
-		if (!state.buttonLabel) fab.className = 'ctd-fab-icon-only';
+		var fabClasses = ['ctd-shadow-' + state.buttonShadow, 'ctd-orient-' + state.buttonOrientation];
+		if (!state.buttonLabel) fabClasses.push('ctd-fab-icon-only');
+		fab.className = fabClasses.join(' ');
 		fab.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
 		if (state.buttonLabel) fab.innerHTML += '<span class="ctd-fab-label">' + escapeHtml(state.buttonLabel) + '</span>';
 		fab.innerHTML += '<span id="ctd-badge" class="ctd-badge"></span>';
@@ -517,7 +641,7 @@
 	function updateFAB() {
 		var fab = document.getElementById('ctd-fab');
 		if (!fab) return;
-		if (state.callState !== 'idle') {
+		if (state.view === 'calling' || state.view === 'in_call') {
 			fab.style.background = '#e53935';
 		} else {
 			fab.style.background = state.uiColor;
@@ -546,7 +670,12 @@
 	}
 
 	function renderHeader() {
-		var statusText = state.registered ? 'Ready' : 'Connecting...';
+		var statusText;
+		if (state.lazyRegistration && !state.registered && state.view === 'form') {
+			statusText = 'Ready';
+		} else {
+			statusText = state.registered ? 'Ready' : 'Connecting...';
+		}
 		var title = state.config ? (state.config.caller_id_name || 'Click to Call') : 'Click to Call';
 
 		return '<div class="ctd-header" style="background:' + state.uiColor + '">'
@@ -563,24 +692,33 @@
 		var html = renderHeader();
 		html += '<div class="ctd-body">';
 
-		if (!state.registered && state.callState === 'idle') {
-			// Still connecting
-			html += '<div class="ctd-connecting"><span class="ctd-dot"></span><span class="ctd-dot"></span><span class="ctd-dot"></span></div>';
-			html += '<div class="ctd-status-msg">Connecting...</div>';
-		} else if (state.callState === 'idle' && !state.formSubmitted) {
-			// Show visitor info form
-			html += renderCallerForm();
-		} else if (state.callState === 'ringing_out') {
+		// Use state.view to decide what to render
+		if (state.view === 'form') {
+			// If not lazy and not yet registered, show connecting
+			if (!state.lazyRegistration && !state.registered) {
+				html += '<div class="ctd-connecting"><span class="ctd-dot"></span><span class="ctd-dot"></span><span class="ctd-dot"></span></div>';
+				html += '<div class="ctd-status-msg">Connecting...</div>';
+			} else {
+				html += renderCallerForm();
+			}
+		} else if (state.view === 'pick_dest') {
+			html += renderDestPicker();
+		} else if (state.view === 'calling') {
+			var destDisplay = state.selectedDest ? (state.selectedDest.label || state.selectedDest.number) : '';
 			html += '<div class="ctd-call-info">';
 			html += '<div class="ctd-call-icon">&#128222;</div>';
-			html += '<div class="ctd-call-label">Calling...</div>';
-			html += '<div class="ctd-call-number">' + escapeHtml(state.destinationNumber) + '</div>';
+			if (state.pendingCall) {
+				html += '<div class="ctd-call-label">Connecting...</div>';
+			} else {
+				html += '<div class="ctd-call-label">Calling...</div>';
+			}
+			html += '<div class="ctd-call-number">' + escapeHtml(destDisplay) + '</div>';
 			html += '<div class="ctd-call-caller">' + escapeHtml(state.callerName);
 			if (state.callerDepartment) html += ' - ' + escapeHtml(state.callerDepartment);
 			html += '</div>';
 			html += '</div>';
 			html += '<button class="ctd-btn ctd-btn-hangup" id="ctd-hangup-btn">Cancel</button>';
-		} else if (state.callState === 'in_call') {
+		} else if (state.view === 'in_call') {
 			html += '<div class="ctd-call-info">';
 			html += '<div class="ctd-call-icon" style="color:#43a047">&#128222;</div>';
 			html += '<div class="ctd-call-label">Connected</div>';
@@ -595,15 +733,16 @@
 			html += '<button class="ctd-btn-sm' + (state.held ? ' ctd-active' : '') + '" id="ctd-hold-btn">' + (state.held ? 'Resume' : 'Hold') + '</button>';
 			html += '</div>';
 			html += '<button class="ctd-btn ctd-btn-hangup" id="ctd-hangup-btn" style="margin-top:8px">Hang Up</button>';
-			// DTMF pad
-			html += '<div class="ctd-dtmf-grid">';
-			var dtmfKeys = ['1','2','3','4','5','6','7','8','9','*','0','#'];
-			for (var i = 0; i < dtmfKeys.length; i++) {
-				html += '<button class="ctd-dtmf-key" data-dtmf="' + dtmfKeys[i] + '">' + dtmfKeys[i] + '</button>';
+			// DTMF pad (conditional)
+			if (state.showDtmf) {
+				html += '<div class="ctd-dtmf-grid">';
+				var dtmfKeys = ['1','2','3','4','5','6','7','8','9','*','0','#'];
+				for (var i = 0; i < dtmfKeys.length; i++) {
+					html += '<button class="ctd-dtmf-key" data-dtmf="' + dtmfKeys[i] + '">' + dtmfKeys[i] + '</button>';
+				}
+				html += '</div>';
 			}
-			html += '</div>';
-		} else if (state.callState === 'idle' && state.formSubmitted) {
-			// Call ended - show "call again" option
+		} else if (state.view === 'ended') {
 			html += '<div class="ctd-call-info">';
 			html += '<div class="ctd-call-icon">&#9989;</div>';
 			html += '<div class="ctd-call-label">Call Ended</div>';
@@ -656,10 +795,45 @@
 			html += '</div>';
 		}
 
-		// Call button
-		html += '<button class="ctd-btn ctd-btn-call" id="ctd-submit-btn"' + (!state.registered ? ' disabled' : '') + '>';
+		// Submit button — label depends on whether there are multiple destinations
+		var hasMultipleDest = state.destinations.length >= 2;
+		var btnDisabled = (!state.lazyRegistration && !state.registered) ? ' disabled' : '';
+		html += '<button class="ctd-btn ctd-btn-call" id="ctd-submit-btn"' + btnDisabled + '>';
 		html += '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 00-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/></svg>';
-		html += ' Call Now</button>';
+		html += hasMultipleDest ? ' Next' : ' Call Now';
+		html += '</button>';
+
+		return html;
+	}
+
+	function renderDestPicker() {
+		var html = '';
+
+		// Back button
+		html += '<button class="ctd-btn-back-link" id="ctd-back-btn">&larr; Back</button>';
+
+		// Caller summary
+		html += '<div class="ctd-summary">';
+		html += '<strong>' + escapeHtml(state.callerName) + '</strong> &middot; ' + escapeHtml(cleanPhone(state.callerPhone));
+		if (state.callerDepartment) {
+			html += ' &middot; ' + escapeHtml(state.callerDepartment);
+		}
+		html += '</div>';
+
+		// Destination heading
+		html += '<div class="ctd-form-title" style="font-size:14px;margin-bottom:4px">Choose who to call</div>';
+
+		// Destination buttons
+		html += '<div class="ctd-dest-list">';
+		for (var i = 0; i < state.destinations.length; i++) {
+			var dest = state.destinations[i];
+			var btnLabel = dest.label ? ('Call ' + dest.label) : ('Call ' + dest.number);
+			html += '<button class="ctd-dest-btn" data-dest-idx="' + i + '">';
+			html += '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
+			html += '<span class="ctd-dest-btn-label">' + escapeHtml(btnLabel) + '</span>';
+			html += '</button>';
+		}
+		html += '</div>';
 
 		return html;
 	}
@@ -709,16 +883,34 @@
 			return;
 		}
 
-		if (!state.registered) {
+		// Check registration (only if not lazy mode)
+		if (!state.lazyRegistration && !state.registered) {
 			state.formError = 'Phone system is not ready. Please try again in a moment.';
 			renderPanel();
 			return;
 		}
 
-		// All valid — make the call
+		// All valid
 		state.formSubmitted = true;
 		state.formError = '';
-		makeCall();
+
+		// Determine whether to show destination picker or dial directly
+		if (state.destinations.length >= 2) {
+			// Multiple destinations — show picker
+			console.log('CTD: Multiple destinations, showing picker');
+			state.view = 'pick_dest';
+			renderPanel();
+		} else if (state.destinations.length === 1) {
+			// Single destination — dial immediately
+			console.log('CTD: Single destination, dialing:', state.destinations[0].number);
+			state.selectedDest = state.destinations[0];
+			startCall();
+		} else {
+			// No destinations configured
+			state.formError = 'No destination configured. Please contact the administrator.';
+			state.formSubmitted = false;
+			renderPanel();
+		}
 	}
 
 	function bindPanelEvents() {
@@ -745,9 +937,41 @@
 		if (phoneField) phoneField.addEventListener('input', clearErr);
 		if (deptField) deptField.addEventListener('change', clearErr);
 
+		// Back button (destination picker → form)
+		var backBtn = document.getElementById('ctd-back-btn');
+		if (backBtn) backBtn.addEventListener('click', function () {
+			state.view = 'form';
+			state.formSubmitted = false;
+			renderPanel();
+		});
+
+		// Destination buttons
+		var destBtns = document.querySelectorAll('#ctd-panel .ctd-dest-btn');
+		for (var d = 0; d < destBtns.length; d++) {
+			destBtns[d].addEventListener('click', function () {
+				var idx = parseInt(this.getAttribute('data-dest-idx'), 10);
+				if (state.destinations[idx]) {
+					console.log('CTD: Destination selected:', state.destinations[idx].label, state.destinations[idx].number);
+					state.selectedDest = state.destinations[idx];
+					startCall();
+				}
+			});
+		}
+
 		// Hangup
 		var hangupBtn = document.getElementById('ctd-hangup-btn');
-		if (hangupBtn) hangupBtn.addEventListener('click', function () { hangup(); });
+		if (hangupBtn) hangupBtn.addEventListener('click', function () {
+			if (state.pendingCall) {
+				// Cancel pending call during lazy registration
+				console.log('CTD: Cancelling pending call');
+				state.pendingCall = false;
+				state.view = 'form';
+				state.formSubmitted = false;
+				renderPanel();
+			} else {
+				hangup();
+			}
+		});
 
 		// Mute
 		var muteBtn = document.getElementById('ctd-mute-btn');
@@ -765,10 +989,14 @@
 			});
 		}
 
-		// Call again (same info)
+		// Call again (same info, same destination)
 		var recallBtn = document.getElementById('ctd-recall-btn');
 		if (recallBtn) recallBtn.addEventListener('click', function () {
-			if (state.registered) makeCall();
+			console.log('CTD: Call Again clicked');
+			if (state.selectedDest) {
+				state.view = 'calling';
+				startCall();
+			}
 		});
 
 		// New call (reset form)
@@ -794,7 +1022,7 @@
 		open: function () { showPanel(); renderPanel(); },
 		hangup: function () { hangup(); },
 		isRegistered: function () { return state.registered; },
-		isInCall: function () { return state.callState !== 'idle'; },
+		isInCall: function () { return state.view === 'calling' || state.view === 'in_call'; },
 		reset: function () { resetForm(); }
 	};
 
@@ -815,8 +1043,12 @@
 			buildUI();
 			bindClickToDial();
 			loadJsSIP(function () {
-				console.log('CTD: JsSIP ready, starting SIP registration');
-				registerSIP();
+				if (state.lazyRegistration) {
+					console.log('CTD: Lazy registration enabled, deferring SIP registration until call');
+				} else {
+					console.log('CTD: JsSIP ready, starting SIP registration');
+					registerSIP();
+				}
 			});
 		});
 	}

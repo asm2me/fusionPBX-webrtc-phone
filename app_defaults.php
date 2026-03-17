@@ -63,6 +63,11 @@ if ($domains_processed == 1) {
 	$sql .= "allowed_origins text, ";
 	$sql .= "destination_number varchar(64) DEFAULT '', ";
 	$sql .= "departments text DEFAULT '', ";
+	$sql .= "destinations text DEFAULT '[]', ";
+	$sql .= "lazy_registration varchar(10) DEFAULT 'false', ";
+	$sql .= "show_dtmf varchar(10) DEFAULT 'true', ";
+	$sql .= "button_shadow varchar(20) DEFAULT 'normal', ";
+	$sql .= "button_orientation varchar(20) DEFAULT 'horizontal', ";
 	$sql .= "button_color varchar(20) DEFAULT '#1a73e8', ";
 	$sql .= "button_position varchar(20) DEFAULT 'bottom-right', ";
 	$sql .= "button_label varchar(100) DEFAULT '', ";
@@ -80,6 +85,18 @@ if ($domains_processed == 1) {
 	$sql = "ALTER TABLE v_click_to_dial_tokens ADD COLUMN IF NOT EXISTS destination_number varchar(64) DEFAULT '' ";
 	$database->execute($sql);
 	$sql = "ALTER TABLE v_click_to_dial_tokens ADD COLUMN IF NOT EXISTS departments text DEFAULT '' ";
+	$database->execute($sql);
+
+	//add destinations, lazy_registration, and show_dtmf columns if they don't exist (upgrade path)
+	$sql = "ALTER TABLE v_click_to_dial_tokens ADD COLUMN IF NOT EXISTS destinations text DEFAULT '[]' ";
+	$database->execute($sql);
+	$sql = "ALTER TABLE v_click_to_dial_tokens ADD COLUMN IF NOT EXISTS lazy_registration varchar(10) DEFAULT 'false' ";
+	$database->execute($sql);
+	$sql = "ALTER TABLE v_click_to_dial_tokens ADD COLUMN IF NOT EXISTS show_dtmf varchar(10) DEFAULT 'true' ";
+	$database->execute($sql);
+	$sql = "ALTER TABLE v_click_to_dial_tokens ADD COLUMN IF NOT EXISTS button_shadow varchar(20) DEFAULT 'normal' ";
+	$database->execute($sql);
+	$sql = "ALTER TABLE v_click_to_dial_tokens ADD COLUMN IF NOT EXISTS button_orientation varchar(20) DEFAULT 'horizontal' ";
 	$database->execute($sql);
 	unset($sql);
 }

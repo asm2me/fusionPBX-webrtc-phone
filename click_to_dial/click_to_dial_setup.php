@@ -37,18 +37,36 @@ $message_type = '';
 if ($action === 'create' && permission_exists('click_to_dial_edit')) {
 	$extension_uuid = $_POST['extension_uuid'] ?? '';
 	$allowed_origins = trim($_POST['allowed_origins'] ?? '');
-	$destination_number = trim($_POST['destination_number'] ?? '');
 	$departments = trim($_POST['departments'] ?? '');
 	$button_color = $_POST['button_color'] ?? '#1a73e8';
 	$button_position = $_POST['button_position'] ?? 'bottom-right';
 	$button_label = $_POST['button_label'] ?? '';
+	$button_shadow = $_POST['button_shadow'] ?? 'normal';
+	$button_orientation = $_POST['button_orientation'] ?? 'horizontal';
 	$token_name = trim($_POST['token_name'] ?? '');
+	$lazy_registration = (!empty($_POST['lazy_registration']) && $_POST['lazy_registration'] === 'true') ? 'true' : 'false';
+	$show_dtmf = (!empty($_POST['show_dtmf']) && $_POST['show_dtmf'] === 'true') ? 'true' : 'false';
+
+	//build destinations JSON from posted arrays
+	$dest_labels = $_POST['dest_label'] ?? [];
+	$dest_numbers = $_POST['dest_number'] ?? [];
+	$destinations_array = [];
+	for ($i = 0; $i < count($dest_numbers); $i++) {
+		$num = trim($dest_numbers[$i] ?? '');
+		if (empty($num)) continue;
+		$lbl = trim($dest_labels[$i] ?? '');
+		$destinations_array[] = ['label' => $lbl, 'number' => $num];
+	}
+	$destinations_json = json_encode($destinations_array);
+
+	//backward compat: first destination number
+	$destination_number = !empty($destinations_array) ? $destinations_array[0]['number'] : '';
 
 	if (empty($extension_uuid)) {
 		$message = 'Please select a SIP extension for registration.';
 		$message_type = 'error';
-	} elseif (empty($destination_number)) {
-		$message = 'Please select a destination number.';
+	} elseif (empty($destinations_array)) {
+		$message = 'Please add at least one destination.';
 		$message_type = 'error';
 	} else {
 		//generate a secure random token
@@ -57,10 +75,12 @@ if ($action === 'create' && permission_exists('click_to_dial_edit')) {
 
 		$sql = "INSERT INTO v_click_to_dial_tokens ";
 		$sql .= "(click_to_dial_token_uuid, domain_uuid, extension_uuid, api_token, token_name, ";
-		$sql .= "allowed_origins, destination_number, departments, button_color, button_position, button_label, token_enabled, ";
+		$sql .= "allowed_origins, destination_number, destinations, departments, lazy_registration, show_dtmf, ";
+		$sql .= "button_color, button_position, button_label, button_shadow, button_orientation, token_enabled, ";
 		$sql .= "insert_date, insert_user) ";
 		$sql .= "VALUES (:uuid, :domain_uuid, :extension_uuid, :api_token, :token_name, ";
-		$sql .= ":allowed_origins, :destination_number, :departments, :button_color, :button_position, :button_label, 'true', ";
+		$sql .= ":allowed_origins, :destination_number, :destinations, :departments, :lazy_registration, :show_dtmf, ";
+		$sql .= ":button_color, :button_position, :button_label, :button_shadow, :button_orientation, 'true', ";
 		$sql .= "now(), :user_uuid) ";
 
 		$parameters = [
@@ -71,10 +91,15 @@ if ($action === 'create' && permission_exists('click_to_dial_edit')) {
 			'token_name' => $token_name,
 			'allowed_origins' => $allowed_origins,
 			'destination_number' => $destination_number,
+			'destinations' => $destinations_json,
 			'departments' => $departments,
+			'lazy_registration' => $lazy_registration,
+			'show_dtmf' => $show_dtmf,
 			'button_color' => $button_color,
 			'button_position' => $button_position,
 			'button_label' => $button_label,
+			'button_shadow' => $button_shadow,
+			'button_orientation' => $button_orientation,
 			'user_uuid' => $_SESSION['user_uuid']
 		];
 
@@ -83,6 +108,92 @@ if ($action === 'create' && permission_exists('click_to_dial_edit')) {
 		unset($sql, $parameters);
 
 		$message = 'Token created successfully.';
+		$message_type = 'success';
+	}
+}
+
+//edit token
+if ($action === 'edit' && permission_exists('click_to_dial_edit')) {
+	$token_uuid_edit = $_POST['token_uuid'] ?? '';
+	$extension_uuid = $_POST['extension_uuid'] ?? '';
+	$allowed_origins = trim($_POST['allowed_origins'] ?? '');
+	$departments = trim($_POST['departments'] ?? '');
+	$button_color = $_POST['button_color'] ?? '#1a73e8';
+	$button_position = $_POST['button_position'] ?? 'bottom-right';
+	$button_label = $_POST['button_label'] ?? '';
+	$button_shadow = $_POST['button_shadow'] ?? 'normal';
+	$button_orientation = $_POST['button_orientation'] ?? 'horizontal';
+	$token_name = trim($_POST['token_name'] ?? '');
+	$lazy_registration = (!empty($_POST['lazy_registration']) && $_POST['lazy_registration'] === 'true') ? 'true' : 'false';
+	$show_dtmf = (!empty($_POST['show_dtmf']) && $_POST['show_dtmf'] === 'true') ? 'true' : 'false';
+
+	//build destinations JSON from posted arrays
+	$dest_labels = $_POST['dest_label'] ?? [];
+	$dest_numbers = $_POST['dest_number'] ?? [];
+	$destinations_array = [];
+	for ($i = 0; $i < count($dest_numbers); $i++) {
+		$num = trim($dest_numbers[$i] ?? '');
+		if (empty($num)) continue;
+		$lbl = trim($dest_labels[$i] ?? '');
+		$destinations_array[] = ['label' => $lbl, 'number' => $num];
+	}
+	$destinations_json = json_encode($destinations_array);
+
+	//backward compat: first destination number
+	$destination_number = !empty($destinations_array) ? $destinations_array[0]['number'] : '';
+
+	if (empty($token_uuid_edit)) {
+		$message = 'Invalid token UUID.';
+		$message_type = 'error';
+	} elseif (empty($extension_uuid)) {
+		$message = 'Please select a SIP extension for registration.';
+		$message_type = 'error';
+	} elseif (empty($destinations_array)) {
+		$message = 'Please add at least one destination.';
+		$message_type = 'error';
+	} else {
+		$sql = "UPDATE v_click_to_dial_tokens SET ";
+		$sql .= "extension_uuid = :extension_uuid, ";
+		$sql .= "token_name = :token_name, ";
+		$sql .= "allowed_origins = :allowed_origins, ";
+		$sql .= "destination_number = :destination_number, ";
+		$sql .= "destinations = :destinations, ";
+		$sql .= "departments = :departments, ";
+		$sql .= "lazy_registration = :lazy_registration, ";
+		$sql .= "show_dtmf = :show_dtmf, ";
+		$sql .= "button_color = :button_color, ";
+		$sql .= "button_position = :button_position, ";
+		$sql .= "button_label = :button_label, ";
+		$sql .= "button_shadow = :button_shadow, ";
+		$sql .= "button_orientation = :button_orientation, ";
+		$sql .= "update_date = now(), ";
+		$sql .= "update_user = :user_uuid ";
+		$sql .= "WHERE click_to_dial_token_uuid = :uuid AND domain_uuid = :domain_uuid ";
+
+		$parameters = [
+			'uuid' => $token_uuid_edit,
+			'domain_uuid' => $domain_uuid,
+			'extension_uuid' => $extension_uuid,
+			'token_name' => $token_name,
+			'allowed_origins' => $allowed_origins,
+			'destination_number' => $destination_number,
+			'destinations' => $destinations_json,
+			'departments' => $departments,
+			'lazy_registration' => $lazy_registration,
+			'show_dtmf' => $show_dtmf,
+			'button_color' => $button_color,
+			'button_position' => $button_position,
+			'button_label' => $button_label,
+			'button_shadow' => $button_shadow,
+			'button_orientation' => $button_orientation,
+			'user_uuid' => $_SESSION['user_uuid']
+		];
+
+		$database = new database;
+		$database->execute($sql, $parameters);
+		unset($sql, $parameters);
+
+		$message = 'Token updated successfully.';
 		$message_type = 'success';
 	}
 }
@@ -202,6 +313,42 @@ if (is_array($ivrs)) {
 	}
 }
 
+//build destination options HTML for use in JS and PHP
+$dest_options_html = '<option value="">-- Select Destination --</option>';
+$last_type = '';
+foreach ($destinations as $dest) {
+	if ($dest['type'] !== $last_type) {
+		if ($last_type !== '') $dest_options_html .= '</optgroup>';
+		$dest_options_html .= '<optgroup label="' . htmlspecialchars($dest['type']) . 's">';
+		$last_type = $dest['type'];
+	}
+	$dest_options_html .= '<option value="' . htmlspecialchars($dest['number']) . '">' . htmlspecialchars($dest['label']) . '</option>';
+}
+if ($last_type !== '') $dest_options_html .= '</optgroup>';
+
+//load edit data if edit param is present
+$edit_token = null;
+$edit_uuid = $_GET['edit'] ?? '';
+if (!empty($edit_uuid) && permission_exists('click_to_dial_edit')) {
+	foreach ($tokens as $tok) {
+		if ($tok['click_to_dial_token_uuid'] === $edit_uuid) {
+			$edit_token = $tok;
+			break;
+		}
+	}
+}
+
+//parse edit token destinations
+$edit_destinations = [];
+if ($edit_token) {
+	$edit_destinations = json_decode($edit_token['destinations'] ?? '[]', true);
+	if (!is_array($edit_destinations)) $edit_destinations = [];
+	//fallback: if destinations is empty but destination_number exists, create one entry
+	if (empty($edit_destinations) && !empty($edit_token['destination_number'])) {
+		$edit_destinations = [['label' => '', 'number' => $edit_token['destination_number']]];
+	}
+}
+
 //determine the base URL for the embed script
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $base_url = $scheme . '://' . $domain_name;
@@ -246,6 +393,14 @@ require_once $document_root."/resources/header.php";
 .ctd-color-preview { width: 24px; height: 24px; border-radius: 4px; border: 1px solid #ccc; display: inline-block; vertical-align: middle; }
 .ctd-section-divider { border-top: 1px solid #eee; margin: 16px 0; padding-top: 16px; }
 .ctd-section-label { font-size: 13px; font-weight: 700; color: #1a73e8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+.ctd-dest-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; flex-wrap: wrap; }
+.ctd-dest-row input[type="text"] { padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; width: 160px; }
+.ctd-dest-row select { padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; flex: 1; min-width: 200px; }
+.ctd-dest-remove { background: #e53935; color: #fff; border: none; border-radius: 4px; padding: 6px 10px; cursor: pointer; font-size: 14px; line-height: 1; }
+.ctd-dest-remove:hover { background: #c62828; }
+.ctd-opt-row { margin-bottom: 8px; }
+.ctd-opt-row label { font-size: 14px; color: #555; cursor: pointer; }
+.ctd-opt-row input[type="checkbox"] { margin-right: 6px; }
 
 @media (prefers-color-scheme: dark) {
 	.ctd-setup h2 { color: #e0e0e0; }
@@ -259,6 +414,9 @@ require_once $document_root."/resources/header.php";
 	.ctd-embed-box { background: #1a1a1a; border-color: #333; }
 	.ctd-embed-code { color: #e0e0e0; }
 	.ctd-section-divider { border-color: #333; }
+	.ctd-dest-row input[type="text"] { background: #2a2a2a; border-color: #444; color: #e0e0e0; }
+	.ctd-dest-row select { background: #2a2a2a; border-color: #444; color: #e0e0e0; }
+	.ctd-opt-row label { color: #bbb; }
 }
 </style>
 
@@ -270,26 +428,33 @@ require_once $document_root."/resources/header.php";
 		<div class="ctd-msg ctd-msg-<?php echo $message_type; ?>"><?php echo htmlspecialchars($message); ?></div>
 	<?php endif; ?>
 
-	<!-- Create New Token -->
+	<!-- Create / Edit Token -->
 	<?php if (permission_exists('click_to_dial_edit')): ?>
 	<div class="ctd-card">
-		<h3 style="margin-top:0">Create New Widget Token</h3>
+		<h3 style="margin-top:0"><?php echo $edit_token ? 'Edit Widget Token' : 'Create New Widget Token'; ?></h3>
 		<form method="post">
-			<input type="hidden" name="action" value="create">
+			<?php if ($edit_token): ?>
+				<input type="hidden" name="action" value="edit">
+				<input type="hidden" name="token_uuid" value="<?php echo htmlspecialchars($edit_token['click_to_dial_token_uuid']); ?>">
+			<?php else: ?>
+				<input type="hidden" name="action" value="create">
+			<?php endif; ?>
 
 			<!-- Call Routing Section -->
 			<div class="ctd-section-label">Call Routing</div>
 			<div class="ctd-form-row">
 				<div class="ctd-form-group" style="flex:1">
 					<label>Token Name</label>
-					<input type="text" name="token_name" placeholder="e.g. Company Website" required>
+					<input type="text" name="token_name" placeholder="e.g. Company Website" required value="<?php echo htmlspecialchars($edit_token['token_name'] ?? ''); ?>">
 				</div>
 				<div class="ctd-form-group" style="flex:1">
 					<label>SIP Extension <small>(used for WebRTC registration)</small></label>
 					<select name="extension_uuid" required>
 						<option value="">-- Select Extension --</option>
 						<?php foreach ($extensions as $ext): ?>
-							<option value="<?php echo htmlspecialchars($ext['extension_uuid']); ?>">
+							<option value="<?php echo htmlspecialchars($ext['extension_uuid']); ?>"<?php
+								if ($edit_token && $edit_token['extension_uuid'] === $ext['extension_uuid']) echo ' selected';
+							?>>
 								<?php echo htmlspecialchars($ext['extension']);
 									if (!empty($ext['effective_caller_id_name'])) echo ' - ' . htmlspecialchars($ext['effective_caller_id_name']);
 									if (!empty($ext['description'])) echo ' (' . htmlspecialchars($ext['description']) . ')';
@@ -299,27 +464,46 @@ require_once $document_root."/resources/header.php";
 					</select>
 				</div>
 			</div>
+
+			<!-- Destinations Section -->
 			<div class="ctd-form-row">
 				<div class="ctd-form-group" style="flex:1">
-					<label>Destination Number <small>(where calls are routed to - queue, ring group, extension, IVR)</small></label>
-					<select name="destination_number" required>
-						<option value="">-- Select Destination --</option>
-						<?php
-							$last_type = '';
-							foreach ($destinations as $dest):
-								if ($dest['type'] !== $last_type):
-									if ($last_type !== '') echo '</optgroup>';
-									echo '<optgroup label="' . htmlspecialchars($dest['type']) . 's">';
-									$last_type = $dest['type'];
-								endif;
-						?>
-							<option value="<?php echo htmlspecialchars($dest['number']); ?>">
-								<?php echo htmlspecialchars($dest['label']); ?>
-							</option>
-						<?php endforeach;
-							if ($last_type !== '') echo '</optgroup>';
-						?>
-					</select>
+					<label>Destinations <small>(where calls are routed to - queue, ring group, extension, IVR)</small></label>
+					<div id="ctd-destinations">
+						<?php if ($edit_token && !empty($edit_destinations)): ?>
+							<?php foreach ($edit_destinations as $ed): ?>
+								<div class="ctd-dest-row">
+									<input type="text" name="dest_label[]" placeholder="e.g. Sales" value="<?php echo htmlspecialchars($ed['label'] ?? ''); ?>">
+									<select name="dest_number[]" required>
+										<?php
+											echo '<option value="">-- Select Destination --</option>';
+											$lt = '';
+											foreach ($destinations as $dest) {
+												if ($dest['type'] !== $lt) {
+													if ($lt !== '') echo '</optgroup>';
+													echo '<optgroup label="' . htmlspecialchars($dest['type']) . 's">';
+													$lt = $dest['type'];
+												}
+												$sel = ($dest['number'] === ($ed['number'] ?? '')) ? ' selected' : '';
+												echo '<option value="' . htmlspecialchars($dest['number']) . '"' . $sel . '>' . htmlspecialchars($dest['label']) . '</option>';
+											}
+											if ($lt !== '') echo '</optgroup>';
+										?>
+									</select>
+									<button type="button" class="ctd-dest-remove" onclick="this.closest('.ctd-dest-row').remove()">&#10005;</button>
+								</div>
+							<?php endforeach; ?>
+						<?php else: ?>
+							<div class="ctd-dest-row">
+								<input type="text" name="dest_label[]" placeholder="e.g. Sales">
+								<select name="dest_number[]" required>
+									<?php echo $dest_options_html; ?>
+								</select>
+								<button type="button" class="ctd-dest-remove" onclick="this.closest('.ctd-dest-row').remove()">&#10005;</button>
+							</div>
+						<?php endif; ?>
+					</div>
+					<button type="button" class="ctd-btn ctd-btn-sm" style="margin-top:4px; background:#4caf50; color:#fff;" onclick="addDestRow()">+ Add Destination</button>
 				</div>
 			</div>
 
@@ -329,8 +513,26 @@ require_once $document_root."/resources/header.php";
 			<div class="ctd-form-row">
 				<div class="ctd-form-group" style="flex:1">
 					<label>Department List <small>(one per line - shown to visitors in the form before calling)</small></label>
-					<textarea name="departments" rows="5" placeholder="Sales&#10;Support&#10;Billing&#10;Technical&#10;General Inquiry"></textarea>
+					<textarea name="departments" rows="5" placeholder="Sales&#10;Support&#10;Billing&#10;Technical&#10;General Inquiry"><?php echo htmlspecialchars($edit_token['departments'] ?? ''); ?></textarea>
 				</div>
+			</div>
+
+			<!-- Options Section -->
+			<div class="ctd-section-divider"></div>
+			<div class="ctd-section-label">Options</div>
+			<div class="ctd-opt-row">
+				<label><input type="checkbox" name="lazy_registration" value="true"<?php
+					if ($edit_token && ($edit_token['lazy_registration'] ?? 'false') === 'true') echo ' checked';
+				?>> Lazy Registration (only connect to PBX when visitor clicks Call)</label>
+			</div>
+			<div class="ctd-opt-row">
+				<label><input type="checkbox" name="show_dtmf" value="true"<?php
+					if ($edit_token) {
+						if (($edit_token['show_dtmf'] ?? 'true') === 'true') echo ' checked';
+					} else {
+						echo ' checked';
+					}
+				?>> Show DTMF dialpad during calls</label>
 			</div>
 
 			<!-- Security Section -->
@@ -339,7 +541,7 @@ require_once $document_root."/resources/header.php";
 			<div class="ctd-form-row">
 				<div class="ctd-form-group" style="flex:1">
 					<label>Allowed Origins <small>(one per line, * for any, leave empty to allow all)</small></label>
-					<textarea name="allowed_origins" placeholder="https://www.example.com&#10;https://app.example.com"></textarea>
+					<textarea name="allowed_origins" placeholder="https://www.example.com&#10;https://app.example.com"><?php echo htmlspecialchars($edit_token['allowed_origins'] ?? ''); ?></textarea>
 				</div>
 			</div>
 
@@ -349,25 +551,67 @@ require_once $document_root."/resources/header.php";
 			<div class="ctd-form-row">
 				<div class="ctd-form-group">
 					<label>Button Color</label>
-					<input type="color" name="button_color" value="#1a73e8" style="width:60px;height:36px;padding:2px;">
+					<input type="color" name="button_color" value="<?php echo htmlspecialchars($edit_token['button_color'] ?? '#1a73e8'); ?>" style="width:60px;height:36px;padding:2px;">
 				</div>
 				<div class="ctd-form-group" style="flex:1">
 					<label>Button Position</label>
 					<select name="button_position">
-						<option value="bottom-right">Bottom Right</option>
-						<option value="bottom-left">Bottom Left</option>
-						<option value="top-right">Top Right</option>
-						<option value="top-left">Top Left</option>
+						<?php
+							$positions = [
+								'bottom-right' => 'Bottom Right',
+								'bottom-left' => 'Bottom Left',
+								'top-right' => 'Top Right',
+								'top-left' => 'Top Left',
+								'middle-right' => 'Middle Right (Docked)',
+								'middle-left' => 'Middle Left (Docked)'
+							];
+							$current_pos = $edit_token['button_position'] ?? 'bottom-right';
+							foreach ($positions as $val => $lbl) {
+								$sel = ($val === $current_pos) ? ' selected' : '';
+								echo '<option value="' . $val . '"' . $sel . '>' . $lbl . '</option>';
+							}
+						?>
 					</select>
 				</div>
 				<div class="ctd-form-group" style="flex:1">
 					<label>Button Label <small>(optional, shows next to icon)</small></label>
-					<input type="text" name="button_label" placeholder="e.g. Call Us">
+					<input type="text" name="button_label" placeholder="e.g. Call Us" value="<?php echo htmlspecialchars($edit_token['button_label'] ?? ''); ?>">
+				</div>
+			</div>
+			<div class="ctd-form-row">
+				<div class="ctd-form-group" style="flex:1">
+					<label>Button Shadow</label>
+					<select name="button_shadow">
+						<?php
+							$shadows = ['none' => 'None', 'subtle' => 'Subtle', 'normal' => 'Normal', 'large' => 'Large'];
+							$current_shadow = $edit_token['button_shadow'] ?? 'normal';
+							foreach ($shadows as $val => $lbl) {
+								$sel = ($val === $current_shadow) ? ' selected' : '';
+								echo '<option value="' . $val . '"' . $sel . '>' . $lbl . '</option>';
+							}
+						?>
+					</select>
+				</div>
+				<div class="ctd-form-group" style="flex:1">
+					<label>Button Orientation</label>
+					<select name="button_orientation">
+						<?php
+							$orientations = ['horizontal' => 'Horizontal', 'vertical' => 'Vertical (for docked sides)'];
+							$current_orient = $edit_token['button_orientation'] ?? 'horizontal';
+							foreach ($orientations as $val => $lbl) {
+								$sel = ($val === $current_orient) ? ' selected' : '';
+								echo '<option value="' . $val . '"' . $sel . '>' . $lbl . '</option>';
+							}
+						?>
+					</select>
 				</div>
 			</div>
 
 			<div style="margin-top:12px;">
-				<button type="submit" class="ctd-btn ctd-btn-primary">Generate Token &amp; Embed Code</button>
+				<button type="submit" class="ctd-btn ctd-btn-primary"><?php echo $edit_token ? 'Save Changes' : 'Generate Token &amp; Embed Code'; ?></button>
+				<?php if ($edit_token): ?>
+					<a href="?" style="margin-left:12px; font-size:14px; color:#888;">Cancel Edit</a>
+				<?php endif; ?>
 			</div>
 		</form>
 	</div>
@@ -384,8 +628,9 @@ require_once $document_root."/resources/header.php";
 					<tr>
 						<th>Name</th>
 						<th>Extension</th>
-						<th>Destination</th>
+						<th>Destinations</th>
 						<th>Departments</th>
+						<th>Options</th>
 						<th>Status</th>
 						<th>Embed Code</th>
 						<th>Actions</th>
@@ -405,7 +650,21 @@ require_once $document_root."/resources/header.php";
 							?>
 						</td>
 						<td>
-							<strong><?php echo htmlspecialchars($tok['destination_number'] ?? 'N/A'); ?></strong>
+							<?php
+								$tok_dests = json_decode($tok['destinations'] ?? '[]', true);
+								if (is_array($tok_dests) && !empty($tok_dests)) {
+									echo '<ul style="margin:0;padding-left:16px;font-size:12px;">';
+									foreach ($tok_dests as $td) {
+										$dl = !empty($td['label']) ? htmlspecialchars($td['label']) . ': ' : '';
+										echo '<li>' . $dl . '<strong>' . htmlspecialchars($td['number']) . '</strong></li>';
+									}
+									echo '</ul>';
+								} elseif (!empty($tok['destination_number'])) {
+									echo '<strong>' . htmlspecialchars($tok['destination_number']) . '</strong>';
+								} else {
+									echo '<small style="color:#888">N/A</small>';
+								}
+							?>
 						</td>
 						<td>
 							<?php
@@ -417,6 +676,12 @@ require_once $document_root."/resources/header.php";
 									echo '<small style="color:#888">None</small>';
 								}
 							?>
+						</td>
+						<td>
+							<small>
+								Lazy: <strong><?php echo ($tok['lazy_registration'] ?? 'false') === 'true' ? 'Yes' : 'No'; ?></strong><br>
+								DTMF: <strong><?php echo ($tok['show_dtmf'] ?? 'true') === 'true' ? 'Yes' : 'No'; ?></strong>
+							</small>
 						</td>
 						<td>
 							<span class="ctd-badge <?php echo $tok['token_enabled'] === 'true' ? 'ctd-badge-active' : 'ctd-badge-disabled'; ?>">
@@ -438,6 +703,7 @@ require_once $document_root."/resources/header.php";
 						<td>
 							<div class="ctd-actions">
 								<?php if (permission_exists('click_to_dial_edit')): ?>
+								<a href="?edit=<?php echo htmlspecialchars($tok['click_to_dial_token_uuid']); ?>" class="ctd-btn ctd-btn-sm" style="background:#ff9800;color:#fff;text-decoration:none;">Edit</a>
 								<form method="post" style="display:inline">
 									<input type="hidden" name="action" value="toggle">
 									<input type="hidden" name="token_uuid" value="<?php echo htmlspecialchars($tok['click_to_dial_token_uuid']); ?>">
@@ -467,7 +733,7 @@ require_once $document_root."/resources/header.php";
 	<div class="ctd-card">
 		<h3 style="margin-top:0">How It Works</h3>
 		<ol style="font-size:14px; line-height:1.8; color:#555;">
-			<li>Create a token above: select a SIP extension (for WebRTC registration), a destination number (where calls go), and configure departments.</li>
+			<li>Create a token above: select a SIP extension (for WebRTC registration), one or more destinations (where calls go), and configure departments.</li>
 			<li>Copy the generated embed code snippet.</li>
 			<li>Paste it into your website's HTML, just before the closing <code>&lt;/body&gt;</code> tag.</li>
 			<li>When a visitor clicks the phone button, they fill in their <strong>Name</strong>, <strong>Phone Number</strong>, and <strong>Department</strong>.</li>
@@ -502,6 +768,18 @@ require_once $document_root."/resources/header.php";
 </div>
 
 <script>
+var destOptionsHtml = <?php echo json_encode($dest_options_html); ?>;
+
+function addDestRow() {
+	var container = document.getElementById('ctd-destinations');
+	var row = document.createElement('div');
+	row.className = 'ctd-dest-row';
+	row.innerHTML = '<input type="text" name="dest_label[]" placeholder="e.g. Sales">'
+		+ '<select name="dest_number[]" required>' + destOptionsHtml + '</select>'
+		+ '<button type="button" class="ctd-dest-remove" onclick="this.closest(\'.ctd-dest-row\').remove()">&#10005;</button>';
+	container.appendChild(row);
+}
+
 function copyEmbed(btn) {
 	var code = btn.getAttribute('data-code');
 	if (navigator.clipboard) {
