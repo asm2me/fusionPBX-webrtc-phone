@@ -2134,15 +2134,19 @@ var WebRTCPhone = (function () {
 				var iceCompleted = false;
 				var srflxTimer = null;
 				var absoluteTimer = setTimeout(function () {
-					if (!iceCompleted) { iceCompleted = true; clearTimeout(srflxTimer); pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); }
+					if (!iceCompleted) {
+						iceCompleted = true; clearTimeout(srflxTimer);
+						console.log('WebRTC Phone: ICE absolute timeout (10s), forcing completion');
+						try { pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); } catch (e) {}
+					}
 				}, 10000);
 				pc.addEventListener('icecandidate', function (e) {
 					if (!e.candidate) { iceCompleted = true; clearTimeout(srflxTimer); clearTimeout(absoluteTimer); return; }
-					if (e.candidate.type === 'srflx' && !iceCompleted) {
+					if ((e.candidate.type === 'srflx' || e.candidate.type === 'relay') && !iceCompleted) {
 						clearTimeout(srflxTimer);
 						clearTimeout(absoluteTimer);
 						srflxTimer = setTimeout(function () {
-							if (!iceCompleted) { iceCompleted = true; pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); }
+							if (!iceCompleted) { iceCompleted = true; try { pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); } catch (e) {} }
 						}, 500);
 					}
 				});
@@ -2208,6 +2212,14 @@ var WebRTCPhone = (function () {
 
 		try {
 			state.currentSession = state.ua.call(targetURI, options);
+
+			// Add ice-lite to FS answer SDP for ICE compatibility
+			state.currentSession.on('sdp', function (ev) {
+				if (ev.type === 'answer' && ev.sdp.indexOf('a=ice-lite') === -1) {
+					ev.sdp = ev.sdp.replace(/(m=audio)/, 'a=ice-lite\r\n$1');
+				}
+			});
+
 			state.callState = 'ringing_out';
 			state.muted = false;
 			state.held = false;
@@ -2308,6 +2320,12 @@ var WebRTCPhone = (function () {
 	}
 
 	function setupSessionListeners(session) {
+		// Add ice-lite to SDP for ICE compatibility with FreeSWITCH
+		session.on('sdp', function (ev) {
+			if (ev.sdp.indexOf('a=ice-lite') === -1) {
+				ev.sdp = ev.sdp.replace(/(m=audio)/, 'a=ice-lite\r\n$1');
+			}
+		});
 		session.on('accepted', function () {
 			if (state.currentCallRecord) state.currentCallRecord.status = 'answered';
 			state.callState = 'in_call'; stopRingtone(); hideFABBadge(); renderPhone();
@@ -2325,15 +2343,19 @@ var WebRTCPhone = (function () {
 			var iceCompleted = false;
 			var srflxTimer = null;
 			var absoluteTimer = setTimeout(function () {
-				if (!iceCompleted) { iceCompleted = true; clearTimeout(srflxTimer); pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); }
+				if (!iceCompleted) {
+					iceCompleted = true; clearTimeout(srflxTimer);
+					console.log('WebRTC Phone: ICE absolute timeout (10s), forcing completion');
+					try { pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); } catch (e) {}
+				}
 			}, 10000);
 			pc.addEventListener('icecandidate', function (e) {
 				if (!e.candidate) { iceCompleted = true; clearTimeout(srflxTimer); clearTimeout(absoluteTimer); return; }
-				if (e.candidate.type === 'srflx' && !iceCompleted) {
+				if ((e.candidate.type === 'srflx' || e.candidate.type === 'relay') && !iceCompleted) {
 					clearTimeout(srflxTimer);
 					clearTimeout(absoluteTimer);
 					srflxTimer = setTimeout(function () {
-						if (!iceCompleted) { iceCompleted = true; pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); }
+						if (!iceCompleted) { iceCompleted = true; try { pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); } catch (e) {} }
 					}, 500);
 				}
 			});
