@@ -98,9 +98,12 @@
 			'#ctd-container.ctd-middle-right{top:50%;right:0;transform:translateY(-50%);display:flex;align-items:center}',
 			'#ctd-container.ctd-middle-left{top:50%;left:0;transform:translateY(-50%);display:flex;align-items:center;flex-direction:row-reverse}',
 			// FAB
-			'#ctd-fab{display:flex;align-items:center;gap:8px;padding:0 16px;height:52px;border-radius:26px;border:none;cursor:pointer;color:#fff;font-size:14px;font-weight:600;transition:transform .2s,box-shadow .2s}',
-			'#ctd-fab:hover{transform:scale(1.05)}',
-			'#ctd-fab:active{transform:scale(.95)}',
+			'#ctd-fab{display:flex;align-items:center;gap:8px;padding:0 16px;height:52px;border-radius:26px;border:none;cursor:pointer;color:#fff;font-size:14px;font-weight:600;transition:transform .3s cubic-bezier(.4,0,.2,1),box-shadow .3s,background .3s;position:relative}',
+			'#ctd-fab:hover{transform:scale(1.08)}',
+			'#ctd-fab:active{transform:scale(.92)}',
+			// FAB icon rotation when panel is open
+			'#ctd-fab.ctd-fab-open svg{transform:rotate(135deg);transition:transform .3s cubic-bezier(.4,0,.2,1)}',
+			'#ctd-fab svg{transition:transform .3s cubic-bezier(.4,0,.2,1)}',
 			'#ctd-fab svg{width:22px;height:22px;flex-shrink:0}',
 			'#ctd-fab .ctd-fab-label{white-space:nowrap}',
 			'#ctd-fab.ctd-fab-icon-only{width:52px;padding:0;justify-content:center;border-radius:50%}',
@@ -212,9 +215,25 @@
 			'.ctd-badge{position:absolute;top:-4px;right:-4px;background:#e53935;color:#fff;font-size:10px;font-weight:700;width:18px;height:18px;border-radius:50%;display:none;align-items:center;justify-content:center;animation:ctd-pulse 1.5s infinite}',
 			'.ctd-badge.ctd-show{display:flex}',
 			'@keyframes ctd-pulse{0%,100%{box-shadow:0 0 0 0 rgba(229,57,53,.5)}50%{box-shadow:0 0 0 8px rgba(229,57,53,0)}}',
-			// Panel
-			'#ctd-panel{position:absolute;width:320px;background:#fff;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.25);overflow:hidden;display:none;flex-direction:column}',
-			'#ctd-panel.ctd-open{display:flex}',
+			// Panel with animations
+			'#ctd-panel{position:absolute;width:320px;background:#fff;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.25);overflow:hidden;flex-direction:column;opacity:0;transform:scale(.9) translateY(12px);pointer-events:none;transition:opacity .25s cubic-bezier(.4,0,.2,1),transform .25s cubic-bezier(.4,0,.2,1);display:flex}',
+			'#ctd-panel.ctd-open{opacity:1;transform:scale(1) translateY(0);pointer-events:auto}',
+			// Panel open from top positions
+			'.ctd-top-right #ctd-panel,.ctd-top-left #ctd-panel{transform-origin:top right}',
+			'.ctd-top-left #ctd-panel{transform-origin:top left}',
+			'.ctd-bottom-right #ctd-panel{transform-origin:bottom right}',
+			'.ctd-bottom-left #ctd-panel{transform-origin:bottom left}',
+			'.ctd-middle-right #ctd-panel{transform-origin:center right}',
+			'.ctd-middle-left #ctd-panel{transform-origin:center left}',
+			'.ctd-top-right #ctd-panel,.ctd-top-left #ctd-panel{transform:scale(.9) translateY(-12px)}',
+			'.ctd-top-right #ctd-panel.ctd-open,.ctd-top-left #ctd-panel.ctd-open{transform:scale(1) translateY(0)}',
+			'.ctd-middle-right #ctd-panel{transform:scale(.9) translateX(12px)}',
+			'.ctd-middle-right #ctd-panel.ctd-open{transform:scale(1) translateX(0) translateY(-50%)}',
+			'.ctd-middle-left #ctd-panel{transform:scale(.9) translateX(-12px)}',
+			'.ctd-middle-left #ctd-panel.ctd-open{transform:scale(1) translateX(0) translateY(-50%)}',
+			// Content fade-in animation
+			'@keyframes ctd-fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}',
+			'.ctd-body{animation:ctd-fadeIn .2s ease-out}',
 			'.ctd-bottom-right #ctd-panel,.ctd-bottom-left #ctd-panel{bottom:62px}',
 			'.ctd-top-right #ctd-panel,.ctd-top-left #ctd-panel{top:62px}',
 			'.ctd-bottom-right #ctd-panel,.ctd-top-right #ctd-panel{right:0}',
@@ -241,7 +260,8 @@
 			'.ctd-field .ctd-field-error{font-size:11px;color:#e53935;margin-top:3px}',
 			'.ctd-form-error{background:#ffebee;color:#c62828;padding:8px 12px;border-radius:8px;font-size:12px;margin-bottom:12px;text-align:center}',
 			// Call button in form
-			'.ctd-btn{width:100%;padding:12px;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .15s}',
+			'.ctd-btn{width:100%;padding:12px;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .2s,transform .15s,box-shadow .2s}',
+			'.ctd-btn:active{transform:scale(.97)}',
 			'.ctd-btn-call{background:#43a047;color:#fff;margin-top:6px}',
 			'.ctd-btn-call:hover{background:#388e3c}',
 			'.ctd-btn-call:disabled{background:#bbb;cursor:default}',
@@ -249,9 +269,22 @@
 			'.ctd-btn-hangup:hover{background:#c62828}',
 			'.ctd-btn-newcall{background:#f5f5f5;color:#555;margin-top:8px;font-size:13px}',
 			'.ctd-btn-newcall:hover{background:#e8e8e8}',
+			// Field stagger animation
+			'@keyframes ctd-slideUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}',
+			'.ctd-field{animation:ctd-slideUp .3s ease-out both}',
+			'.ctd-field:nth-child(1){animation-delay:.05s}',
+			'.ctd-field:nth-child(2){animation-delay:.1s}',
+			'.ctd-field:nth-child(3){animation-delay:.15s}',
+			'.ctd-field:nth-child(4){animation-delay:.2s}',
 			// In-call
-			'.ctd-call-info{text-align:center;padding:16px 0}',
+			'.ctd-call-info{text-align:center;padding:16px 0;animation:ctd-fadeIn .3s ease-out}',
 			'.ctd-call-icon{font-size:36px;margin-bottom:8px}',
+			// Ringing icon animation
+			'@keyframes ctd-ring{0%,100%{transform:rotate(0)}10%{transform:rotate(14deg)}20%{transform:rotate(-14deg)}30%{transform:rotate(10deg)}40%{transform:rotate(-10deg)}50%{transform:rotate(6deg)}60%{transform:rotate(0)}}',
+			'.ctd-call-icon.ctd-ringing{animation:ctd-ring 1.5s ease-in-out infinite}',
+			// Connected pulse
+			'@keyframes ctd-connected{0%{transform:scale(1)}50%{transform:scale(1.1)}100%{transform:scale(1)}}',
+			'.ctd-call-icon.ctd-connected{animation:ctd-connected .6s ease-out}',
 			'.ctd-call-label{font-size:13px;color:#888}',
 			'.ctd-call-number{font-size:18px;font-weight:600;color:#333;margin:4px 0}',
 			'.ctd-call-caller{font-size:12px;color:#888;margin:2px 0}',
@@ -275,9 +308,16 @@
 			'@keyframes ctd-bounce{to{opacity:.3;transform:translateY(-4px)}}',
 			// Destination picker
 			'.ctd-dest-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}',
-			'.ctd-dest-btn{width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;cursor:pointer;text-align:left;font-size:14px;font-weight:500;color:#333;transition:border-color .2s,background .2s;display:flex;align-items:center;gap:10px}',
-			'.ctd-dest-btn:hover{border-color:#1a73e8;background:#f0f7ff}',
-			'.ctd-dest-btn svg{flex-shrink:0;color:#1a73e8}',
+			'.ctd-dest-btn{width:100%;padding:12px;border:2px solid #e0e0e0;border-radius:10px;background:#fff;cursor:pointer;text-align:left;font-size:14px;font-weight:500;color:#333;transition:border-color .2s,background .2s,transform .15s;display:flex;align-items:center;gap:10px;animation:ctd-slideUp .3s ease-out both}',
+			'.ctd-dest-btn:nth-child(1){animation-delay:.05s}',
+			'.ctd-dest-btn:nth-child(2){animation-delay:.1s}',
+			'.ctd-dest-btn:nth-child(3){animation-delay:.15s}',
+			'.ctd-dest-btn:nth-child(4){animation-delay:.2s}',
+			'.ctd-dest-btn:nth-child(5){animation-delay:.25s}',
+			'.ctd-dest-btn:hover{border-color:#1a73e8;background:#f0f7ff;transform:translateX(4px)}',
+			'.ctd-dest-btn:active{transform:scale(.97)}',
+			'.ctd-dest-btn svg{flex-shrink:0;color:#1a73e8;transition:transform .2s}',
+			'.ctd-dest-btn:hover svg{transform:scale(1.15)}',
 			'.ctd-dest-btn-label{flex:1}',
 			// Caller summary
 			'.ctd-summary{background:#f5f5f5;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#555}',
@@ -765,16 +805,20 @@
 	function togglePanel() {
 		state.visible = !state.visible;
 		var panel = document.getElementById('ctd-panel');
+		var fab = document.getElementById('ctd-fab');
 		if (panel) {
-			panel.classList.toggle('ctd-open', state.visible);
 			if (state.visible) renderPanel();
+			panel.classList.toggle('ctd-open', state.visible);
 		}
+		if (fab) fab.classList.toggle('ctd-fab-open', state.visible);
 	}
 
 	function showPanel() {
 		state.visible = true;
 		var panel = document.getElementById('ctd-panel');
+		var fab = document.getElementById('ctd-fab');
 		if (panel) panel.classList.add('ctd-open');
+		if (fab) fab.classList.add('ctd-fab-open');
 	}
 
 	function renderStatus(msg) {
@@ -820,7 +864,7 @@
 		} else if (state.view === 'calling') {
 			var destDisplay = state.selectedDest ? (state.selectedDest.label || state.selectedDest.number) : '';
 			html += '<div class="ctd-call-info">';
-			html += '<div class="ctd-call-icon">&#128222;</div>';
+			html += '<div class="ctd-call-icon ctd-ringing">&#128222;</div>';
 			if (state.pendingCall) {
 				html += '<div class="ctd-call-label">Connecting...</div>';
 			} else {
@@ -834,7 +878,7 @@
 			html += '<button class="ctd-btn ctd-btn-hangup" id="ctd-hangup-btn">Cancel</button>';
 		} else if (state.view === 'in_call') {
 			html += '<div class="ctd-call-info">';
-			html += '<div class="ctd-call-icon" style="color:#43a047">&#128222;</div>';
+			html += '<div class="ctd-call-icon ctd-connected" style="color:#43a047">&#128222;</div>';
 			html += '<div class="ctd-call-label">Connected</div>';
 			html += '<div class="ctd-call-number">' + escapeHtml(state.callerName) + '</div>';
 			html += '<div class="ctd-call-caller">' + escapeHtml(cleanPhone(state.callerPhone));
