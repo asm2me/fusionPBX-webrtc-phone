@@ -636,16 +636,24 @@
 					state.remoteAudio.play().catch(function (e) { console.warn('CTD: audio play failed', e); });
 				};
 			},
-			'accepted': function () {
+			'accepted': function (data) {
+				console.log('CTD: Call accepted');
+				if (data && data.response && data.response.body) {
+					console.log('CTD: Remote SDP (answer) received, length:', data.response.body.length);
+				}
 				state.callState = 'in_call';
 				state.view = 'in_call';
 				renderPanel();
+				// Log ICE and media state after a short delay
+				setTimeout(function () { logMediaState(); }, 2000);
 			},
 			'confirmed': function () {
+				console.log('CTD: Call confirmed');
 				state.callState = 'in_call';
 				state.view = 'in_call';
 				if (state.session && !state.remoteAudio.srcObject) attachRemoteAudio(state.session);
 				renderPanel();
+				setTimeout(function () { logMediaState(); }, 2000);
 			},
 			'ended': function () { endCall(); },
 			'failed': function (data) {
@@ -701,6 +709,59 @@
 			state.view = 'calling';
 			renderPanel();
 			registerSIP();
+		}
+	}
+
+	function logMediaState() {
+		if (!state.session) { console.log('CTD: logMediaState - no session'); return; }
+		try {
+			var pc = state.session.connection;
+			if (!pc) { console.log('CTD: logMediaState - no peer connection'); return; }
+			console.log('CTD: === Media State Dump ===');
+			console.log('CTD: ICE connection:', pc.iceConnectionState);
+			console.log('CTD: ICE gathering:', pc.iceGatheringState);
+			console.log('CTD: Connection:', pc.connectionState);
+			console.log('CTD: Signaling:', pc.signalingState);
+
+			// Local tracks (what we're sending)
+			var senders = pc.getSenders();
+			console.log('CTD: Senders:', senders.length);
+			senders.forEach(function (s, i) {
+				var t = s.track;
+				console.log('CTD:   Sender[' + i + ']:', t ? (t.kind + ' enabled=' + t.enabled + ' muted=' + t.muted + ' readyState=' + t.readyState) : 'NO TRACK');
+			});
+
+			// Remote tracks (what we're receiving)
+			var receivers = pc.getReceivers();
+			console.log('CTD: Receivers:', receivers.length);
+			receivers.forEach(function (r, i) {
+				var t = r.track;
+				console.log('CTD:   Receiver[' + i + ']:', t ? (t.kind + ' enabled=' + t.enabled + ' muted=' + t.muted + ' readyState=' + t.readyState) : 'NO TRACK');
+			});
+
+			// Remote audio element state
+			var audio = state.remoteAudio;
+			if (audio) {
+				console.log('CTD: Audio element: paused=' + audio.paused + ' srcObject=' + !!audio.srcObject + ' volume=' + audio.volume);
+			}
+
+			// Get stats for candidate pairs
+			pc.getStats().then(function (stats) {
+				stats.forEach(function (r) {
+					if (r.type === 'candidate-pair' && r.nominated) {
+						console.log('CTD: Active candidate pair: local=' + r.localCandidateId + ' remote=' + r.remoteCandidateId + ' state=' + r.state + ' bytesSent=' + r.bytesSent + ' bytesRecv=' + r.bytesReceived);
+					}
+					if (r.type === 'local-candidate') {
+						console.log('CTD: Local candidate:', r.candidateType, r.protocol, r.ip || r.address, r.port);
+					}
+					if (r.type === 'remote-candidate') {
+						console.log('CTD: Remote candidate:', r.candidateType, r.protocol, r.ip || r.address, r.port);
+					}
+				});
+				console.log('CTD: === End Media State ===');
+			}).catch(function (e) { console.error('CTD: getStats failed', e); });
+		} catch (e) {
+			console.error('CTD: logMediaState error', e);
 		}
 	}
 
