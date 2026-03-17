@@ -46,7 +46,7 @@ if (empty($token) || strlen($token) < 32) {
 
 //look up the token in the database
 $sql = "SELECT t.click_to_dial_token_uuid, t.domain_uuid, t.extension_uuid, ";
-$sql .= "t.allowed_origins, t.token_enabled, t.button_color, t.button_position, t.button_label, t.button_shadow, t.button_orientation, ";
+$sql .= "t.allowed_origins, t.token_enabled, t.button_color, t.button_position, t.button_label, t.button_shadow, t.button_orientation, t.button_style, t.form_style, ";
 $sql .= "t.destination_number, t.departments, t.destinations, t.lazy_registration, t.show_dtmf, ";
 $sql .= "e.extension, e.password, e.effective_caller_id_name, e.effective_caller_id_number, ";
 $sql .= "d.domain_name ";
@@ -145,7 +145,9 @@ $response = [
 		'button_position' => $row['button_position'] ?? 'bottom-right',
 		'button_label' => $row['button_label'] ?? '',
 		'button_shadow' => $row['button_shadow'] ?? 'normal',
-		'button_orientation' => $row['button_orientation'] ?? 'horizontal'
+		'button_orientation' => $row['button_orientation'] ?? 'horizontal',
+		'button_style' => $row['button_style'] ?? 'pill',
+		'form_style' => $row['form_style'] ?? 'default'
 	]
 ];
 

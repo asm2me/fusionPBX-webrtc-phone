@@ -68,6 +68,8 @@ if ($domains_processed == 1) {
 	$sql .= "show_dtmf varchar(10) DEFAULT 'true', ";
 	$sql .= "button_shadow varchar(20) DEFAULT 'normal', ";
 	$sql .= "button_orientation varchar(20) DEFAULT 'horizontal', ";
+	$sql .= "button_style varchar(20) DEFAULT 'pill', ";
+	$sql .= "form_style varchar(20) DEFAULT 'default', ";
 	$sql .= "button_color varchar(20) DEFAULT '#1a73e8', ";
 	$sql .= "button_position varchar(20) DEFAULT 'bottom-right', ";
 	$sql .= "button_label varchar(100) DEFAULT '', ";
@@ -97,6 +99,10 @@ if ($domains_processed == 1) {
 	$sql = "ALTER TABLE v_click_to_dial_tokens ADD COLUMN IF NOT EXISTS button_shadow varchar(20) DEFAULT 'normal' ";
 	$database->execute($sql);
 	$sql = "ALTER TABLE v_click_to_dial_tokens ADD COLUMN IF NOT EXISTS button_orientation varchar(20) DEFAULT 'horizontal' ";
+	$database->execute($sql);
+	$sql = "ALTER TABLE v_click_to_dial_tokens ADD COLUMN IF NOT EXISTS button_style varchar(20) DEFAULT 'pill' ";
+	$database->execute($sql);
+	$sql = "ALTER TABLE v_click_to_dial_tokens ADD COLUMN IF NOT EXISTS form_style varchar(20) DEFAULT 'default' ";
 	$database->execute($sql);
 	unset($sql);
 }

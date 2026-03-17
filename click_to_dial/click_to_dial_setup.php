@@ -37,7 +37,9 @@ $needed_columns = [
 	"lazy_registration varchar(10) DEFAULT 'false'",
 	"show_dtmf varchar(10) DEFAULT 'true'",
 	"button_shadow varchar(20) DEFAULT 'normal'",
-	"button_orientation varchar(20) DEFAULT 'horizontal'"
+	"button_orientation varchar(20) DEFAULT 'horizontal'",
+	"button_style varchar(20) DEFAULT 'pill'",
+	"form_style varchar(20) DEFAULT 'default'"
 ];
 foreach ($needed_columns as $col_def) {
 	$col_name = explode(' ', $col_def)[0];
@@ -62,6 +64,8 @@ if ($action === 'create' && permission_exists('click_to_dial_edit')) {
 	$button_label = $_POST['button_label'] ?? '';
 	$button_shadow = $_POST['button_shadow'] ?? 'normal';
 	$button_orientation = $_POST['button_orientation'] ?? 'horizontal';
+	$button_style = $_POST['button_style'] ?? 'pill';
+	$form_style = $_POST['form_style'] ?? 'default';
 	$token_name = trim($_POST['token_name'] ?? '');
 	$lazy_registration = (!empty($_POST['lazy_registration']) && $_POST['lazy_registration'] === 'true') ? 'true' : 'false';
 	$show_dtmf = (!empty($_POST['show_dtmf']) && $_POST['show_dtmf'] === 'true') ? 'true' : 'false';
@@ -95,11 +99,11 @@ if ($action === 'create' && permission_exists('click_to_dial_edit')) {
 		$sql = "INSERT INTO v_click_to_dial_tokens ";
 		$sql .= "(click_to_dial_token_uuid, domain_uuid, extension_uuid, api_token, token_name, ";
 		$sql .= "allowed_origins, destination_number, destinations, departments, lazy_registration, show_dtmf, ";
-		$sql .= "button_color, button_position, button_label, button_shadow, button_orientation, token_enabled, ";
+		$sql .= "button_color, button_position, button_label, button_shadow, button_orientation, button_style, form_style, token_enabled, ";
 		$sql .= "insert_date, insert_user) ";
 		$sql .= "VALUES (:uuid, :domain_uuid, :extension_uuid, :api_token, :token_name, ";
 		$sql .= ":allowed_origins, :destination_number, :destinations, :departments, :lazy_registration, :show_dtmf, ";
-		$sql .= ":button_color, :button_position, :button_label, :button_shadow, :button_orientation, 'true', ";
+		$sql .= ":button_color, :button_position, :button_label, :button_shadow, :button_orientation, :button_style, :form_style, 'true', ";
 		$sql .= "now(), :user_uuid) ";
 
 		$parameters = [
@@ -119,6 +123,8 @@ if ($action === 'create' && permission_exists('click_to_dial_edit')) {
 			'button_label' => $button_label,
 			'button_shadow' => $button_shadow,
 			'button_orientation' => $button_orientation,
+			'button_style' => $button_style,
+			'form_style' => $form_style,
 			'user_uuid' => $_SESSION['user_uuid']
 		];
 
@@ -142,6 +148,8 @@ if ($action === 'edit' && permission_exists('click_to_dial_edit')) {
 	$button_label = $_POST['button_label'] ?? '';
 	$button_shadow = $_POST['button_shadow'] ?? 'normal';
 	$button_orientation = $_POST['button_orientation'] ?? 'horizontal';
+	$button_style = $_POST['button_style'] ?? 'pill';
+	$form_style = $_POST['form_style'] ?? 'default';
 	$token_name = trim($_POST['token_name'] ?? '');
 	$lazy_registration = (!empty($_POST['lazy_registration']) && $_POST['lazy_registration'] === 'true') ? 'true' : 'false';
 	$show_dtmf = (!empty($_POST['show_dtmf']) && $_POST['show_dtmf'] === 'true') ? 'true' : 'false';
@@ -185,6 +193,8 @@ if ($action === 'edit' && permission_exists('click_to_dial_edit')) {
 		$sql .= "button_label = :button_label, ";
 		$sql .= "button_shadow = :button_shadow, ";
 		$sql .= "button_orientation = :button_orientation, ";
+		$sql .= "button_style = :button_style, ";
+		$sql .= "form_style = :form_style, ";
 		$sql .= "update_date = now(), ";
 		$sql .= "update_user = :user_uuid ";
 		$sql .= "WHERE click_to_dial_token_uuid = :uuid AND domain_uuid = :domain_uuid ";
@@ -205,6 +215,8 @@ if ($action === 'edit' && permission_exists('click_to_dial_edit')) {
 			'button_label' => $button_label,
 			'button_shadow' => $button_shadow,
 			'button_orientation' => $button_orientation,
+			'button_style' => $button_style,
+			'form_style' => $form_style,
 			'user_uuid' => $_SESSION['user_uuid']
 		];
 
@@ -619,6 +631,50 @@ require_once $document_root."/resources/header.php";
 							$current_orient = $edit_token['button_orientation'] ?? 'horizontal';
 							foreach ($orientations as $val => $lbl) {
 								$sel = ($val === $current_orient) ? ' selected' : '';
+								echo '<option value="' . $val . '"' . $sel . '>' . $lbl . '</option>';
+							}
+						?>
+					</select>
+				</div>
+			</div>
+			<div class="ctd-form-row">
+				<div class="ctd-form-group" style="flex:1">
+					<label>Button Style</label>
+					<select name="button_style">
+						<?php
+							$styles = [
+								'pill' => 'Pill (rounded)',
+								'rounded' => 'Rounded Rectangle',
+								'square' => 'Square',
+								'circle' => 'Circle (icon only)',
+								'outline' => 'Outline',
+								'gradient' => 'Gradient',
+								'glass' => 'Glass (frosted)'
+							];
+							$current_style = $edit_token['button_style'] ?? 'pill';
+							foreach ($styles as $val => $lbl) {
+								$sel = ($val === $current_style) ? ' selected' : '';
+								echo '<option value="' . $val . '"' . $sel . '>' . $lbl . '</option>';
+							}
+						?>
+					</select>
+				</div>
+				<div class="ctd-form-group" style="flex:1">
+					<label>Form Style</label>
+					<select name="form_style">
+						<?php
+							$form_styles = [
+								'default' => 'Default',
+								'minimal' => 'Minimal (no header)',
+								'bordered' => 'Bordered Fields',
+								'rounded' => 'Extra Rounded',
+								'compact' => 'Compact',
+								'dark' => 'Dark Theme',
+								'gradient' => 'Gradient Header'
+							];
+							$current_form = $edit_token['form_style'] ?? 'default';
+							foreach ($form_styles as $val => $lbl) {
+								$sel = ($val === $current_form) ? ' selected' : '';
 								echo '<option value="' . $val . '"' . $sel . '>' . $lbl . '</option>';
 							}
 						?>

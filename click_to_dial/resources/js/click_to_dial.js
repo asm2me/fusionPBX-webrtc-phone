@@ -64,6 +64,8 @@
 		buttonLabel: '',
 		buttonShadow: 'normal',
 		buttonOrientation: 'horizontal',
+		buttonStyle: 'pill',
+		formStyle: 'default',
 		jssipLoaded: false,
 		// Visitor info
 		callerName: '',
@@ -120,6 +122,46 @@
 			'.ctd-middle-left #ctd-fab.ctd-orient-vertical{border-radius:0 26px 26px 0}',
 			'.ctd-middle-right #ctd-fab.ctd-orient-horizontal{border-radius:26px 0 0 26px}',
 			'.ctd-middle-left #ctd-fab.ctd-orient-horizontal{border-radius:0 26px 26px 0}',
+			// Button styles
+			'#ctd-fab.ctd-style-pill{border-radius:26px}',
+			'#ctd-fab.ctd-style-rounded{border-radius:12px}',
+			'#ctd-fab.ctd-style-square{border-radius:4px}',
+			'#ctd-fab.ctd-style-circle{width:56px;height:56px;padding:0;border-radius:50%;justify-content:center}',
+			'#ctd-fab.ctd-style-circle .ctd-fab-label{display:none}',
+			'#ctd-fab.ctd-style-outline{background:transparent !important;border:2px solid currentColor;color:inherit}',
+			'#ctd-fab.ctd-style-gradient{background:linear-gradient(135deg,var(--ctd-color),var(--ctd-color-dark)) !important}',
+			'#ctd-fab.ctd-style-glass{backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);background:rgba(255,255,255,.15) !important;border:1px solid rgba(255,255,255,.25)}',
+			// Form styles
+			'#ctd-panel.ctd-form-minimal .ctd-header{display:none}',
+			'#ctd-panel.ctd-form-minimal{border-radius:16px;border:1px solid #e0e0e0}',
+			'#ctd-panel.ctd-form-minimal .ctd-body{padding:20px 16px}',
+			'#ctd-panel.ctd-form-bordered .ctd-field input,#ctd-panel.ctd-form-bordered .ctd-field select{border:2px solid #ccc;border-radius:6px}',
+			'#ctd-panel.ctd-form-bordered .ctd-field input:focus,#ctd-panel.ctd-form-bordered .ctd-field select:focus{border-color:#1a73e8}',
+			'#ctd-panel.ctd-form-rounded{border-radius:20px}',
+			'#ctd-panel.ctd-form-rounded .ctd-header{border-radius:20px 20px 0 0}',
+			'#ctd-panel.ctd-form-rounded .ctd-field input,#ctd-panel.ctd-form-rounded .ctd-field select{border-radius:20px;padding:12px 16px}',
+			'#ctd-panel.ctd-form-rounded .ctd-btn{border-radius:20px}',
+			'#ctd-panel.ctd-form-rounded .ctd-btn-sm{border-radius:16px}',
+			'#ctd-panel.ctd-form-compact .ctd-body{padding:8px 10px}',
+			'#ctd-panel.ctd-form-compact .ctd-field{margin-bottom:6px}',
+			'#ctd-panel.ctd-form-compact .ctd-field input,#ctd-panel.ctd-form-compact .ctd-field select{padding:7px 9px;font-size:13px}',
+			'#ctd-panel.ctd-form-compact .ctd-header{padding:8px 10px}',
+			'#ctd-panel.ctd-form-compact .ctd-form-title{font-size:13px;margin-bottom:8px}',
+			'#ctd-panel.ctd-form-compact .ctd-btn{padding:9px;font-size:13px}',
+			'#ctd-panel.ctd-form-dark{background:#1a1a1a;color:#e0e0e0}',
+			'#ctd-panel.ctd-form-dark .ctd-form-title{color:#fff}',
+			'#ctd-panel.ctd-form-dark .ctd-form-subtitle{color:#999}',
+			'#ctd-panel.ctd-form-dark .ctd-field label{color:#bbb}',
+			'#ctd-panel.ctd-form-dark .ctd-field input,#ctd-panel.ctd-form-dark .ctd-field select{background:#2a2a2a;border-color:#444;color:#e0e0e0}',
+			'#ctd-panel.ctd-form-dark .ctd-call-number{color:#e0e0e0}',
+			'#ctd-panel.ctd-form-dark .ctd-call-timer{color:#bbb}',
+			'#ctd-panel.ctd-form-dark .ctd-btn-sm{background:#2a2a2a;color:#bbb}',
+			'#ctd-panel.ctd-form-dark .ctd-btn-newcall{background:#2a2a2a;color:#bbb}',
+			'#ctd-panel.ctd-form-dark .ctd-summary{background:#2a2a2a;color:#bbb}',
+			'#ctd-panel.ctd-form-dark .ctd-summary strong{color:#e0e0e0}',
+			'#ctd-panel.ctd-form-dark .ctd-dest-btn{background:#2a2a2a;border-color:#444;color:#e0e0e0}',
+			'#ctd-panel.ctd-form-dark .ctd-dtmf-key{background:#2a2a2a;color:#e0e0e0}',
+			'#ctd-panel.ctd-form-gradient .ctd-header{background:linear-gradient(135deg,var(--ctd-color),var(--ctd-color-dark)) !important}',
 			// Badge
 			'.ctd-badge{position:absolute;top:-4px;right:-4px;background:#e53935;color:#fff;font-size:10px;font-weight:700;width:18px;height:18px;border-radius:50%;display:none;align-items:center;justify-content:center;animation:ctd-pulse 1.5s infinite}',
 			'.ctd-badge.ctd-show{display:flex}',
@@ -280,6 +322,8 @@
 							state.buttonLabel = data.ui.button_label || '';
 							state.buttonShadow = data.ui.button_shadow || 'normal';
 							state.buttonOrientation = data.ui.button_orientation || 'horizontal';
+							state.buttonStyle = data.ui.button_style || 'pill';
+							state.formStyle = data.ui.form_style || 'default';
 						}
 						callback();
 					} catch (e) {
@@ -613,9 +657,18 @@
 		var fab = document.createElement('button');
 		fab.id = 'ctd-fab';
 		fab.style.background = state.uiColor;
-		var fabClasses = ['ctd-shadow-' + state.buttonShadow, 'ctd-orient-' + state.buttonOrientation];
-		if (!state.buttonLabel) fabClasses.push('ctd-fab-icon-only');
+		var fabClasses = ['ctd-shadow-' + state.buttonShadow, 'ctd-orient-' + state.buttonOrientation, 'ctd-style-' + state.buttonStyle];
+		if (!state.buttonLabel && state.buttonStyle !== 'circle') fabClasses.push('ctd-fab-icon-only');
 		fab.className = fabClasses.join(' ');
+		// CSS custom properties for gradient/outline styles
+		var darkerColor = darkenColor(state.uiColor, 30);
+		fab.style.setProperty('--ctd-color', state.uiColor);
+		fab.style.setProperty('--ctd-color-dark', darkerColor);
+		if (state.buttonStyle === 'outline') {
+			fab.style.color = state.uiColor;
+			fab.style.background = 'transparent';
+			fab.style.border = '2px solid ' + state.uiColor;
+		}
 		fab.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
 		if (state.buttonLabel) fab.innerHTML += '<span class="ctd-fab-label">' + escapeHtml(state.buttonLabel) + '</span>';
 		fab.innerHTML += '<span id="ctd-badge" class="ctd-badge"></span>';
@@ -624,6 +677,12 @@
 		// Panel
 		var panel = document.createElement('div');
 		panel.id = 'ctd-panel';
+		if (state.formStyle !== 'default') {
+			panel.className = 'ctd-form-' + state.formStyle;
+		}
+		// Set CSS custom properties on panel too for gradient header
+		panel.style.setProperty('--ctd-color', state.uiColor);
+		panel.style.setProperty('--ctd-color-dark', darkerColor);
 
 		container.appendChild(fab);
 		container.appendChild(panel);
@@ -641,10 +700,19 @@
 	function updateFAB() {
 		var fab = document.getElementById('ctd-fab');
 		if (!fab) return;
-		if (state.view === 'calling' || state.view === 'in_call') {
-			fab.style.background = '#e53935';
+		var isActive = (state.view === 'calling' || state.view === 'in_call');
+		var color = isActive ? '#e53935' : state.uiColor;
+		if (state.buttonStyle === 'outline') {
+			fab.style.background = 'transparent';
+			fab.style.color = color;
+			fab.style.borderColor = color;
+		} else if (state.buttonStyle === 'glass') {
+			fab.style.background = isActive ? 'rgba(229,57,53,.3)' : 'rgba(255,255,255,.15)';
+		} else if (state.buttonStyle === 'gradient') {
+			var dark = darkenColor(color, 30);
+			fab.style.background = 'linear-gradient(135deg,' + color + ',' + dark + ')';
 		} else {
-			fab.style.background = state.uiColor;
+			fab.style.background = color;
 		}
 	}
 
@@ -1032,6 +1100,15 @@
 		var div = document.createElement('div');
 		div.appendChild(document.createTextNode(str));
 		return div.innerHTML;
+	}
+
+	function darkenColor(hex, amount) {
+		hex = hex.replace('#', '');
+		if (hex.length === 3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+		var r = Math.max(0, parseInt(hex.substring(0, 2), 16) - amount);
+		var g = Math.max(0, parseInt(hex.substring(2, 4), 16) - amount);
+		var b = Math.max(0, parseInt(hex.substring(4, 6), 16) - amount);
+		return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
 	}
 
 	// --- Init ---
