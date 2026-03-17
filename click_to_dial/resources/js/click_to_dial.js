@@ -478,9 +478,24 @@
 
 				// If we have a pending call (lazy registration), trigger it now
 				if (state.pendingCall) {
-					console.log('CTD: Pending call detected after registration, dialing now');
 					state.pendingCall = false;
-					makeCall(state.selectedDest.number);
+					try {
+						var destNum = state.selectedDest ? state.selectedDest.number : null;
+						console.log('CTD: Pending call detected, selectedDest:', JSON.stringify(state.selectedDest), 'destNum:', destNum);
+						if (destNum) {
+							makeCall(destNum);
+						} else {
+							console.error('CTD: Pending call but no destination selected!');
+							state.view = 'form';
+							state.formError = 'No destination selected. Please try again.';
+							renderPanel();
+						}
+					} catch (err) {
+						console.error('CTD: Error in pending call handler:', err);
+						state.view = 'form';
+						state.formError = 'Call error: ' + err.message;
+						renderPanel();
+					}
 				} else {
 					renderPanel();
 				}
