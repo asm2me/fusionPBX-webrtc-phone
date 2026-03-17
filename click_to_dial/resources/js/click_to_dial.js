@@ -272,19 +272,19 @@
 				console.log('CTD: SIP registered successfully');
 				state.registered = true;
 				updateFAB();
-				if (state.visible) renderPanel();
+				renderPanel();
 			});
 			state.ua.on('unregistered', function () {
 				console.log('CTD: SIP unregistered');
 				state.registered = false;
 				updateFAB();
-				if (state.visible) renderPanel();
+				renderPanel();
 			});
 			state.ua.on('registrationFailed', function (e) {
 				state.registered = false;
 				console.error('CTD: SIP registration failed -', e.cause);
 				updateFAB();
-				if (state.visible) renderPanel();
+				renderPanel();
 			});
 			state.ua.on('disconnected', function () {
 				console.log('CTD: WebSocket disconnected');
@@ -527,7 +527,10 @@
 	function togglePanel() {
 		state.visible = !state.visible;
 		var panel = document.getElementById('ctd-panel');
-		if (panel) panel.classList.toggle('ctd-open', state.visible);
+		if (panel) {
+			panel.classList.toggle('ctd-open', state.visible);
+			if (state.visible) renderPanel();
+		}
 	}
 
 	function showPanel() {
