@@ -533,7 +533,11 @@
 
 	// --- Call Functions ---
 	function makeCall(destNumber) {
-		if (!state.ua || !state.registered || !destNumber) return;
+		console.log('CTD: makeCall called, destNumber:', destNumber, 'ua:', !!state.ua, 'registered:', state.registered);
+		if (!state.ua || !state.registered || !destNumber) {
+			console.error('CTD: makeCall aborted — ua:', !!state.ua, 'registered:', state.registered, 'destNumber:', destNumber);
+			return;
+		}
 
 		var domain = state.config.domain;
 		var target = destNumber;
@@ -605,8 +609,10 @@
 			fromDisplayName: displayName
 		};
 
+		console.log('CTD: Calling', targetURI, 'with display name:', displayName);
 		try {
 			state.session = state.ua.call(targetURI, options);
+			console.log('CTD: ua.call() succeeded, session created');
 			state.callState = 'ringing_out';
 			state.view = 'calling';
 			state.muted = false;
@@ -1051,6 +1057,7 @@
 		// All valid
 		state.formSubmitted = true;
 		state.formError = '';
+		console.log('CTD: Form submitted, name:', state.callerName, 'phone:', state.callerPhone, 'dept:', state.callerDepartment, 'destinations:', state.destinations.length);
 
 		// Determine whether to show destination picker or dial directly
 		if (state.destinations.length >= 2) {
