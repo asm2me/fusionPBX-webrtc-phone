@@ -2008,7 +2008,7 @@ var WebRTCPhone = (function () {
 
 	function fetchConfig() {
 		var xhr = new XMLHttpRequest();
-		xhr.open('GET', '/app/webrtc_phone/webrtc_phone_api.php', true);
+		xhr.open('GET', '/app/web_phone2/webrtc_phone_api.php', true);
 		xhr.onreadystatechange = function () {
 			if (xhr.readyState === 4) {
 				if (xhr.status === 200) {
@@ -2385,7 +2385,7 @@ var WebRTCPhone = (function () {
 		try {
 			state.incomingNotification = new Notification('Incoming Call', {
 				body: caller + (extLabel ? '\nTo: Extension ' + extLabel : ''),
-				icon: '/app/webrtc_phone/resources/images/phone-icon.svg',
+				icon: '/app/web_phone2/resources/images/phone-icon.svg',
 				tag: 'webrtc-incoming-call',
 				requireInteraction: true,
 				silent: false
@@ -3339,7 +3339,7 @@ var WebRTCPhone = (function () {
 		var btn = document.getElementById('webrtc-send-report-btn');
 		if (btn) { btn.disabled = true; btn.textContent = t('sending'); }
 
-		fetch('/app/webrtc_phone/webrtc_phone_report.php', {
+		fetch('/app/web_phone2/webrtc_phone_report.php', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			credentials: 'same-origin',
