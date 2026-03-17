@@ -580,18 +580,61 @@
 		var eventHandlers = {
 			'peerconnection': function (data) {
 				var pc = data.peerconnection;
+
+				// ICE gathering optimization: end early once srflx candidate found
+				var iceCompleted = false;
+				var srflxTimer = null;
+				var absoluteTimer = setTimeout(function () {
+					if (!iceCompleted) {
+						console.log('CTD: ICE absolute timeout (10s), completing');
+						iceCompleted = true;
+						clearTimeout(srflxTimer);
+						try { pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); } catch (e) {}
+					}
+				}, 10000);
+
+				pc.addEventListener('icecandidate', function (e) {
+					if (!e.candidate) {
+						iceCompleted = true;
+						clearTimeout(srflxTimer);
+						clearTimeout(absoluteTimer);
+						console.log('CTD: ICE gathering complete');
+						return;
+					}
+					console.log('CTD: ICE candidate:', e.candidate.type, e.candidate.protocol);
+					if (e.candidate.type === 'srflx' && !iceCompleted) {
+						// Found server-reflexive candidate, finish soon
+						clearTimeout(srflxTimer);
+						clearTimeout(absoluteTimer);
+						srflxTimer = setTimeout(function () {
+							if (!iceCompleted) {
+								console.log('CTD: srflx found, completing ICE after 500ms');
+								iceCompleted = true;
+								try { pc.dispatchEvent(new RTCPeerConnectionIceEvent('icecandidate', { candidate: null })); } catch (e) {}
+							}
+						}, 500);
+					}
+				});
+
+				pc.addEventListener('iceconnectionstatechange', function () {
+					console.log('CTD: ICE connection state:', pc.iceConnectionState);
+				});
+
+				pc.addEventListener('connectionstatechange', function () {
+					console.log('CTD: Peer connection state:', pc.connectionState);
+					if (pc.connectionState === 'connected' && state.view === 'in_call' && !state.callTimer) startCallTimer();
+				});
+
 				pc.ontrack = function (event) {
+					console.log('CTD: ontrack fired, kind:', event.track && event.track.kind);
 					if (event.streams && event.streams[0]) {
 						state.remoteAudio.srcObject = event.streams[0];
 					} else if (event.track) {
 						if (!state.remoteAudio.srcObject) state.remoteAudio.srcObject = new MediaStream();
 						state.remoteAudio.srcObject.addTrack(event.track);
 					}
-					state.remoteAudio.play().catch(function () {});
+					state.remoteAudio.play().catch(function (e) { console.warn('CTD: audio play failed', e); });
 				};
-				pc.addEventListener('connectionstatechange', function () {
-					if (pc.connectionState === 'connected' && state.view === 'in_call' && !state.callTimer) startCallTimer();
-				});
 			},
 			'accepted': function () {
 				state.callState = 'in_call';
