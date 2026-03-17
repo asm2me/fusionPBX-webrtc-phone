@@ -52,6 +52,27 @@ if ($domains_processed == 1) {
 
 	$p->delete("default_setting_add", "temp");
 	$p->delete("default_setting_edit", "temp");
+
+	//create click-to-dial tokens table
+	$sql = "CREATE TABLE IF NOT EXISTS v_click_to_dial_tokens ( ";
+	$sql .= "click_to_dial_token_uuid uuid PRIMARY KEY, ";
+	$sql .= "domain_uuid uuid NOT NULL, ";
+	$sql .= "extension_uuid uuid NOT NULL, ";
+	$sql .= "api_token varchar(128) NOT NULL UNIQUE, ";
+	$sql .= "token_name varchar(255), ";
+	$sql .= "allowed_origins text, ";
+	$sql .= "button_color varchar(20) DEFAULT '#1a73e8', ";
+	$sql .= "button_position varchar(20) DEFAULT 'bottom-right', ";
+	$sql .= "button_label varchar(100) DEFAULT '', ";
+	$sql .= "token_enabled varchar(10) DEFAULT 'true', ";
+	$sql .= "insert_date timestamptz DEFAULT now(), ";
+	$sql .= "insert_user uuid, ";
+	$sql .= "update_date timestamptz, ";
+	$sql .= "update_user uuid ";
+	$sql .= ") ";
+	$database = new database;
+	$database->execute($sql);
+	unset($sql);
 }
 
 ?>

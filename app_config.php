@@ -16,6 +16,21 @@
 	$apps[$x]['permissions'][$y]['groups'][] = "superadmin";
 	$apps[$x]['permissions'][$y]['groups'][] = "admin";
 	$apps[$x]['permissions'][$y]['groups'][] = "user";
+	$y++;
+
+	$apps[$x]['permissions'][$y]['name'] = "click_to_dial_view";
+	$apps[$x]['permissions'][$y]['groups'][] = "superadmin";
+	$apps[$x]['permissions'][$y]['groups'][] = "admin";
+	$y++;
+
+	$apps[$x]['permissions'][$y]['name'] = "click_to_dial_edit";
+	$apps[$x]['permissions'][$y]['groups'][] = "superadmin";
+	$apps[$x]['permissions'][$y]['groups'][] = "admin";
+	$y++;
+
+	$apps[$x]['permissions'][$y]['name'] = "click_to_dial_delete";
+	$apps[$x]['permissions'][$y]['groups'][] = "superadmin";
+	$apps[$x]['permissions'][$y]['groups'][] = "admin";
 
 	//default settings
 	$y = 0;
