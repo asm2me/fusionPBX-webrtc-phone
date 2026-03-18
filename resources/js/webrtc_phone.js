@@ -764,9 +764,9 @@ var WebRTCPhone = (function () {
 		// Test 5: Reference latency pings to third-party servers (image load timing)
 		(function testReferencePings() {
 			var refServers = [
-				{ name: 'cloudflare.com', url: 'https://www.cloudflare.com/cdn-cgi/trace' },
+				{ name: 'cloudflare.com', url: 'https://1.1.1.1/cdn-cgi/trace' },
 				{ name: 'google.com', url: 'https://www.google.com/generate_204' },
-				{ name: 'microsoft.com', url: 'https://www.microsoft.com/favicon.ico' }
+				{ name: 'microsoft.com', url: 'https://www.bing.com/favicon.ico' }
 			];
 			var refResults = [];
 			var remaining = refServers.length;
@@ -807,60 +807,49 @@ var WebRTCPhone = (function () {
 							return;
 						}
 
-						var cacheBust = '?_cb=' + Date.now() + '_' + pinged;
-						var fetchUrl = server.url + cacheBust;
+						var start = performance.now();
 						var timeout = setTimeout(function () {
 							pingResults.push(-1);
 							pinged++;
 							doPing();
 						}, 4000);
 
-						fetch(fetchUrl, { mode: 'no-cors', cache: 'no-store' }).then(function () {
+						// Use XMLHttpRequest for timing — more reliable than fetch for cross-origin
+						var xhr = new XMLHttpRequest();
+						xhr.open('HEAD', server.url + '?_cb=' + Date.now() + '_' + pinged, true);
+						xhr.timeout = 3500;
+						xhr.onloadend = function () {
 							clearTimeout(timeout);
-							// Use Resource Timing API to get actual TCP connect time
-							var rtt = extractRTT(fetchUrl);
-							pingResults.push(rtt > 0 ? rtt : -1);
+							var elapsed = Math.round(performance.now() - start);
+							// Any response (even 0 status from CORS block) means server is reachable
+							pingResults.push(elapsed < 3500 ? elapsed : -1);
 							pinged++;
 							setTimeout(doPing, 50);
-						}).catch(function () {
+						};
+						xhr.ontimeout = function () {
 							clearTimeout(timeout);
-							var rtt = extractRTT(fetchUrl);
-							if (rtt > 0) {
-								pingResults.push(rtt); // server was reached (CORS blocked but TCP connected)
-							} else {
-								pingResults.push(-1);
-							}
+							pingResults.push(-1);
+							pinged++;
+							doPing();
+						};
+						xhr.onerror = function () {
+							clearTimeout(timeout);
+							var elapsed = Math.round(performance.now() - start);
+							// CORS error still means TCP connected — record the time
+							pingResults.push(elapsed < 3500 ? elapsed : -1);
 							pinged++;
 							setTimeout(doPing, 50);
-						});
+						};
+						try { xhr.send(); } catch (e) {
+							clearTimeout(timeout);
+							pingResults.push(-1);
+							pinged++;
+							doPing();
+						}
 					}
 
 					doPing();
 				})(refServers[ri]);
-			}
-
-			// Extract TCP RTT from Resource Timing API (connectEnd - connectStart)
-			function extractRTT(url) {
-				try {
-					var entries = performance.getEntriesByType('resource');
-					for (var i = entries.length - 1; i >= 0; i--) {
-						if (entries[i].name.indexOf(url) >= 0 || url.indexOf(entries[i].name) >= 0) {
-							var e = entries[i];
-							// connectEnd - connectStart = TCP handshake time ≈ ping RTT
-							var connectTime = e.connectEnd - e.connectStart;
-							// If connection was reused (connectTime=0), use responseStart - requestStart
-							if (connectTime <= 0) {
-								connectTime = e.responseStart - e.requestStart;
-							}
-							// Fallback to total duration if connect timing not available
-							if (connectTime <= 0 || connectTime > 10000) {
-								connectTime = e.duration;
-							}
-							return Math.round(connectTime);
-						}
-					}
-				} catch (ex) {}
-				return -1;
 			}
 		})();
 
