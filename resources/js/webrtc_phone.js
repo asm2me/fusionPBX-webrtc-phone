@@ -2358,16 +2358,56 @@ var WebRTCPhone = (function () {
 		var dev = deviceId || 'default';
 		console.log('WebRTC Phone: Switching speaker output to:', dev);
 
-		// Always recreate AudioContext with new sinkId — fastest and most reliable
-		// setSinkId() on existing context can block for 10+ seconds on some devices
-		if (state.remoteAudio && state.remoteAudio.srcObject) {
-			setupSpeakerOutput(state.remoteAudio.srcObject);
+		if (!state.remoteAudio || !state.remoteAudio.srcObject) {
+			// No active stream — just set fallback
+			if (state.remoteAudio && typeof state.remoteAudio.setSinkId === 'function') {
+				state.remoteAudio.setSinkId(dev).catch(function () {});
+			}
+			return;
 		}
-		// Fallback if no active stream
-		else if (state.remoteAudio && typeof state.remoteAudio.setSinkId === 'function') {
-			state.remoteAudio.muted = false;
-			state.remoteAudio.volume = state.audioSettings.speakerVolume;
+
+		var stream = state.remoteAudio.srcObject;
+
+		// Temporarily unmute <audio> element during switch to avoid silence gap
+		state.remoteAudio.muted = false;
+		state.remoteAudio.volume = state.audioSettings.speakerVolume;
+		if (typeof state.remoteAudio.setSinkId === 'function') {
 			state.remoteAudio.setSinkId(dev).catch(function () {});
+		}
+
+		// Disconnect old AudioContext without closing (close can block)
+		if (state.spkOutputSource) { try { state.spkOutputSource.disconnect(); } catch (e) {} state.spkOutputSource = null; }
+		if (state.spkOutputGain) { try { state.spkOutputGain.disconnect(); } catch (e) {} state.spkOutputGain = null; }
+		var oldCtx = state.spkOutputCtx;
+		state.spkOutputCtx = null;
+
+		// Create new AudioContext with target device
+		try {
+			var AudioCtx = window.AudioContext || window.webkitAudioContext;
+			var ctxOptions = {};
+			if (dev !== 'default') ctxOptions.sinkId = dev;
+			state.spkOutputCtx = new AudioCtx(ctxOptions);
+			if (state.spkOutputCtx.state === 'suspended') state.spkOutputCtx.resume().catch(function () {});
+
+			state.spkOutputSource = state.spkOutputCtx.createMediaStreamSource(stream);
+			state.spkOutputGain = state.spkOutputCtx.createGain();
+			state.spkOutputGain.gain.value = state.audioSettings.speakerVolume;
+			state.spkOutputSource.connect(state.spkOutputGain);
+			state.spkOutputGain.connect(state.spkOutputCtx.destination);
+
+			// Mute <audio> element again since AudioContext is handling output
+			state.remoteAudio.volume = 0;
+			state.remoteAudio.muted = true;
+
+			console.log('WebRTC Phone: Speaker switched via new AudioContext, device:', dev);
+		} catch (e) {
+			console.warn('WebRTC Phone: AudioContext switch failed:', e.message, '— using <audio> fallback');
+			// <audio> element is already unmuted as fallback
+		}
+
+		// Close old context in background (don't block)
+		if (oldCtx) {
+			setTimeout(function () { try { oldCtx.close(); } catch (e) {} }, 100);
 		}
 	}
 
