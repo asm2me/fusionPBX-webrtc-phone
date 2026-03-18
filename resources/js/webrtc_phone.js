@@ -2298,124 +2298,38 @@ var WebRTCPhone = (function () {
 		if (isNaN(vol)) return;
 		vol = Math.max(0, Math.min(1, vol));
 		state.audioSettings.speakerVolume = vol;
-		// Control volume via AudioContext gain if active, otherwise via <audio> element
-		if (state.spkOutputGain) {
-			state.spkOutputGain.gain.value = vol;
-		} else if (state.remoteAudio) {
-			state.remoteAudio.volume = vol;
-		}
+		if (state.remoteAudio) state.remoteAudio.volume = vol;
 		saveAudioSettings();
 	}
 
-	// Route speaker audio through AudioContext for reliable device switching (like Zoom)
+	// Apply speaker device using <audio>.setSinkId — simple and non-blocking
 	function setupSpeakerOutput(stream) {
-		cleanupSpeakerOutput();
-		if (!stream) return;
-
-		var AudioCtx = window.AudioContext || window.webkitAudioContext;
-		if (!AudioCtx) return;
-
-		try {
-			var deviceId = state.audioSettings.speakerDeviceId || 'default';
-
-			// Create AudioContext with target output device (Chrome 110+)
-			var ctxOptions = {};
-			if (deviceId !== 'default') {
-				ctxOptions.sinkId = deviceId;
-			}
-			state.spkOutputCtx = new AudioCtx(ctxOptions);
-
-			// Resume if suspended
-			if (state.spkOutputCtx.state === 'suspended') {
-				state.spkOutputCtx.resume().catch(function () {});
-			}
-
-			// Create audio chain: source → gain → destination
-			state.spkOutputSource = state.spkOutputCtx.createMediaStreamSource(stream);
-			state.spkOutputGain = state.spkOutputCtx.createGain();
-			state.spkOutputGain.gain.value = state.audioSettings.speakerVolume;
-			state.spkOutputSource.connect(state.spkOutputGain);
-			state.spkOutputGain.connect(state.spkOutputCtx.destination);
-
-			// Mute the <audio> element since AudioContext handles playback
-			state.remoteAudio.volume = 0;
-			state.remoteAudio.muted = true;
-
-			console.log('WebRTC Phone: Speaker output routed via AudioContext, device:', deviceId, 'sinkId:', state.spkOutputCtx.sinkId);
-		} catch (e) {
-			console.warn('WebRTC Phone: AudioContext speaker routing failed, falling back to <audio> element:', e.message);
-			cleanupSpeakerOutput();
-			// Fallback: use <audio> element
-			state.remoteAudio.volume = state.audioSettings.speakerVolume;
-			state.remoteAudio.muted = false;
+		if (!stream || !state.remoteAudio) return;
+		// Just ensure the <audio> element has the correct output device
+		var deviceId = state.audioSettings.speakerDeviceId || 'default';
+		state.remoteAudio.volume = state.audioSettings.speakerVolume;
+		if (typeof state.remoteAudio.setSinkId === 'function' && deviceId !== 'default') {
+			state.remoteAudio.setSinkId(deviceId).then(function () {
+				console.log('WebRTC Phone: Speaker output set to:', deviceId);
+			}).catch(function (e) {
+				console.warn('WebRTC Phone: setSinkId failed:', e.message);
+			});
 		}
 	}
 
 	function cleanupSpeakerOutput() {
-		if (state.spkOutputSource) { try { state.spkOutputSource.disconnect(); } catch (e) {} state.spkOutputSource = null; }
-		if (state.spkOutputGain) { try { state.spkOutputGain.disconnect(); } catch (e) {} state.spkOutputGain = null; }
-		if (state.spkOutputCtx) {
-			// Close asynchronously to avoid blocking UI
-			var oldCtx = state.spkOutputCtx;
-			state.spkOutputCtx = null;
-			try { oldCtx.close(); } catch (e) {}
-		}
+		// No AudioContext to clean up — using <audio> element directly
 	}
 
 	function switchSpeakerOutput(deviceId) {
 		var dev = deviceId || 'default';
-		console.log('WebRTC Phone: Switching speaker output to:', dev);
-
-		if (!state.remoteAudio || !state.remoteAudio.srcObject) {
-			// No active stream — just set fallback
-			if (state.remoteAudio && typeof state.remoteAudio.setSinkId === 'function') {
-				state.remoteAudio.setSinkId(dev).catch(function () {});
-			}
-			return;
-		}
-
-		var stream = state.remoteAudio.srcObject;
-
-		// Temporarily unmute <audio> element during switch to avoid silence gap
-		state.remoteAudio.muted = false;
-		state.remoteAudio.volume = state.audioSettings.speakerVolume;
-		if (typeof state.remoteAudio.setSinkId === 'function') {
-			state.remoteAudio.setSinkId(dev).catch(function () {});
-		}
-
-		// Disconnect old AudioContext without closing (close can block)
-		if (state.spkOutputSource) { try { state.spkOutputSource.disconnect(); } catch (e) {} state.spkOutputSource = null; }
-		if (state.spkOutputGain) { try { state.spkOutputGain.disconnect(); } catch (e) {} state.spkOutputGain = null; }
-		var oldCtx = state.spkOutputCtx;
-		state.spkOutputCtx = null;
-
-		// Create new AudioContext with target device
-		try {
-			var AudioCtx = window.AudioContext || window.webkitAudioContext;
-			var ctxOptions = {};
-			if (dev !== 'default') ctxOptions.sinkId = dev;
-			state.spkOutputCtx = new AudioCtx(ctxOptions);
-			if (state.spkOutputCtx.state === 'suspended') state.spkOutputCtx.resume().catch(function () {});
-
-			state.spkOutputSource = state.spkOutputCtx.createMediaStreamSource(stream);
-			state.spkOutputGain = state.spkOutputCtx.createGain();
-			state.spkOutputGain.gain.value = state.audioSettings.speakerVolume;
-			state.spkOutputSource.connect(state.spkOutputGain);
-			state.spkOutputGain.connect(state.spkOutputCtx.destination);
-
-			// Mute <audio> element again since AudioContext is handling output
-			state.remoteAudio.volume = 0;
-			state.remoteAudio.muted = true;
-
-			console.log('WebRTC Phone: Speaker switched via new AudioContext, device:', dev);
-		} catch (e) {
-			console.warn('WebRTC Phone: AudioContext switch failed:', e.message, '— using <audio> fallback');
-			// <audio> element is already unmuted as fallback
-		}
-
-		// Close old context in background (don't block)
-		if (oldCtx) {
-			setTimeout(function () { try { oldCtx.close(); } catch (e) {} }, 100);
+		console.log('WebRTC Phone: Switching speaker to:', dev);
+		if (state.remoteAudio && typeof state.remoteAudio.setSinkId === 'function') {
+			state.remoteAudio.setSinkId(dev).then(function () {
+				console.log('WebRTC Phone: Speaker switched OK to:', state.remoteAudio.sinkId);
+			}).catch(function (e) {
+				console.warn('WebRTC Phone: Speaker switch failed:', e.message);
+			});
 		}
 	}
 
