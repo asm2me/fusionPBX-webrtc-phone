@@ -2346,38 +2346,28 @@ var WebRTCPhone = (function () {
 	function cleanupSpeakerOutput() {
 		if (state.spkOutputSource) { try { state.spkOutputSource.disconnect(); } catch (e) {} state.spkOutputSource = null; }
 		if (state.spkOutputGain) { try { state.spkOutputGain.disconnect(); } catch (e) {} state.spkOutputGain = null; }
-		if (state.spkOutputCtx) { try { state.spkOutputCtx.close(); } catch (e) {} state.spkOutputCtx = null; }
+		if (state.spkOutputCtx) {
+			// Close asynchronously to avoid blocking UI
+			var oldCtx = state.spkOutputCtx;
+			state.spkOutputCtx = null;
+			try { oldCtx.close(); } catch (e) {}
+		}
 	}
 
 	function switchSpeakerOutput(deviceId) {
 		var dev = deviceId || 'default';
 		console.log('WebRTC Phone: Switching speaker output to:', dev);
 
-		// Method 1: AudioContext.setSinkId (Chrome 110+)
-		if (state.spkOutputCtx && typeof state.spkOutputCtx.setSinkId === 'function') {
-			state.spkOutputCtx.setSinkId(dev).then(function () {
-				console.log('WebRTC Phone: AudioContext speaker switched to:', state.spkOutputCtx.sinkId);
-			}).catch(function (e) {
-				console.warn('WebRTC Phone: AudioContext.setSinkId failed:', e.message, '— recreating context');
-				// Recreate the AudioContext with the new device
-				if (state.remoteAudio && state.remoteAudio.srcObject) {
-					setupSpeakerOutput(state.remoteAudio.srcObject);
-				}
-			});
-		}
-		// Method 2: Recreate AudioContext with new sinkId
-		else if (state.spkOutputCtx && state.remoteAudio && state.remoteAudio.srcObject) {
+		// Always recreate AudioContext with new sinkId — fastest and most reliable
+		// setSinkId() on existing context can block for 10+ seconds on some devices
+		if (state.remoteAudio && state.remoteAudio.srcObject) {
 			setupSpeakerOutput(state.remoteAudio.srcObject);
 		}
-		// Method 3: Fallback to <audio>.setSinkId
+		// Fallback if no active stream
 		else if (state.remoteAudio && typeof state.remoteAudio.setSinkId === 'function') {
 			state.remoteAudio.muted = false;
 			state.remoteAudio.volume = state.audioSettings.speakerVolume;
-			state.remoteAudio.setSinkId(dev).then(function () {
-				console.log('WebRTC Phone: Fallback <audio>.setSinkId OK:', dev);
-			}).catch(function (e) {
-				console.error('WebRTC Phone: All speaker switch methods failed:', e.message);
-			});
+			state.remoteAudio.setSinkId(dev).catch(function () {});
 		}
 	}
 
