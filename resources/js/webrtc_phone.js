@@ -172,6 +172,9 @@ var WebRTCPhone = (function () {
 		spkGainNode: null,
 		micCompressor: null,
 		spkCompressor: null,
+		spkOutputCtx: null,      // AudioContext for speaker output routing
+		spkOutputSource: null,
+		spkOutputGain: null,
 		showSettings: false,
 		audioDevices: { inputs: [], outputs: [] },
 		previewingRingtone: false,
@@ -2207,22 +2210,16 @@ var WebRTCPhone = (function () {
 	}
 
 	function applyOutputDevices() {
+		var sid = state.audioSettings.speakerDeviceId || 'default';
+		console.log('WebRTC Phone: applyOutputDevices speaker:', sid);
+		// Speaker routing is handled by setupSpeakerOutput() when call starts
+		// For now, set the <audio> element as fallback
 		if (state.remoteAudio && typeof state.remoteAudio.setSinkId === 'function') {
-			var sid = state.audioSettings.speakerDeviceId || 'default';
-			console.log('WebRTC Phone: applyOutputDevices speaker:', sid);
-			state.remoteAudio.setSinkId(sid).then(function () {
-				console.log('WebRTC Phone: Speaker sinkId applied:', state.remoteAudio.sinkId);
-			}).catch(function (e) {
-				console.error('WebRTC Phone: applyOutputDevices speaker FAILED:', e.name, e.message);
-			});
-		} else {
-			console.warn('WebRTC Phone: setSinkId not supported, cannot switch output devices');
+			state.remoteAudio.setSinkId(sid).catch(function () {});
 		}
 		if (state.ringtoneAudio && typeof state.ringtoneAudio.setSinkId === 'function') {
 			var rid = state.audioSettings.ringDeviceId || 'default';
-			state.ringtoneAudio.setSinkId(rid).catch(function (e) {
-				console.warn('WebRTC Phone: Ring device setSinkId failed:', e.message);
-			});
+			state.ringtoneAudio.setSinkId(rid).catch(function () {});
 		}
 	}
 
@@ -2293,8 +2290,95 @@ var WebRTCPhone = (function () {
 		if (isNaN(vol)) return;
 		vol = Math.max(0, Math.min(1, vol));
 		state.audioSettings.speakerVolume = vol;
-		if (state.remoteAudio) state.remoteAudio.volume = vol;
+		// Control volume via AudioContext gain if active, otherwise via <audio> element
+		if (state.spkOutputGain) {
+			state.spkOutputGain.gain.value = vol;
+		} else if (state.remoteAudio) {
+			state.remoteAudio.volume = vol;
+		}
 		saveAudioSettings();
+	}
+
+	// Route speaker audio through AudioContext for reliable device switching (like Zoom)
+	function setupSpeakerOutput(stream) {
+		cleanupSpeakerOutput();
+		if (!stream) return;
+
+		var AudioCtx = window.AudioContext || window.webkitAudioContext;
+		if (!AudioCtx) return;
+
+		try {
+			var deviceId = state.audioSettings.speakerDeviceId || 'default';
+
+			// Create AudioContext with target output device (Chrome 110+)
+			var ctxOptions = {};
+			if (deviceId !== 'default') {
+				ctxOptions.sinkId = deviceId;
+			}
+			state.spkOutputCtx = new AudioCtx(ctxOptions);
+
+			// Resume if suspended
+			if (state.spkOutputCtx.state === 'suspended') {
+				state.spkOutputCtx.resume().catch(function () {});
+			}
+
+			// Create audio chain: source → gain → destination
+			state.spkOutputSource = state.spkOutputCtx.createMediaStreamSource(stream);
+			state.spkOutputGain = state.spkOutputCtx.createGain();
+			state.spkOutputGain.gain.value = state.audioSettings.speakerVolume;
+			state.spkOutputSource.connect(state.spkOutputGain);
+			state.spkOutputGain.connect(state.spkOutputCtx.destination);
+
+			// Mute the <audio> element since AudioContext handles playback
+			state.remoteAudio.volume = 0;
+			state.remoteAudio.muted = true;
+
+			console.log('WebRTC Phone: Speaker output routed via AudioContext, device:', deviceId, 'sinkId:', state.spkOutputCtx.sinkId);
+		} catch (e) {
+			console.warn('WebRTC Phone: AudioContext speaker routing failed, falling back to <audio> element:', e.message);
+			cleanupSpeakerOutput();
+			// Fallback: use <audio> element
+			state.remoteAudio.volume = state.audioSettings.speakerVolume;
+			state.remoteAudio.muted = false;
+		}
+	}
+
+	function cleanupSpeakerOutput() {
+		if (state.spkOutputSource) { try { state.spkOutputSource.disconnect(); } catch (e) {} state.spkOutputSource = null; }
+		if (state.spkOutputGain) { try { state.spkOutputGain.disconnect(); } catch (e) {} state.spkOutputGain = null; }
+		if (state.spkOutputCtx) { try { state.spkOutputCtx.close(); } catch (e) {} state.spkOutputCtx = null; }
+	}
+
+	function switchSpeakerOutput(deviceId) {
+		var dev = deviceId || 'default';
+		console.log('WebRTC Phone: Switching speaker output to:', dev);
+
+		// Method 1: AudioContext.setSinkId (Chrome 110+)
+		if (state.spkOutputCtx && typeof state.spkOutputCtx.setSinkId === 'function') {
+			state.spkOutputCtx.setSinkId(dev).then(function () {
+				console.log('WebRTC Phone: AudioContext speaker switched to:', state.spkOutputCtx.sinkId);
+			}).catch(function (e) {
+				console.warn('WebRTC Phone: AudioContext.setSinkId failed:', e.message, '— recreating context');
+				// Recreate the AudioContext with the new device
+				if (state.remoteAudio && state.remoteAudio.srcObject) {
+					setupSpeakerOutput(state.remoteAudio.srcObject);
+				}
+			});
+		}
+		// Method 2: Recreate AudioContext with new sinkId
+		else if (state.spkOutputCtx && state.remoteAudio && state.remoteAudio.srcObject) {
+			setupSpeakerOutput(state.remoteAudio.srcObject);
+		}
+		// Method 3: Fallback to <audio>.setSinkId
+		else if (state.remoteAudio && typeof state.remoteAudio.setSinkId === 'function') {
+			state.remoteAudio.muted = false;
+			state.remoteAudio.volume = state.audioSettings.speakerVolume;
+			state.remoteAudio.setSinkId(dev).then(function () {
+				console.log('WebRTC Phone: Fallback <audio>.setSinkId OK:', dev);
+			}).catch(function (e) {
+				console.error('WebRTC Phone: All speaker switch methods failed:', e.message);
+			});
+		}
 	}
 
 	function setRingDevice(deviceId) {
@@ -2309,40 +2393,13 @@ var WebRTCPhone = (function () {
 		state.audioSettings.speakerDeviceId = deviceId;
 		var dev = deviceId || 'default';
 		console.log('WebRTC Phone: setSpeakerDevice called, deviceId:', dev);
-		console.log('WebRTC Phone: remoteAudio exists:', !!state.remoteAudio);
-		console.log('WebRTC Phone: setSinkId supported:', !!(state.remoteAudio && typeof state.remoteAudio.setSinkId === 'function'));
-		if (state.remoteAudio) {
-			console.log('WebRTC Phone: current sinkId:', state.remoteAudio.sinkId);
-			console.log('WebRTC Phone: remoteAudio paused:', state.remoteAudio.paused, 'srcObject:', !!state.remoteAudio.srcObject);
-		}
-		if (state.remoteAudio && typeof state.remoteAudio.setSinkId === 'function') {
-			state.remoteAudio.setSinkId(dev).then(function () {
-				console.log('WebRTC Phone: Speaker switched OK, new sinkId:', state.remoteAudio.sinkId);
-				// Chrome bug workaround: re-attach srcObject to force audio re-routing
-				if (state.remoteAudio.srcObject) {
-					var stream = state.remoteAudio.srcObject;
-					state.remoteAudio.srcObject = null;
-					state.remoteAudio.srcObject = stream;
-					state.remoteAudio.play().catch(function () {});
-					console.log('WebRTC Phone: Re-attached srcObject to force output device change');
-				}
-			}).catch(function (e) {
-				console.error('WebRTC Phone: setSinkId FAILED:', e.name, e.message);
-			});
-		} else {
-			console.warn('WebRTC Phone: setSinkId not available - browser does not support output device selection');
-		}
-		// Also switch ringtone output to match
+
+		// Switch speaker output via AudioContext (reliable) or fallback to <audio>.setSinkId
+		switchSpeakerOutput(dev);
+
+		// Also switch ringtone output
 		if (state.ringtoneAudio && typeof state.ringtoneAudio.setSinkId === 'function') {
 			state.ringtoneAudio.setSinkId(dev).catch(function () {});
-		}
-		// List available output devices for debugging
-		if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
-			navigator.mediaDevices.enumerateDevices().then(function (devices) {
-				var outputs = devices.filter(function (d) { return d.kind === 'audiooutput'; });
-				console.log('WebRTC Phone: Available outputs (' + outputs.length + '):');
-				outputs.forEach(function (d) { console.log('  ' + d.deviceId.substring(0, 16) + '... = ' + d.label); });
-			});
 		}
 		saveAudioSettings();
 	}
@@ -2729,13 +2786,18 @@ var WebRTCPhone = (function () {
 				});
 				pc.ontrack = function (event) {
 					console.log('WebRTC Phone: ontrack fired', event.track && event.track.kind, 'streams:', event.streams && event.streams.length);
+					var stream;
 					if (event.streams && event.streams[0]) {
-						state.remoteAudio.srcObject = event.streams[0];
+						stream = event.streams[0];
 					} else if (event.track) {
-						if (!state.remoteAudio.srcObject) state.remoteAudio.srcObject = new MediaStream();
-						state.remoteAudio.srcObject.addTrack(event.track);
+						stream = new MediaStream([event.track]);
 					}
-					state.remoteAudio.play().catch(function (e) { console.warn('WebRTC Phone: audio play failed', e); });
+					if (stream) {
+						state.remoteAudio.srcObject = stream;
+						state.remoteAudio.play().catch(function (e) { console.warn('WebRTC Phone: audio play failed', e); });
+						// Route audio through AudioContext for reliable device switching
+						setupSpeakerOutput(stream);
+					}
 				};
 			},
 			'accepted': function (data) {
@@ -2946,13 +3008,17 @@ var WebRTCPhone = (function () {
 			});
 			pc.ontrack = function (event) {
 				console.log('WebRTC Phone: ontrack fired', event.track && event.track.kind, 'streams:', event.streams && event.streams.length);
+				var stream;
 				if (event.streams && event.streams[0]) {
-					state.remoteAudio.srcObject = event.streams[0];
+					stream = event.streams[0];
 				} else if (event.track) {
-					if (!state.remoteAudio.srcObject) state.remoteAudio.srcObject = new MediaStream();
-					state.remoteAudio.srcObject.addTrack(event.track);
+					stream = new MediaStream([event.track]);
 				}
-				state.remoteAudio.play().catch(function (e) { console.warn('WebRTC Phone: audio play failed', e); });
+				if (stream) {
+					state.remoteAudio.srcObject = stream;
+					state.remoteAudio.play().catch(function (e) { console.warn('WebRTC Phone: audio play failed', e); });
+					setupSpeakerOutput(stream);
+				}
 			};
 		});
 	}
@@ -3020,6 +3086,12 @@ var WebRTCPhone = (function () {
 		}
 		stopQualityMonitor();
 		stopAudioLevels();
+		cleanupSpeakerOutput();
+		// Restore <audio> element for next call
+		if (state.remoteAudio) {
+			state.remoteAudio.muted = false;
+			state.remoteAudio.volume = state.audioSettings.speakerVolume;
+		}
 		// Reset header color to default
 		var headerEl = document.querySelector('.webrtc-phone-header');
 		if (headerEl) headerEl.style.background = '';
