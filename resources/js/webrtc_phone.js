@@ -1841,34 +1841,57 @@ var WebRTCPhone = (function () {
 			if (!AudioCtx) return;
 			state.audioLevelCtx = new AudioCtx();
 
-			// Mic (local) chain: source → [AGC] → gain → destination + analyser
+			// Resume AudioContext if suspended (browser autoplay policy)
+			if (state.audioLevelCtx.state === 'suspended') {
+				state.audioLevelCtx.resume().catch(function () {});
+			}
+
+			// Store original mic track so we can restore if needed
+			state._originalMicTrack = null;
+			state._micSender = null;
+
+			// Mic (local) chain: source → [AGC: compressor → makeupGain] → volumeGain → destination + analyser
 			if (state.currentSession && state.currentSession.connection) {
 				var senders = state.currentSession.connection.getSenders();
 				for (var i = 0; i < senders.length; i++) {
 					if (senders[i].track && senders[i].track.kind === 'audio') {
+						state._originalMicTrack = senders[i].track;
+						state._micSender = senders[i];
 						var micStream = new MediaStream([senders[i].track]);
 						var micSource = state.audioLevelCtx.createMediaStreamSource(micStream);
 
-						// Create gain node for mic volume control
+						// Create volume gain node
 						state.micGainNode = state.audioLevelCtx.createGain();
 						state.micGainNode.gain.value = state.audioSettings.micVolume;
 
-						// Create destination to get a processed output stream
+						// Create destination for processed output
 						var micDest = state.audioLevelCtx.createMediaStreamDestination();
 
-						// Build chain: source → [compressor] → gain → destination
+						// Build chain
 						var micLastNode = micSource;
 						if (state.audioSettings.micAGC) {
+							// AGC chain: compressor (limits peaks) → makeup gain (boosts overall level)
 							state.micCompressor = createAGCCompressor(state.audioLevelCtx);
+							state.micMakeupGain = state.audioLevelCtx.createGain();
+							state.micMakeupGain.gain.value = 3.0; // ~10dB boost to compensate for compression
 							micLastNode.connect(state.micCompressor);
-							micLastNode = state.micCompressor;
+							state.micCompressor.connect(state.micMakeupGain);
+							micLastNode = state.micMakeupGain;
 						}
 						micLastNode.connect(state.micGainNode);
 						state.micGainNode.connect(micDest);
 
 						// Replace the sender's track with the processed track
 						var processedTrack = micDest.stream.getAudioTracks()[0];
-						senders[i].replaceTrack(processedTrack).catch(function () {});
+						senders[i].replaceTrack(processedTrack).then(function () {
+							console.log('WebRTC Phone: Mic track replaced for audio processing');
+						}).catch(function (e) {
+							console.warn('WebRTC Phone: replaceTrack failed, restoring original', e);
+							// Restore original track if replacement fails
+							if (state._micSender && state._originalMicTrack) {
+								state._micSender.replaceTrack(state._originalMicTrack).catch(function () {});
+							}
+						});
 
 						// Analyser taps the output
 						state.micAnalyser = state.audioLevelCtx.createAnalyser();
@@ -1879,35 +1902,19 @@ var WebRTCPhone = (function () {
 				}
 			}
 
-			// Speaker (remote) chain: source → [AGC] → gain → destination + analyser
+			// Speaker (remote) — analyser only (no track replacement to avoid breaking audio)
+			// AGC for speaker uses dynamic gain adjustment instead of replacing srcObject
 			if (state.remoteAudio && state.remoteAudio.srcObject) {
 				var spkSource = state.audioLevelCtx.createMediaStreamSource(state.remoteAudio.srcObject);
+				state.spkAnalyser = state.audioLevelCtx.createAnalyser();
+				state.spkAnalyser.fftSize = 256;
+				spkSource.connect(state.spkAnalyser);
 
+				// Speaker AGC: route through gain node for dynamic volume normalization
 				if (state.audioSettings.spkAGC) {
-					state.spkCompressor = createAGCCompressor(state.audioLevelCtx);
 					state.spkGainNode = state.audioLevelCtx.createGain();
 					state.spkGainNode.gain.value = 1.0;
-
-					var spkDest = state.audioLevelCtx.createMediaStreamDestination();
-
-					// Chain: source → compressor → gain → destination
-					spkSource.connect(state.spkCompressor);
-					state.spkCompressor.connect(state.spkGainNode);
-					state.spkGainNode.connect(spkDest);
-
-					// Replace remoteAudio source with AGC-processed stream
-					state.remoteAudio.srcObject = spkDest.stream;
-					state.remoteAudio.volume = state.audioSettings.speakerVolume;
-					state.remoteAudio.play().catch(function () {});
-
-					// Analyser on processed output
-					state.spkAnalyser = state.audioLevelCtx.createAnalyser();
-					state.spkAnalyser.fftSize = 256;
-					state.spkGainNode.connect(state.spkAnalyser);
-				} else {
-					state.spkAnalyser = state.audioLevelCtx.createAnalyser();
-					state.spkAnalyser.fftSize = 256;
-					spkSource.connect(state.spkAnalyser);
+					// We'll adjust spkGainNode dynamically in updateAudioLevels
 				}
 			}
 
@@ -1919,6 +1926,10 @@ var WebRTCPhone = (function () {
 
 	function stopAudioLevels() {
 		if (state.audioLevelInterval) { clearInterval(state.audioLevelInterval); state.audioLevelInterval = null; }
+		// Restore original mic track before closing AudioContext
+		if (state._micSender && state._originalMicTrack && state._originalMicTrack.readyState === 'live') {
+			state._micSender.replaceTrack(state._originalMicTrack).catch(function () {});
+		}
 		if (state.audioLevelCtx) {
 			try { state.audioLevelCtx.close(); } catch (e) {}
 			state.audioLevelCtx = null;
@@ -1927,8 +1938,11 @@ var WebRTCPhone = (function () {
 		state.spkAnalyser = null;
 		state.micGainNode = null;
 		state.spkGainNode = null;
+		state.micMakeupGain = null;
 		state.micCompressor = null;
 		state.spkCompressor = null;
+		state._originalMicTrack = null;
+		state._micSender = null;
 		state.micLevel = 0;
 		state.spkLevel = 0;
 	}
@@ -1946,6 +1960,19 @@ var WebRTCPhone = (function () {
 	function updateAudioLevels() {
 		state.micLevel = getAnalyserLevel(state.micAnalyser);
 		state.spkLevel = getAnalyserLevel(state.spkAnalyser);
+
+		// Speaker AGC: dynamically adjust remoteAudio volume based on measured level
+		if (state.audioSettings.spkAGC && state.remoteAudio && state.spkAnalyser) {
+			var targetLevel = 50; // target audio level (0-100)
+			var rawSpk = state.spkLevel;
+			if (rawSpk > 2) { // Only adjust if there's actual audio
+				var ratio = targetLevel / rawSpk;
+				// Smooth the gain adjustment (don't jump instantly)
+				var currentVol = state.remoteAudio.volume;
+				var targetVol = Math.min(1.0, Math.max(0.1, state.audioSettings.speakerVolume * ratio));
+				state.remoteAudio.volume = currentVol + (targetVol - currentVol) * 0.3; // smooth
+			}
+		}
 
 		var micBar = document.getElementById('webrtc-mic-level-bar');
 		var spkBar = document.getElementById('webrtc-spk-level-bar');
@@ -2311,10 +2338,10 @@ var WebRTCPhone = (function () {
 
 	function createAGCCompressor(ctx) {
 		var comp = ctx.createDynamicsCompressor();
-		// AGC-style settings: low threshold, high ratio = normalizes volume
-		comp.threshold.value = -35;  // Start compressing at -35dB
-		comp.knee.value = 20;        // Soft knee for natural sound
-		comp.ratio.value = 12;       // High ratio for strong normalization
+		// Compressor limits peaks; makeup gain (applied separately) boosts overall
+		comp.threshold.value = -50;  // Very low threshold to catch all speech
+		comp.knee.value = 40;        // Wide soft knee for natural sound
+		comp.ratio.value = 20;       // High ratio for strong normalization
 		comp.attack.value = 0.003;   // Fast attack (3ms) to catch peaks
 		comp.release.value = 0.25;   // 250ms release for smooth recovery
 		return comp;
