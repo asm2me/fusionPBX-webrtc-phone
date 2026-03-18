@@ -549,11 +549,11 @@ var WebRTCPhone = (function () {
 	function runNetworkTest() {
 		if (state.networkTestRunning || !state.config) return;
 		state.networkTestRunning = true;
-		state.networkTestResults = { wss: null, stun: null, turn: null, latency: null, jitterTest: null, sipPing: null, demoCall: null, refPings: null, diagnosis: null, pathTrace: null };
+		state.networkTestResults = { wss: null, stun: null, turn: null, turnAudio: null, latency: null, jitterTest: null, sipPing: null, demoCall: null, refPings: null, diagnosis: null, pathTrace: null };
 		renderPhone();
 
 		var results = state.networkTestResults;
-		var testsRemaining = 7; // WSS, STUN+latency, TURN, jitter, SIP ping, reference pings, path trace (demo call runs separately)
+		var testsRemaining = 8; // WSS, STUN+latency, TURN, TURN audio stability, jitter, SIP ping, reference pings, path trace
 		function checkDone() {
 			testsRemaining--;
 			if (testsRemaining <= 0) {
@@ -696,7 +696,150 @@ var WebRTCPhone = (function () {
 			}
 		})();
 
-		// Test 3: Jitter estimation via timing consistency
+		// Test 3: TURN audio stability — loopback two PeerConnections via TURN relay
+		(function testTURNAudio() {
+			if (!state.config || !state.config.turn_server) {
+				results.turnAudio = { ok: false, error: 'TURN not configured' };
+				checkDone();
+				return;
+			}
+			var turnConfig = { urls: state.config.turn_server };
+			if (state.config.turn_username) turnConfig.username = state.config.turn_username;
+			if (state.config.turn_password) turnConfig.credential = state.config.turn_password;
+			var pcConfig = { iceServers: [turnConfig], iceTransportPolicy: 'relay' };
+
+			var pc1 = null, pc2 = null, statsInterval = null;
+			var testDuration = 5000; // 5 seconds of audio
+			var timeout = setTimeout(function () { finish({ ok: false, error: 'Timeout (12s)' }); }, 12000);
+
+			function finish(result) {
+				clearTimeout(timeout);
+				if (statsInterval) clearInterval(statsInterval);
+				try { if (pc1) pc1.close(); } catch (e) {}
+				try { if (pc2) pc2.close(); } catch (e) {}
+				results.turnAudio = result;
+				checkDone();
+			}
+
+			try {
+				pc1 = new RTCPeerConnection(pcConfig);
+				pc2 = new RTCPeerConnection(pcConfig);
+
+				// Exchange ICE candidates
+				pc1.onicecandidate = function (e) { if (e.candidate) { try { pc2.addIceCandidate(e.candidate); } catch (ex) {} } };
+				pc2.onicecandidate = function (e) { if (e.candidate) { try { pc1.addIceCandidate(e.candidate); } catch (ex) {} } };
+
+				// When pc2 receives audio, start measuring stats
+				pc2.ontrack = function (event) {
+					var statsSamples = [];
+					var prevPackets = 0, prevLost = 0, prevBytes = 0, prevTime = 0;
+
+					statsInterval = setInterval(function () {
+						pc2.getStats().then(function (stats) {
+							stats.forEach(function (r) {
+								if (r.type === 'inbound-rtp' && r.kind === 'audio') {
+									var sample = {
+										jitter: (r.jitter || 0) * 1000,
+										packets: r.packetsReceived || 0,
+										lost: r.packetsLost || 0,
+										bytes: r.bytesReceived || 0,
+										ts: r.timestamp || Date.now()
+									};
+									if (prevTime > 0) {
+										var dt = (sample.ts - prevTime) / 1000;
+										if (dt > 0) {
+											sample.packetsDelta = sample.packets - prevPackets;
+											sample.lostDelta = sample.lost - prevLost;
+											sample.bitrate = Math.round(((sample.bytes - prevBytes) * 8) / dt / 1000);
+										}
+									}
+									prevPackets = sample.packets;
+									prevLost = sample.lost;
+									prevBytes = sample.bytes;
+									prevTime = sample.ts;
+									statsSamples.push(sample);
+								}
+							});
+						}).catch(function () {});
+					}, 500);
+
+					// After test duration, analyze
+					setTimeout(function () {
+						clearInterval(statsInterval);
+						if (statsSamples.length < 2) {
+							finish({ ok: false, error: 'No audio stats collected' });
+							return;
+						}
+						// Analyze
+						var lastSample = statsSamples[statsSamples.length - 1];
+						var totalPackets = lastSample.packets;
+						var totalLost = lastSample.lost;
+						var lossPercent = totalPackets > 0 ? Math.round((totalLost / (totalPackets + totalLost)) * 1000) / 10 : 0;
+						var jitters = statsSamples.map(function (s) { return s.jitter; }).filter(function (j) { return j >= 0; });
+						var avgJitter = 0;
+						if (jitters.length > 0) {
+							var jSum = 0;
+							for (var j = 0; j < jitters.length; j++) jSum += jitters[j];
+							avgJitter = Math.round(jSum / jitters.length);
+						}
+						var bitrates = statsSamples.filter(function (s) { return s.bitrate > 0; }).map(function (s) { return s.bitrate; });
+						var avgBitrate = 0;
+						if (bitrates.length > 0) {
+							var bSum = 0;
+							for (var b = 0; b < bitrates.length; b++) bSum += bitrates[b];
+							avgBitrate = Math.round(bSum / bitrates.length);
+						}
+
+						var ok = lossPercent < 5 && avgJitter < 50;
+						var rating = lossPercent < 1 && avgJitter < 20 ? 'excellent' : (lossPercent < 3 && avgJitter < 30 ? 'good' : (ok ? 'fair' : 'poor'));
+						var issues = [];
+						if (lossPercent > 5) issues.push('High packet loss: ' + lossPercent + '%');
+						else if (lossPercent > 1) issues.push('Packet loss: ' + lossPercent + '%');
+						if (avgJitter > 50) issues.push('High jitter: ' + avgJitter + 'ms');
+						else if (avgJitter > 20) issues.push('Jitter: ' + avgJitter + 'ms');
+
+						finish({
+							ok: ok,
+							rating: rating,
+							packetLoss: lossPercent,
+							jitter: avgJitter,
+							bitrate: avgBitrate,
+							packetsReceived: totalPackets,
+							packetsLost: totalLost,
+							samples: statsSamples.length,
+							issues: issues
+						});
+					}, testDuration);
+				};
+
+				// Get microphone and add track to pc1
+				navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+					stream.getTracks().forEach(function (track) { pc1.addTrack(track, stream); });
+
+					// Create offer/answer
+					pc1.createOffer().then(function (offer) {
+						return pc1.setLocalDescription(offer);
+					}).then(function () {
+						return pc2.setRemoteDescription(pc1.localDescription);
+					}).then(function () {
+						return pc2.createAnswer();
+					}).then(function (answer) {
+						return pc2.setLocalDescription(answer);
+					}).then(function () {
+						return pc1.setRemoteDescription(pc2.localDescription);
+					}).catch(function (e) {
+						finish({ ok: false, error: 'SDP negotiation failed: ' + e.message });
+					});
+				}).catch(function (e) {
+					finish({ ok: false, error: 'Microphone access denied' });
+				});
+
+			} catch (e) {
+				finish({ ok: false, error: e.message });
+			}
+		})();
+
+		// Test 4: Jitter estimation via timing consistency
 		(function testJitter() {
 			var samples = [];
 			var count = 0;
@@ -851,7 +994,7 @@ var WebRTCPhone = (function () {
 			}
 		})();
 
-		// Test 6: Path trace - multi-ping latency profile + ICE candidate path analysis
+		// Test 8: Path trace - multi-ping latency profile + ICE candidate path analysis
 		(function testPathTrace() {
 			if (!state.config) {
 				results.pathTrace = { ok: false, error: 'No config' };
@@ -860,46 +1003,48 @@ var WebRTCPhone = (function () {
 			}
 			var domain = state.config.domain;
 			var wssPort = state.config.wss_port || 7443;
-			var pingCount = 10;
-			var pingSamples = [];
-			var completed = 0;
+			var totalPings = 12; // 2 warmup + 10 real
+			var warmupPings = 2;
+			var allSamples = [];
 			var iceInfo = { candidates: [], localIP: '', publicIP: '', candidateTypes: [] };
 
-			// Part A: Rapid sequential WSS pings to build latency profile
+			// Part A: Rapid sequential XHR pings (first 2 are warmup for TLS, rest are real)
 			function doPing(index) {
-				if (index >= pingCount) {
+				if (index >= totalPings) {
 					finishPathTrace();
 					return;
 				}
-				var ws = null;
-				var start = Date.now();
+				var start = performance.now();
+				var done = false;
 				var timeout = setTimeout(function () {
-					pingSamples.push({ hop: index + 1, time: -1, error: 'timeout' });
-					try { ws.close(); } catch (e) {}
-					completed++;
-					doPing(index + 1);
+					if (!done) { done = true; allSamples.push({ hop: index + 1, time: -1, error: 'timeout' }); doPing(index + 1); }
 				}, 3000);
-				try {
-					ws = new WebSocket('wss://' + domain + ':' + wssPort);
-					ws.onopen = function () {
-						clearTimeout(timeout);
-						var elapsed = Date.now() - start;
-						pingSamples.push({ hop: index + 1, time: elapsed });
-						ws.close();
-						completed++;
-						// Small delay between pings for realistic spacing
-						setTimeout(function () { doPing(index + 1); }, 50);
-					};
-					ws.onerror = function () {
-						clearTimeout(timeout);
-						pingSamples.push({ hop: index + 1, time: -1, error: 'refused' });
-						completed++;
-						doPing(index + 1);
-					};
-				} catch (e) {
+				var xhr = new XMLHttpRequest();
+				xhr.open('HEAD', 'https://' + domain + '/favicon.ico?_pt=' + Date.now() + '_' + index, true);
+				xhr.timeout = 2500;
+				xhr.onload = function () {
+					if (done) return; done = true;
 					clearTimeout(timeout);
-					pingSamples.push({ hop: index + 1, time: -1, error: e.message });
-					completed++;
+					allSamples.push({ hop: index + 1, time: Math.round(performance.now() - start) });
+					setTimeout(function () { doPing(index + 1); }, 50);
+				};
+				xhr.onerror = function () {
+					if (done) return; done = true;
+					clearTimeout(timeout);
+					var elapsed = Math.round(performance.now() - start);
+					allSamples.push({ hop: index + 1, time: elapsed < 2500 ? elapsed : -1 });
+					setTimeout(function () { doPing(index + 1); }, 50);
+				};
+				xhr.ontimeout = function () {
+					if (done) return; done = true;
+					clearTimeout(timeout);
+					allSamples.push({ hop: index + 1, time: -1, error: 'timeout' });
+					doPing(index + 1);
+				};
+				try { xhr.send(); } catch (e) {
+					if (done) return; done = true;
+					clearTimeout(timeout);
+					allSamples.push({ hop: index + 1, time: -1, error: e.message });
 					doPing(index + 1);
 				}
 			}
@@ -937,7 +1082,12 @@ var WebRTCPhone = (function () {
 			doPing(0);
 
 			function finishPathTrace() {
-				// Analyze ping samples
+				// Discard warmup pings, keep real ones
+				var pingSamples = allSamples.slice(warmupPings);
+				var pingCount = pingSamples.length;
+				// Re-number hops
+				for (var h = 0; h < pingSamples.length; h++) pingSamples[h].hop = h + 1;
+
 				var validPings = [];
 				var failedCount = 0;
 				for (var i = 0; i < pingSamples.length; i++) {
@@ -1156,6 +1306,22 @@ var WebRTCPhone = (function () {
 			} else if (r.turn.error !== 'Not configured') {
 				diagnosis.issues.push('TURN server unreachable: ' + (r.turn.error || 'Connection failed'));
 				diagnosis.suggestions.push('Check TURN server configuration and firewall rules for port 3478/UDP and 5349/TCP');
+			}
+		}
+
+		// Case 5c: TURN audio stability analysis
+		if (r.turnAudio && !r.turnAudio.error) {
+			if (r.turnAudio.packetLoss > 5) {
+				diagnosis.issues.push('TURN relay has high packet loss (' + r.turnAudio.packetLoss + '%)');
+				diagnosis.suggestions.push('TURN server may be overloaded or network path to TURN has issues');
+			}
+			if (r.turnAudio.jitter > 30) {
+				diagnosis.issues.push('TURN relay has high jitter (' + r.turnAudio.jitter + 'ms)');
+				diagnosis.suggestions.push('Audio quality through TURN relay may be degraded');
+			}
+			if (r.turnAudio.rating === 'poor') {
+				diagnosis.source = diagnosis.source === 'unknown' ? 'server' : diagnosis.source;
+				diagnosis.confidence = 'medium';
 			}
 		}
 
@@ -1742,6 +1908,27 @@ var WebRTCPhone = (function () {
 					html += renderNetRow('webrtc-net-warn', '&#9888;', 'TURN Server', 'Not configured');
 				} else {
 					html += renderNetRow(r.turn.ok ? 'webrtc-net-pass' : 'webrtc-net-fail', r.turn.ok ? '&#10003;' : '&#10007;', 'TURN Server', r.turn.ok ? r.turn.time + 'ms' + (r.turn.relayIP ? ' (relay: ' + escapeHtml(r.turn.relayIP) + ')' : '') : escapeHtml(r.turn.error));
+				}
+			}
+			// TURN Audio Stability
+			if (r.turnAudio !== null) {
+				if (r.turnAudio.error === 'TURN not configured') {
+					html += renderNetRow('webrtc-net-warn', '&#9888;', 'TURN Audio', 'Not configured');
+				} else if (r.turnAudio.error) {
+					html += renderNetRow('webrtc-net-fail', '&#10007;', 'TURN Audio', escapeHtml(r.turnAudio.error));
+				} else {
+					var taRating = r.turnAudio.rating || 'unknown';
+					var taClass = (taRating === 'excellent' || taRating === 'good') ? 'webrtc-net-pass' : (taRating === 'fair' ? 'webrtc-net-warn' : 'webrtc-net-fail');
+					var taIcon = (taRating === 'excellent' || taRating === 'good') ? '&#10003;' : (taRating === 'fair' ? '&#9888;' : '&#10007;');
+					html += renderNetRow(taClass, taIcon, 'TURN Audio', taRating.charAt(0).toUpperCase() + taRating.slice(1) + ' (loss:' + r.turnAudio.packetLoss + '% jitter:' + r.turnAudio.jitter + 'ms)');
+					if (r.turnAudio.bitrate > 0) {
+						html += '<div class="webrtc-net-demo-details"><span>Bitrate:' + r.turnAudio.bitrate + 'kbps</span><span>Packets:' + r.turnAudio.packetsReceived + '</span><span>Lost:' + r.turnAudio.packetsLost + '</span></div>';
+					}
+					if (r.turnAudio.issues && r.turnAudio.issues.length > 0) {
+						html += '<div class="webrtc-net-demo-issues">';
+						for (var tai = 0; tai < r.turnAudio.issues.length; tai++) html += '<span class="webrtc-quality-issue">' + escapeHtml(r.turnAudio.issues[tai]) + '</span>';
+						html += '</div>';
+					}
 				}
 			}
 			// Latency
