@@ -96,6 +96,7 @@ var WebRTCPhone = (function () {
 		ringtone: 'Ringtone',
 		ringVolume: 'Ring Volume',
 		speakerVolume: 'Speaker Volume',
+		micVolume: 'Mic Volume',
 		micDevice: 'Microphone',
 		speakerDevice: 'Speaker',
 		ringDevice: 'Ring Device',
@@ -158,10 +159,12 @@ var WebRTCPhone = (function () {
 			ringtoneIndex: 0,
 			ringVolume: 0.7,
 			speakerVolume: 1.0,
+			micVolume: 1.0,
 			ringDeviceId: 'default',
 			speakerDeviceId: 'default',
 			micDeviceId: 'default'
 		},
+		micGainNode: null,
 		showSettings: false,
 		audioDevices: { inputs: [], outputs: [] },
 		previewingRingtone: false,
@@ -252,6 +255,8 @@ var WebRTCPhone = (function () {
 				if (!isNaN(rv)) state.audioSettings.ringVolume = Math.max(0, Math.min(1, rv));
 				var sv = parseFloat(p.speakerVolume);
 				if (!isNaN(sv)) state.audioSettings.speakerVolume = Math.max(0, Math.min(1, sv));
+				var mv = parseFloat(p.micVolume);
+				if (!isNaN(mv)) state.audioSettings.micVolume = Math.max(0, Math.min(1, mv));
 				if (p.ringDeviceId) state.audioSettings.ringDeviceId = p.ringDeviceId;
 				if (p.speakerDeviceId) state.audioSettings.speakerDeviceId = p.speakerDeviceId;
 				if (p.micDeviceId) state.audioSettings.micDeviceId = p.micDeviceId;
@@ -1827,16 +1832,33 @@ var WebRTCPhone = (function () {
 			if (!AudioCtx) return;
 			state.audioLevelCtx = new AudioCtx();
 
-			// Mic (local) analyser
+			// Mic (local) analyser + gain control
 			if (state.currentSession && state.currentSession.connection) {
 				var senders = state.currentSession.connection.getSenders();
 				for (var i = 0; i < senders.length; i++) {
 					if (senders[i].track && senders[i].track.kind === 'audio') {
 						var micStream = new MediaStream([senders[i].track]);
 						var micSource = state.audioLevelCtx.createMediaStreamSource(micStream);
+
+						// Create gain node for mic volume control
+						state.micGainNode = state.audioLevelCtx.createGain();
+						state.micGainNode.gain.value = state.audioSettings.micVolume;
+
+						// Create destination to get a gained output stream
+						var gainDest = state.audioLevelCtx.createMediaStreamDestination();
+
+						// Chain: micSource → gainNode → destination (for PeerConnection)
+						micSource.connect(state.micGainNode);
+						state.micGainNode.connect(gainDest);
+
+						// Replace the sender's track with the gained track
+						var gainedTrack = gainDest.stream.getAudioTracks()[0];
+						senders[i].replaceTrack(gainedTrack).catch(function () {});
+
+						// Analyser taps the gained output
 						state.micAnalyser = state.audioLevelCtx.createAnalyser();
 						state.micAnalyser.fftSize = 256;
-						micSource.connect(state.micAnalyser);
+						state.micGainNode.connect(state.micAnalyser);
 						break;
 					}
 				}
@@ -1864,6 +1886,7 @@ var WebRTCPhone = (function () {
 		}
 		state.micAnalyser = null;
 		state.spkAnalyser = null;
+		state.micGainNode = null;
 		state.micLevel = 0;
 		state.spkLevel = 0;
 	}
@@ -2214,6 +2237,15 @@ var WebRTCPhone = (function () {
 
 	function setMicDevice(deviceId) {
 		state.audioSettings.micDeviceId = deviceId;
+		saveAudioSettings();
+	}
+
+	function setMicVolume(vol) {
+		vol = parseFloat(vol);
+		if (isNaN(vol)) return;
+		vol = Math.max(0, Math.min(1, vol));
+		state.audioSettings.micVolume = vol;
+		if (state.micGainNode) state.micGainNode.gain.value = vol;
 		saveAudioSettings();
 	}
 
@@ -3161,7 +3193,12 @@ var WebRTCPhone = (function () {
 		}
 		html += '</select>';
 		if (devices.inputs.length === 0) html += '<div class="webrtc-settings-note">Grant microphone access to list devices.</div>';
-		html += '</div>';
+		var micVolPct = Math.round(as.micVolume * 100);
+		html += '<div class="webrtc-volume-row">';
+		html += '<span class="webrtc-volume-label">' + t('micVolume') + '</span>';
+		html += '<input type="range" class="webrtc-volume-slider" min="0" max="1" step="0.05" value="' + as.micVolume + '" oninput="document.getElementById(\'webrtc-mic-vol-pct\').textContent=Math.round(this.value*100)+\'%\';WebRTCPhone.setMicVolume(this.value)">';
+		html += '<span id="webrtc-mic-vol-pct" class="webrtc-volume-pct">' + micVolPct + '%</span>';
+		html += '</div></div>';
 
 		html += '<button class="webrtc-btn webrtc-btn-primary webrtc-settings-done" onclick="WebRTCPhone.closeSettings()">Done</button>';
 		html += '</div>';
@@ -3752,7 +3789,7 @@ var WebRTCPhone = (function () {
 		toggleMute: toggleMute, toggleHold: toggleHold, dtmf: sendDTMF, transfer: transfer,
 		openSettings: openSettings, closeSettings: closeSettings,
 		setRingtone: setRingtone, setRingVolume: setRingVolume, setSpeakerVolume: setSpeakerVolume,
-		setRingDevice: setRingDevice, setSpeakerDevice: setSpeakerDevice, setMicDevice: setMicDevice,
+		setRingDevice: setRingDevice, setSpeakerDevice: setSpeakerDevice, setMicDevice: setMicDevice, setMicVolume: setMicVolume,
 		previewRingtone: previewRingtone,
 		openHistory: openHistory, closeHistory: closeHistory,
 		clearHistory: clearHistory, dialFromHistory: dialFromHistory,
