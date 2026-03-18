@@ -2298,8 +2298,17 @@ var WebRTCPhone = (function () {
 
 	function setSpeakerDevice(deviceId) {
 		state.audioSettings.speakerDeviceId = deviceId;
+		var dev = deviceId || 'default';
 		if (state.remoteAudio && typeof state.remoteAudio.setSinkId === 'function') {
-			state.remoteAudio.setSinkId(deviceId || 'default').catch(function () {});
+			state.remoteAudio.setSinkId(dev).then(function () {
+				console.log('WebRTC Phone: Speaker output switched to', dev);
+			}).catch(function (e) {
+				console.warn('WebRTC Phone: setSinkId failed for speaker', e);
+			});
+		}
+		// Also switch ringtone output to match
+		if (state.ringtoneAudio && typeof state.ringtoneAudio.setSinkId === 'function') {
+			state.ringtoneAudio.setSinkId(dev).catch(function () {});
 		}
 		saveAudioSettings();
 	}
@@ -2307,6 +2316,30 @@ var WebRTCPhone = (function () {
 	function setMicDevice(deviceId) {
 		state.audioSettings.micDeviceId = deviceId;
 		saveAudioSettings();
+		// If in a call, switch the active mic track
+		if (state.currentSession && state.currentSession.connection) {
+			var constraints = { audio: { deviceId: { exact: deviceId || 'default' } } };
+			navigator.mediaDevices.getUserMedia(constraints).then(function (newStream) {
+				var newTrack = newStream.getAudioTracks()[0];
+				var senders = state.currentSession.connection.getSenders();
+				for (var i = 0; i < senders.length; i++) {
+					if (senders[i].track && senders[i].track.kind === 'audio') {
+						// Stop old track
+						senders[i].track.stop();
+						senders[i].replaceTrack(newTrack).then(function () {
+							console.log('WebRTC Phone: Mic switched to', deviceId);
+							// Rebuild audio processing chain with new track
+							startAudioLevels();
+						}).catch(function (e) {
+							console.warn('WebRTC Phone: Mic switch replaceTrack failed', e);
+						});
+						break;
+					}
+				}
+			}).catch(function (e) {
+				console.warn('WebRTC Phone: getUserMedia failed for mic switch', e);
+			});
+		}
 	}
 
 	function setMicVolume(vol) {
