@@ -2791,13 +2791,14 @@ var WebRTCPhone = (function () {
 	}
 
 	function setupSessionListeners(session) {
-		// Prefer PCMA codec and add ice-lite for ICE compatibility
+		// SDP modifications for ICE compatibility and codec preference
 		session.on('sdp', function (ev) {
-			if (ev.type === 'offer' || ev.type === 'answer') {
+			// For incoming calls: prefer PCMA in our answer only (not the remote offer)
+			if (ev.type === 'answer') {
 				ev.sdp = preferCodec(ev.sdp, 'PCMA');
-			}
-			if (ev.type === 'answer' && ev.sdp.indexOf('a=ice-lite') === -1) {
-				ev.sdp = ev.sdp.replace(/(m=audio)/, 'a=ice-lite\r\n$1');
+				if (ev.sdp.indexOf('a=ice-lite') === -1) {
+					ev.sdp = ev.sdp.replace(/(m=audio)/, 'a=ice-lite\r\n$1');
+				}
 			}
 		});
 		session.on('accepted', function () {
