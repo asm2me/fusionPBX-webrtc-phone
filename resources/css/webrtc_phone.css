@@ -548,6 +548,27 @@
 	text-align: right;
 }
 
+/* --- AGC Toggle --- */
+.webrtc-agc-toggle {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	cursor: pointer;
+	font-size: 11px;
+	color: #555;
+	margin-top: 2px;
+}
+.webrtc-agc-toggle input[type="checkbox"] {
+	width: 14px;
+	height: 14px;
+	accent-color: #1a73e8;
+	cursor: pointer;
+	margin: 0;
+}
+.webrtc-agc-toggle span {
+	user-select: none;
+}
+
 /* --- Ringtone Row --- */
 .webrtc-ringtone-row {
 	display: flex;

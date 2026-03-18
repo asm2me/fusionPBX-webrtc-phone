@@ -97,6 +97,8 @@ var WebRTCPhone = (function () {
 		ringVolume: 'Ring Volume',
 		speakerVolume: 'Speaker Volume',
 		micVolume: 'Mic Volume',
+		micAGC: 'Mic AGC (Auto Gain)',
+		spkAGC: 'Speaker AGC (Normalize)',
 		micDevice: 'Microphone',
 		speakerDevice: 'Speaker',
 		ringDevice: 'Ring Device',
@@ -160,11 +162,16 @@ var WebRTCPhone = (function () {
 			ringVolume: 0.7,
 			speakerVolume: 1.0,
 			micVolume: 1.0,
+			micAGC: false,
+			spkAGC: false,
 			ringDeviceId: 'default',
 			speakerDeviceId: 'default',
 			micDeviceId: 'default'
 		},
 		micGainNode: null,
+		spkGainNode: null,
+		micCompressor: null,
+		spkCompressor: null,
 		showSettings: false,
 		audioDevices: { inputs: [], outputs: [] },
 		previewingRingtone: false,
@@ -257,6 +264,8 @@ var WebRTCPhone = (function () {
 				if (!isNaN(sv)) state.audioSettings.speakerVolume = Math.max(0, Math.min(1, sv));
 				var mv = parseFloat(p.micVolume);
 				if (!isNaN(mv)) state.audioSettings.micVolume = Math.max(0, Math.min(1, mv));
+				if (typeof p.micAGC === 'boolean') state.audioSettings.micAGC = p.micAGC;
+				if (typeof p.spkAGC === 'boolean') state.audioSettings.spkAGC = p.spkAGC;
 				if (p.ringDeviceId) state.audioSettings.ringDeviceId = p.ringDeviceId;
 				if (p.speakerDeviceId) state.audioSettings.speakerDeviceId = p.speakerDeviceId;
 				if (p.micDeviceId) state.audioSettings.micDeviceId = p.micDeviceId;
@@ -1832,7 +1841,7 @@ var WebRTCPhone = (function () {
 			if (!AudioCtx) return;
 			state.audioLevelCtx = new AudioCtx();
 
-			// Mic (local) analyser + gain control
+			// Mic (local) chain: source → [AGC] → gain → destination + analyser
 			if (state.currentSession && state.currentSession.connection) {
 				var senders = state.currentSession.connection.getSenders();
 				for (var i = 0; i < senders.length; i++) {
@@ -1844,18 +1853,24 @@ var WebRTCPhone = (function () {
 						state.micGainNode = state.audioLevelCtx.createGain();
 						state.micGainNode.gain.value = state.audioSettings.micVolume;
 
-						// Create destination to get a gained output stream
-						var gainDest = state.audioLevelCtx.createMediaStreamDestination();
+						// Create destination to get a processed output stream
+						var micDest = state.audioLevelCtx.createMediaStreamDestination();
 
-						// Chain: micSource → gainNode → destination (for PeerConnection)
-						micSource.connect(state.micGainNode);
-						state.micGainNode.connect(gainDest);
+						// Build chain: source → [compressor] → gain → destination
+						var micLastNode = micSource;
+						if (state.audioSettings.micAGC) {
+							state.micCompressor = createAGCCompressor(state.audioLevelCtx);
+							micLastNode.connect(state.micCompressor);
+							micLastNode = state.micCompressor;
+						}
+						micLastNode.connect(state.micGainNode);
+						state.micGainNode.connect(micDest);
 
-						// Replace the sender's track with the gained track
-						var gainedTrack = gainDest.stream.getAudioTracks()[0];
-						senders[i].replaceTrack(gainedTrack).catch(function () {});
+						// Replace the sender's track with the processed track
+						var processedTrack = micDest.stream.getAudioTracks()[0];
+						senders[i].replaceTrack(processedTrack).catch(function () {});
 
-						// Analyser taps the gained output
+						// Analyser taps the output
 						state.micAnalyser = state.audioLevelCtx.createAnalyser();
 						state.micAnalyser.fftSize = 256;
 						state.micGainNode.connect(state.micAnalyser);
@@ -1864,12 +1879,36 @@ var WebRTCPhone = (function () {
 				}
 			}
 
-			// Speaker (remote) analyser
+			// Speaker (remote) chain: source → [AGC] → gain → destination + analyser
 			if (state.remoteAudio && state.remoteAudio.srcObject) {
 				var spkSource = state.audioLevelCtx.createMediaStreamSource(state.remoteAudio.srcObject);
-				state.spkAnalyser = state.audioLevelCtx.createAnalyser();
-				state.spkAnalyser.fftSize = 256;
-				spkSource.connect(state.spkAnalyser);
+
+				if (state.audioSettings.spkAGC) {
+					state.spkCompressor = createAGCCompressor(state.audioLevelCtx);
+					state.spkGainNode = state.audioLevelCtx.createGain();
+					state.spkGainNode.gain.value = 1.0;
+
+					var spkDest = state.audioLevelCtx.createMediaStreamDestination();
+
+					// Chain: source → compressor → gain → destination
+					spkSource.connect(state.spkCompressor);
+					state.spkCompressor.connect(state.spkGainNode);
+					state.spkGainNode.connect(spkDest);
+
+					// Replace remoteAudio source with AGC-processed stream
+					state.remoteAudio.srcObject = spkDest.stream;
+					state.remoteAudio.volume = state.audioSettings.speakerVolume;
+					state.remoteAudio.play().catch(function () {});
+
+					// Analyser on processed output
+					state.spkAnalyser = state.audioLevelCtx.createAnalyser();
+					state.spkAnalyser.fftSize = 256;
+					state.spkGainNode.connect(state.spkAnalyser);
+				} else {
+					state.spkAnalyser = state.audioLevelCtx.createAnalyser();
+					state.spkAnalyser.fftSize = 256;
+					spkSource.connect(state.spkAnalyser);
+				}
 			}
 
 			state.audioLevelInterval = setInterval(updateAudioLevels, 100);
@@ -1887,6 +1926,9 @@ var WebRTCPhone = (function () {
 		state.micAnalyser = null;
 		state.spkAnalyser = null;
 		state.micGainNode = null;
+		state.spkGainNode = null;
+		state.micCompressor = null;
+		state.spkCompressor = null;
 		state.micLevel = 0;
 		state.spkLevel = 0;
 	}
@@ -2247,6 +2289,35 @@ var WebRTCPhone = (function () {
 		state.audioSettings.micVolume = vol;
 		if (state.micGainNode) state.micGainNode.gain.value = vol;
 		saveAudioSettings();
+	}
+
+	function toggleMicAGC(enabled) {
+		state.audioSettings.micAGC = !!enabled;
+		saveAudioSettings();
+		// Re-apply audio chain if in a call
+		if (state.currentSession && state.audioLevelCtx) {
+			startAudioLevels();
+		}
+	}
+
+	function toggleSpkAGC(enabled) {
+		state.audioSettings.spkAGC = !!enabled;
+		saveAudioSettings();
+		// Re-apply audio chain if in a call
+		if (state.currentSession && state.audioLevelCtx) {
+			startAudioLevels();
+		}
+	}
+
+	function createAGCCompressor(ctx) {
+		var comp = ctx.createDynamicsCompressor();
+		// AGC-style settings: low threshold, high ratio = normalizes volume
+		comp.threshold.value = -35;  // Start compressing at -35dB
+		comp.knee.value = 20;        // Soft knee for natural sound
+		comp.ratio.value = 12;       // High ratio for strong normalization
+		comp.attack.value = 0.003;   // Fast attack (3ms) to catch peaks
+		comp.release.value = 0.25;   // 250ms release for smooth recovery
+		return comp;
 	}
 
 	function previewRingtone() {
@@ -3181,7 +3252,9 @@ var WebRTCPhone = (function () {
 		html += '<span class="webrtc-volume-label">' + t('speakerVolume') + '</span>';
 		html += '<input type="range" class="webrtc-volume-slider" min="0" max="1" step="0.05" value="' + as.speakerVolume + '" oninput="document.getElementById(\'webrtc-spk-vol-pct\').textContent=Math.round(this.value*100)+\'%\';WebRTCPhone.setSpeakerVolume(this.value)">';
 		html += '<span id="webrtc-spk-vol-pct" class="webrtc-volume-pct">' + spkVolPct + '%</span>';
-		html += '</div></div>';
+		html += '</div>';
+		html += '<label class="webrtc-agc-toggle"><input type="checkbox"' + (as.spkAGC ? ' checked' : '') + ' onchange="WebRTCPhone.toggleSpkAGC(this.checked)"><span>' + t('spkAGC') + '</span></label>';
+		html += '</div>';
 
 		html += '<div class="webrtc-settings-section">';
 		html += '<div class="webrtc-settings-title">&#127908; ' + t('microphone') + '</div>';
@@ -3198,7 +3271,9 @@ var WebRTCPhone = (function () {
 		html += '<span class="webrtc-volume-label">' + t('micVolume') + '</span>';
 		html += '<input type="range" class="webrtc-volume-slider" min="0" max="1" step="0.05" value="' + as.micVolume + '" oninput="document.getElementById(\'webrtc-mic-vol-pct\').textContent=Math.round(this.value*100)+\'%\';WebRTCPhone.setMicVolume(this.value)">';
 		html += '<span id="webrtc-mic-vol-pct" class="webrtc-volume-pct">' + micVolPct + '%</span>';
-		html += '</div></div>';
+		html += '</div>';
+		html += '<label class="webrtc-agc-toggle"><input type="checkbox"' + (as.micAGC ? ' checked' : '') + ' onchange="WebRTCPhone.toggleMicAGC(this.checked)"><span>' + t('micAGC') + '</span></label>';
+		html += '</div>';
 
 		html += '<button class="webrtc-btn webrtc-btn-primary webrtc-settings-done" onclick="WebRTCPhone.closeSettings()">Done</button>';
 		html += '</div>';
@@ -3789,7 +3864,7 @@ var WebRTCPhone = (function () {
 		toggleMute: toggleMute, toggleHold: toggleHold, dtmf: sendDTMF, transfer: transfer,
 		openSettings: openSettings, closeSettings: closeSettings,
 		setRingtone: setRingtone, setRingVolume: setRingVolume, setSpeakerVolume: setSpeakerVolume,
-		setRingDevice: setRingDevice, setSpeakerDevice: setSpeakerDevice, setMicDevice: setMicDevice, setMicVolume: setMicVolume,
+		setRingDevice: setRingDevice, setSpeakerDevice: setSpeakerDevice, setMicDevice: setMicDevice, setMicVolume: setMicVolume, toggleMicAGC: toggleMicAGC, toggleSpkAGC: toggleSpkAGC,
 		previewRingtone: previewRingtone,
 		openHistory: openHistory, closeHistory: closeHistory,
 		clearHistory: clearHistory, dialFromHistory: dialFromHistory,
