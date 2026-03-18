@@ -575,7 +575,8 @@ var WebRTCPhone = (function () {
 				checkDone();
 			}, 5000);
 			try {
-				ws = new WebSocket('wss://' + state.config.domain + ':' + state.config.wss_port);
+				var wssTestUrl = (state.config.wss_port == '443') ? 'wss://' + state.config.domain + '/wss' : 'wss://' + state.config.domain + ':' + state.config.wss_port;
+				ws = new WebSocket(wssTestUrl);
 				ws.onopen = function () {
 					clearTimeout(timeout);
 					results.wss = { ok: true, time: Date.now() - start };
@@ -1883,7 +1884,8 @@ var WebRTCPhone = (function () {
 		var html = '<div class="webrtc-network-test">';
 		html += '<div class="webrtc-network-test-title">' + t('networkQualityTest') + '</div>';
 		if (state.config && state.config.domain) {
-			html += '<div class="webrtc-net-domain">Server: ' + escapeHtml(state.config.domain) + ':' + escapeHtml(state.config.wss_port || '7443') + '</div>';
+			var displayPort = state.config.wss_port || '7443';
+			html += '<div class="webrtc-net-domain">Server: ' + escapeHtml(state.config.domain) + (displayPort == '443' ? '/wss' : ':' + escapeHtml(displayPort)) + '</div>';
 		}
 
 		if (state.networkTestRunning) {
@@ -2373,7 +2375,7 @@ var WebRTCPhone = (function () {
 		var domain = state.config.domain;
 		var wssPort = state.config.wss_port;
 
-		var wssUrl = 'wss://' + domain + ':' + wssPort;
+		var wssUrl = (wssPort == '443') ? 'wss://' + domain + '/wss' : 'wss://' + domain + ':' + wssPort;
 		var sipUri = 'sip:' + ext.extension + '@' + domain;
 
 		JsSIP.debug.enable('JsSIP:*');

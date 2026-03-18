@@ -44,7 +44,7 @@ unset($_webrtc_debug, $_webrtc_script, $_webrtc_uri, $_webrtc_excluded_apps, $_w
 if (isset($_SESSION['user_uuid']) && permission_exists('webrtc_phone_view')) {
 	$webrtc_enabled = $_SESSION['webrtc_phone']['enabled']['boolean'] ?? 'true';
 	if ($webrtc_enabled === 'true') {
-		$v = '1.1.1';
+		$v = '1.1.2';
 		echo "\n<!-- WebRTC Phone Floating Overlay -->\n";
 		echo "<link rel='stylesheet' href='/app/web_phone2/resources/css/webrtc_phone.css?v=".$v."'>\n";
 		echo "<div id='webrtc-phone-floating-container'>\n";

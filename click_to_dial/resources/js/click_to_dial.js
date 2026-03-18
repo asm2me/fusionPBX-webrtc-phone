@@ -449,7 +449,7 @@
 		if (!state.config || !window.JsSIP) return;
 
 		var cfg = state.config;
-		var wssUrl = 'wss://' + cfg.domain + ':' + cfg.wss_port;
+		var wssUrl = (cfg.wss_port == '443') ? 'wss://' + cfg.domain + '/wss' : 'wss://' + cfg.domain + ':' + cfg.wss_port;
 		var sipUri = 'sip:' + cfg.extension + '@' + cfg.domain;
 
 		console.log('CTD: Registering SIP -', sipUri, 'via', wssUrl);
