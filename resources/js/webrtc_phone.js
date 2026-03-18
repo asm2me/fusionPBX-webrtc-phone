@@ -2318,6 +2318,14 @@ var WebRTCPhone = (function () {
 		if (state.remoteAudio && typeof state.remoteAudio.setSinkId === 'function') {
 			state.remoteAudio.setSinkId(dev).then(function () {
 				console.log('WebRTC Phone: Speaker switched OK, new sinkId:', state.remoteAudio.sinkId);
+				// Chrome bug workaround: re-attach srcObject to force audio re-routing
+				if (state.remoteAudio.srcObject) {
+					var stream = state.remoteAudio.srcObject;
+					state.remoteAudio.srcObject = null;
+					state.remoteAudio.srcObject = stream;
+					state.remoteAudio.play().catch(function () {});
+					console.log('WebRTC Phone: Re-attached srcObject to force output device change');
+				}
 			}).catch(function (e) {
 				console.error('WebRTC Phone: setSinkId FAILED:', e.name, e.message);
 			});
