@@ -764,9 +764,9 @@ var WebRTCPhone = (function () {
 		// Test 5: Reference latency pings to third-party servers (image load timing)
 		(function testReferencePings() {
 			var refServers = [
-				{ name: 'Cloudflare', url: 'https://1.1.1.1/cdn-cgi/trace' },
-				{ name: 'Google', url: 'https://www.google.com/generate_204' },
-				{ name: 'Microsoft', url: 'https://www.msftconnecttest.com/connecttest.txt' }
+				{ name: 'cloudflare.com', url: 'https://www.cloudflare.com/cdn-cgi/trace' },
+				{ name: 'google.com', url: 'https://www.google.com/generate_204' },
+				{ name: 'microsoft.com', url: 'https://www.microsoft.com/favicon.ico' }
 			];
 			var refResults = [];
 			var remaining = refServers.length;
