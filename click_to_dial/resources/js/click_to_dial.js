@@ -354,6 +354,26 @@
 	}
 
 	// --- Load JsSIP ---
+	// Reorder SDP to prefer a specific codec (e.g. 'PCMA' for G.711a)
+	function preferCodec(sdp, codecName) {
+		var lines = sdp.split('\r\n');
+		var mLineIdx = -1;
+		var codecPt = null;
+		for (var i = 0; i < lines.length; i++) {
+			if (lines[i].indexOf('m=audio') === 0) mLineIdx = i;
+			var match = lines[i].match(new RegExp('^a=rtpmap:(\\d+)\\s+' + codecName + '/', 'i'));
+			if (match) codecPt = match[1];
+		}
+		if (mLineIdx === -1 || !codecPt) return sdp;
+		var mParts = lines[mLineIdx].split(' ');
+		var header = mParts.slice(0, 3);
+		var pts = mParts.slice(3);
+		var filtered = pts.filter(function (p) { return p !== codecPt; });
+		filtered.unshift(codecPt);
+		lines[mLineIdx] = header.concat(filtered).join(' ');
+		return lines.join('\r\n');
+	}
+
 	function loadJsSIP(callback) {
 		if (window.JsSIP) { console.log('CTD: JsSIP already loaded'); state.jssipLoaded = true; callback(); return; }
 		console.log('CTD: Loading JsSIP from', CTD_SERVER + '/app/web_phone2/resources/js/jssip.min.js');
@@ -727,6 +747,10 @@
 			// binding requests. Adding ice-lite to the answer tells the browser
 			// that FS is a lite ICE agent, changing connectivity check behavior.
 			state.session.on('sdp', function (ev) {
+				// Prefer G.711a (PCMA) codec
+				if (ev.type === 'offer') {
+					ev.sdp = preferCodec(ev.sdp, 'PCMA');
+				}
 				if (ev.type === 'answer') {
 					// Add ice-lite if not present — makes browser the controlling agent
 					if (ev.sdp.indexOf('a=ice-lite') === -1) {

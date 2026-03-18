@@ -2544,6 +2544,29 @@ var WebRTCPhone = (function () {
 
 	// --- Call Handling ---
 
+	// Reorder SDP to prefer a specific codec (e.g. 'PCMA' for G.711a)
+	function preferCodec(sdp, codecName) {
+		var lines = sdp.split('\r\n');
+		var mLineIdx = -1;
+		var codecPt = null;
+		// Find the payload type for the desired codec
+		for (var i = 0; i < lines.length; i++) {
+			if (lines[i].indexOf('m=audio') === 0) mLineIdx = i;
+			var match = lines[i].match(new RegExp('^a=rtpmap:(\\d+)\\s+' + codecName + '/', 'i'));
+			if (match) codecPt = match[1];
+		}
+		if (mLineIdx === -1 || !codecPt) return sdp;
+		// Reorder payload types in m= line to put preferred codec first
+		var mParts = lines[mLineIdx].split(' ');
+		// m=audio <port> <proto> <pt1> <pt2> ...
+		var header = mParts.slice(0, 3);
+		var pts = mParts.slice(3);
+		var filtered = pts.filter(function (p) { return p !== codecPt; });
+		filtered.unshift(codecPt);
+		lines[mLineIdx] = header.concat(filtered).join(' ');
+		return lines.join('\r\n');
+	}
+
 	function getICEServers() {
 		var servers = [];
 		if (state.config && state.config.stun_server) {
@@ -2657,8 +2680,12 @@ var WebRTCPhone = (function () {
 		try {
 			state.currentSession = state.ua.call(targetURI, options);
 
-			// Add ice-lite to FS answer SDP for ICE compatibility
 			state.currentSession.on('sdp', function (ev) {
+				// Prefer G.711a (PCMA) codec by reordering SDP offer
+				if (ev.type === 'offer') {
+					ev.sdp = preferCodec(ev.sdp, 'PCMA');
+				}
+				// Add ice-lite to FS answer SDP for ICE compatibility
 				if (ev.type === 'answer' && ev.sdp.indexOf('a=ice-lite') === -1) {
 					ev.sdp = ev.sdp.replace(/(m=audio)/, 'a=ice-lite\r\n$1');
 				}
@@ -2764,9 +2791,12 @@ var WebRTCPhone = (function () {
 	}
 
 	function setupSessionListeners(session) {
-		// Add ice-lite to SDP for ICE compatibility with FreeSWITCH
+		// Prefer PCMA codec and add ice-lite for ICE compatibility
 		session.on('sdp', function (ev) {
-			if (ev.sdp.indexOf('a=ice-lite') === -1) {
+			if (ev.type === 'offer' || ev.type === 'answer') {
+				ev.sdp = preferCodec(ev.sdp, 'PCMA');
+			}
+			if (ev.type === 'answer' && ev.sdp.indexOf('a=ice-lite') === -1) {
 				ev.sdp = ev.sdp.replace(/(m=audio)/, 'a=ice-lite\r\n$1');
 			}
 		});
