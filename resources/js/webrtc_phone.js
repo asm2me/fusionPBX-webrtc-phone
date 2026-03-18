@@ -1253,21 +1253,22 @@ var WebRTCPhone = (function () {
 		}
 
 		// Case 3: Compare server latency vs reference
-		if (wssTime > 0 && refAvg > 0) {
-			var serverToRefRatio = wssTime / refAvg;
-			if (serverToRefRatio > 3 && wssTime > 300) {
-				// Server is much slower than reference
+		// Use STUN RTT (true network latency) instead of WSS time (includes TLS handshake overhead)
+		var serverRtt = (r.latency && r.latency.rtt > 0) ? r.latency.rtt : wssTime;
+		if (serverRtt > 0 && refAvg > 0) {
+			var serverToRefRatio = serverRtt / refAvg;
+			if (serverToRefRatio > 3 && serverRtt > 300) {
 				diagnosis.source = 'server';
 				diagnosis.confidence = 'high';
-				diagnosis.issues.push('VoIP server response (' + wssTime + 'ms) is much slower than internet baseline (' + refAvg + 'ms)');
+				diagnosis.issues.push('VoIP server latency (' + serverRtt + 'ms) is much slower than internet baseline (' + refAvg + 'ms)');
 				diagnosis.suggestions.push('The VoIP server may be overloaded or experiencing issues');
 				diagnosis.suggestions.push('Contact your system administrator to check server health');
-			} else if (serverToRefRatio > 2 && wssTime > 150) {
+			} else if (serverToRefRatio > 2 && serverRtt > 150) {
 				diagnosis.source = 'server';
 				diagnosis.confidence = 'medium';
-				diagnosis.issues.push('VoIP server latency (' + wssTime + 'ms) is elevated vs internet baseline (' + refAvg + 'ms)');
+				diagnosis.issues.push('VoIP server latency (' + serverRtt + 'ms) is elevated vs internet baseline (' + refAvg + 'ms)');
 				diagnosis.suggestions.push('Server may be under load or geographically distant');
-			} else if (wssTime > 300 && refAvg > 200) {
+			} else if (serverRtt > 300 && refAvg > 200) {
 				diagnosis.source = 'user';
 				diagnosis.confidence = 'medium';
 				diagnosis.issues.push('Both server and internet latency are high');
