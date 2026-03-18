@@ -782,14 +782,18 @@ var WebRTCPhone = (function () {
 
 			for (var ri = 0; ri < refServers.length; ri++) {
 				(function (server) {
-					var pingsPerServer = 3;
-					var pingResults = [];
+					// Do 4 pings: first is warmup (DNS+TCP+TLS), last 3 are real (reuse connection ≈ ICMP RTT)
+					var totalPings = 4;
+					var warmupCount = 1;
+					var allPings = [];
 					var pinged = 0;
 
 					function doPing() {
-						if (pinged >= pingsPerServer) {
-							var okPings = pingResults.filter(function(p) { return p > 0; });
-							var failCount = pingsPerServer - okPings.length;
+						if (pinged >= totalPings) {
+							// Discard warmup pings, keep only real measurements
+							var realPings = allPings.slice(warmupCount);
+							var okPings = realPings.filter(function(p) { return p > 0; });
+							var failCount = realPings.length - okPings.length;
 							var avgTime = 0;
 							if (okPings.length > 0) {
 								var sum = 0;
@@ -800,8 +804,8 @@ var WebRTCPhone = (function () {
 								name: server.name,
 								ok: okPings.length > 0,
 								time: avgTime,
-								loss: failCount + '/' + pingsPerServer,
-								lossPercent: Math.round((failCount / pingsPerServer) * 100),
+								loss: failCount + '/' + realPings.length,
+								lossPercent: Math.round((failCount / realPings.length) * 100),
 								error: okPings.length === 0 ? 'All pings failed' : ''
 							});
 							refDone();
@@ -810,7 +814,7 @@ var WebRTCPhone = (function () {
 
 						var start = performance.now();
 						var timeout = setTimeout(function () {
-							pingResults.push(-1);
+							allPings.push(-1);
 							pinged++;
 							doPing();
 						}, 4000);
@@ -820,7 +824,7 @@ var WebRTCPhone = (function () {
 							if (done) return;
 							done = true;
 							clearTimeout(timeout);
-							pingResults.push(elapsed);
+							allPings.push(elapsed);
 							pinged++;
 							setTimeout(doPing, 50);
 						}
@@ -835,7 +839,6 @@ var WebRTCPhone = (function () {
 						};
 						xhr.onerror = function () {
 							var elapsed = Math.round(performance.now() - start);
-							// CORS error still means TCP connected — record the time
 							recordPing(elapsed < 3500 ? elapsed : -1);
 						};
 						try { xhr.send(); } catch (e) {
