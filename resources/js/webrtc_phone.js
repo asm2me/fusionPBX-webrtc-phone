@@ -1397,8 +1397,16 @@ var WebRTCPhone = (function () {
 				}
 			}
 			if (pt.natType && pt.natType.indexOf('Symmetric') >= 0) {
-				diagnosis.issues.push('Symmetric NAT detected - may cause audio issues');
-				diagnosis.suggestions.push('Configure a TURN server for reliable media relay through symmetric NAT');
+				var turnWorking = r.turn && r.turn.ok;
+				var turnAudioOk = r.turnAudio && !r.turnAudio.error && r.turnAudio.ok;
+				if (turnWorking && turnAudioOk) {
+					diagnosis.issues.push('Symmetric NAT detected - TURN relay active and working');
+				} else if (turnWorking) {
+					diagnosis.issues.push('Symmetric NAT detected - TURN relay available');
+				} else {
+					diagnosis.issues.push('Symmetric NAT detected - may cause audio issues');
+					diagnosis.suggestions.push('Configure a TURN server for reliable media relay through symmetric NAT');
+				}
 			}
 		}
 
@@ -1458,12 +1466,15 @@ var WebRTCPhone = (function () {
 			}
 		}
 
-		// If no issues found, all good
-		if (diagnosis.issues.length === 0) {
+		// If no issues found, or only informational (TURN relay active), all good
+		var realIssues = diagnosis.issues.filter(function(i) { return i.indexOf('TURN relay active') < 0 && i.indexOf('TURN relay available') < 0; });
+		if (realIssues.length === 0) {
 			diagnosis.source = 'none';
 			diagnosis.confidence = 'high';
-			diagnosis.issues.push('No issues detected');
-			diagnosis.suggestions.push('Network is in good condition for VoIP calls');
+			if (diagnosis.issues.length === 0) {
+				diagnosis.issues.push('No issues detected');
+			}
+			diagnosis.suggestions = ['Network is in good condition for VoIP calls'];
 		}
 
 		// Set confidence if not already high
