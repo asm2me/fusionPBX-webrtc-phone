@@ -2324,13 +2324,43 @@ var WebRTCPhone = (function () {
 	function switchSpeakerOutput(deviceId) {
 		var dev = deviceId || 'default';
 		console.log('WebRTC Phone: Switching speaker to:', dev);
-		if (state.remoteAudio && typeof state.remoteAudio.setSinkId === 'function') {
-			state.remoteAudio.setSinkId(dev).then(function () {
-				console.log('WebRTC Phone: Speaker switched OK to:', state.remoteAudio.sinkId);
-			}).catch(function (e) {
-				console.warn('WebRTC Phone: Speaker switch failed:', e.message);
-			});
+		if (!state.remoteAudio || typeof state.remoteAudio.setSinkId !== 'function') return;
+
+		var stream = state.remoteAudio.srcObject;
+		if (!stream) {
+			// No active call — just pre-set the device for next call
+			state.remoteAudio.setSinkId(dev).catch(function () {});
+			return;
 		}
+
+		// Create a new audio element with the target device
+		var newAudio = document.createElement('audio');
+		newAudio.id = 'webrtc-remote-audio';
+		newAudio.autoplay = true;
+		newAudio.volume = state.audioSettings.speakerVolume;
+
+		// Set sinkId on the new element BEFORE assigning stream
+		newAudio.setSinkId(dev).then(function () {
+			// Assign stream to new element
+			newAudio.srcObject = stream;
+			newAudio.play().catch(function () {});
+
+			// Replace old element
+			var oldAudio = state.remoteAudio;
+			if (oldAudio.parentNode) oldAudio.parentNode.replaceChild(newAudio, oldAudio);
+			state.remoteAudio = newAudio;
+
+			// Clean up old element
+			oldAudio.srcObject = null;
+			oldAudio.pause();
+
+			console.log('WebRTC Phone: Speaker switched via new audio element, sinkId:', newAudio.sinkId);
+		}).catch(function (e) {
+			// Fallback: try setSinkId on existing element
+			console.warn('WebRTC Phone: New element setSinkId failed:', e.message, '— trying existing');
+			newAudio.remove();
+			state.remoteAudio.setSinkId(dev).catch(function () {});
+		});
 	}
 
 	function setRingDevice(deviceId) {
