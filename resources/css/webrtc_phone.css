@@ -426,6 +426,27 @@
 	color: #222;
 }
 
+.webrtc-call-status {
+	font-size: 14px;
+	color: #888;
+	font-weight: 400;
+	margin-top: 4px;
+	animation: webrtc-pulse 1.5s ease-in-out infinite;
+}
+@keyframes webrtc-pulse {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.4; }
+}
+
+.webrtc-call-icon-outgoing {
+	animation: webrtc-ring 1s ease-in-out infinite;
+}
+@keyframes webrtc-ring {
+	0%, 100% { transform: rotate(0deg); }
+	25% { transform: rotate(15deg); }
+	75% { transform: rotate(-15deg); }
+}
+
 .webrtc-call-timer {
 	font-size: 16px;
 	color: #1a73e8;

@@ -31,7 +31,14 @@ var WebRTCPhone = (function () {
 		error: 'Error',
 		incomingCall: 'Incoming Call',
 		outgoingCall: 'Calling...',
+		connecting: 'Connecting...',
+		ringing: 'Ringing...',
 		inCall: 'In Call',
+		busy: 'Busy',
+		rejected: 'Rejected',
+		cancelled: 'Cancelled',
+		noAnswer: 'No Answer',
+		callFailed: 'Call Failed',
 		measuring: 'Measuring...',
 		noExtensions: 'No extensions assigned to your account.',
 		selectExtension: 'Select extension...',
@@ -145,7 +152,8 @@ var WebRTCPhone = (function () {
 		ua: null,             // JsSIP UserAgent
 		currentSession: null, // Active call session
 		registered: false,
-		callState: 'idle',    // idle, ringing_in, ringing_out, in_call
+		callState: 'idle',    // idle, connecting, ringing_out, ringing_in, in_call
+		callStatusText: '',   // Detailed status: Connecting, Ringing, Busy, Cancelled, etc.
 		muted: false,
 		held: false,
 		dialInput: '',
@@ -2545,7 +2553,8 @@ var WebRTCPhone = (function () {
 	function isCallActive() {
 		return state.callState === 'in_call' ||
 			state.callState === 'ringing_in' ||
-			state.callState === 'ringing_out';
+			state.callState === 'ringing_out' ||
+			state.callState === 'connecting';
 	}
 
 	function handleBeforeUnload(e) {
@@ -2830,26 +2839,59 @@ var WebRTCPhone = (function () {
 					}
 				};
 			},
+			'progress': function (data) {
+				console.log('WebRTC Phone: call progress', data.originator, data.response && data.response.status_code);
+				var code = data.response && data.response.status_code;
+				if (code === 180) {
+					state.callStatusText = t('ringing');
+					state.callState = 'ringing_out';
+				} else if (code === 183) {
+					state.callStatusText = t('connecting');
+				} else if (code === 100) {
+					state.callStatusText = t('connecting');
+				}
+				renderPhone();
+			},
 			'accepted': function (data) {
 				console.log('WebRTC Phone: call accepted', data);
 				if (data && data.response && data.response.body) {
 					console.log('WebRTC Phone: remote SDP (answer):\n' + data.response.body);
 				}
 				if (state.currentCallRecord) state.currentCallRecord.status = 'answered';
+				state.callStatusText = '';
 				state.callState = 'in_call'; stopRingtone(); hideFABBadge(); renderPhone();
 			},
 			'confirmed': function (data) {
 				console.log('WebRTC Phone: call confirmed', data);
 				if (state.currentCallRecord) state.currentCallRecord.status = 'answered';
+				state.callStatusText = '';
 				state.callState = 'in_call'; stopRingtone(); hideFABBadge();
 				if (state.currentSession && !state.remoteAudio.srcObject) attachRemoteAudio(state.currentSession);
 				renderPhone();
 			},
-			'ended': function (data) { console.log('WebRTC Phone: call ended', data.cause); endCall(); },
+			'ended': function (data) {
+				console.log('WebRTC Phone: call ended', data.cause);
+				state.callStatusText = '';
+				endCall();
+			},
 			'failed': function (data) {
 				console.error('WebRTC Phone: call failed', data.cause);
+				var cause = data.cause || '';
 				if (state.currentCallRecord && state.currentCallRecord.status !== 'answered') state.currentCallRecord.status = 'failed';
-				endCall();
+				// Show brief failure reason before returning to idle
+				var failText = t('callFailed');
+				if (cause === 'Busy') failText = t('busy');
+				else if (cause === 'Rejected') failText = t('rejected');
+				else if (cause === 'Canceled') failText = t('cancelled');
+				else if (cause === 'No Answer') failText = t('noAnswer');
+				else if (cause) failText = cause;
+				state.callStatusText = failText;
+				renderPhone();
+				// Show failure status briefly then clear
+				setTimeout(function () {
+					state.callStatusText = '';
+					endCall();
+				}, 2000);
 			},
 			'getusermediafailed': function (data) { console.error('WebRTC Phone: getUserMedia failed', data); endCall(); }
 		};
@@ -2877,7 +2919,8 @@ var WebRTCPhone = (function () {
 				}
 			});
 
-			state.callState = 'ringing_out';
+			state.callState = 'connecting';
+			state.callStatusText = t('connecting');
 			state.muted = false;
 			state.held = false;
 			renderPhone();
@@ -3130,6 +3173,7 @@ var WebRTCPhone = (function () {
 		state.prevStats = null;
 		state.currentSession = null;
 		state.callState = 'idle';
+		state.callStatusText = '';
 		state.muted = false;
 		state.held = false;
 		stopCallTimer(); stopRingtone(); hideFABBadge(); closeIncomingNotification();
@@ -3373,11 +3417,14 @@ var WebRTCPhone = (function () {
 				html += '<button class="webrtc-btn webrtc-btn-answer" onclick="WebRTCPhone.answer()">' + t('answer') + '</button>';
 				html += '<button class="webrtc-btn webrtc-btn-reject" onclick="WebRTCPhone.reject()">' + t('reject') + '</button>';
 				html += '</div></div>';
-			} else if (state.callState === 'ringing_out') {
+			} else if (state.callState === 'connecting' || state.callState === 'ringing_out') {
 				html += '<div class="webrtc-call-info">';
-				html += '<div class="webrtc-call-icon">&#9742;</div>';
+				html += '<div class="webrtc-call-icon webrtc-call-icon-outgoing">&#9742;</div>';
 				html += '<div class="webrtc-call-label">' + t('outgoingCall') + '</div>';
 				html += '<div class="webrtc-call-number">' + escapeHtml(state.dialInput) + '</div>';
+				if (state.callStatusText) {
+					html += '<div class="webrtc-call-status">' + escapeHtml(state.callStatusText) + '</div>';
+				}
 				html += '<div class="webrtc-call-actions">';
 				html += '<button class="webrtc-btn webrtc-btn-hangup" onclick="WebRTCPhone.hangup()">' + t('hangUp') + '</button>';
 				html += '</div></div>';
