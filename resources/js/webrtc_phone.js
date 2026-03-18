@@ -557,17 +557,9 @@ var WebRTCPhone = (function () {
 		function checkDone() {
 			testsRemaining--;
 			if (testsRemaining <= 0) {
-				// If registered, auto-run demo call after basic tests pass
-				if (state.registered && results.wss && results.wss.ok) {
-					runDemoCallTest();
-				} else {
-					state.networkTestRunning = false;
-					if (!state.registered) {
-						results.demoCall = { ok: false, error: 'Not registered - connect an extension first' };
-					}
-					results.diagnosis = generateDiagnosis(results);
-					renderPhone();
-				}
+				state.networkTestRunning = false;
+				results.diagnosis = generateDiagnosis(results);
+				renderPhone();
 			} else {
 				renderPhone();
 			}
@@ -772,9 +764,9 @@ var WebRTCPhone = (function () {
 		// Test 5: Reference latency pings to third-party servers (image load timing)
 		(function testReferencePings() {
 			var refServers = [
-				{ name: 'Cloudflare', url: 'https://www.cloudflare.com/favicon.ico' },
-				{ name: 'Google', url: 'https://www.google.com/favicon.ico' },
-				{ name: 'Microsoft', url: 'https://www.microsoft.com/favicon.ico' }
+				{ name: 'Cloudflare', url: 'https://1.1.1.1/cdn-cgi/trace' },
+				{ name: 'Google', url: 'https://www.google.com/generate_204' },
+				{ name: 'Microsoft', url: 'https://www.msftconnecttest.com/connecttest.txt' }
 			];
 			var refResults = [];
 			var remaining = refServers.length;
@@ -795,7 +787,6 @@ var WebRTCPhone = (function () {
 
 					function doPing() {
 						if (pinged >= pingsPerServer) {
-							// Analyze results
 							var okPings = pingResults.filter(function(p) { return p > 0; });
 							var failCount = pingsPerServer - okPings.length;
 							var avgTime = 0;
@@ -816,36 +807,60 @@ var WebRTCPhone = (function () {
 							return;
 						}
 
-						var start = performance.now();
+						var cacheBust = '?_cb=' + Date.now() + '_' + pinged;
+						var fetchUrl = server.url + cacheBust;
 						var timeout = setTimeout(function () {
 							pingResults.push(-1);
 							pinged++;
 							doPing();
-						}, 3000);
+						}, 4000);
 
-						var img = new Image();
-						img.onload = function () {
+						fetch(fetchUrl, { mode: 'no-cors', cache: 'no-store' }).then(function () {
 							clearTimeout(timeout);
-							pingResults.push(Math.round(performance.now() - start));
+							// Use Resource Timing API to get actual TCP connect time
+							var rtt = extractRTT(fetchUrl);
+							pingResults.push(rtt > 0 ? rtt : -1);
 							pinged++;
-							setTimeout(doPing, 100); // small delay between pings
-						};
-						img.onerror = function () {
+							setTimeout(doPing, 50);
+						}).catch(function () {
 							clearTimeout(timeout);
-							var elapsed = Math.round(performance.now() - start);
-							if (elapsed < 2500) {
-								pingResults.push(elapsed); // server responded (CORS error = still reachable)
+							var rtt = extractRTT(fetchUrl);
+							if (rtt > 0) {
+								pingResults.push(rtt); // server was reached (CORS blocked but TCP connected)
 							} else {
 								pingResults.push(-1);
 							}
 							pinged++;
-							setTimeout(doPing, 100);
-						};
-						img.src = server.url + '?_t=' + Date.now() + '_' + pinged + '_' + Math.random();
+							setTimeout(doPing, 50);
+						});
 					}
 
 					doPing();
 				})(refServers[ri]);
+			}
+
+			// Extract TCP RTT from Resource Timing API (connectEnd - connectStart)
+			function extractRTT(url) {
+				try {
+					var entries = performance.getEntriesByType('resource');
+					for (var i = entries.length - 1; i >= 0; i--) {
+						if (entries[i].name.indexOf(url) >= 0 || url.indexOf(entries[i].name) >= 0) {
+							var e = entries[i];
+							// connectEnd - connectStart = TCP handshake time ≈ ping RTT
+							var connectTime = e.connectEnd - e.connectStart;
+							// If connection was reused (connectTime=0), use responseStart - requestStart
+							if (connectTime <= 0) {
+								connectTime = e.responseStart - e.requestStart;
+							}
+							// Fallback to total duration if connect timing not available
+							if (connectTime <= 0 || connectTime > 10000) {
+								connectTime = e.duration;
+							}
+							return Math.round(connectTime);
+						}
+					}
+				} catch (ex) {}
+				return -1;
 			}
 		})();
 
