@@ -2679,6 +2679,61 @@ var WebRTCPhone = (function () {
 	// --- Call Handling ---
 
 	// Reorder SDP to prefer a specific codec (e.g. 'PCMA' for G.711a)
+	// --- CRM Integration ---
+	function fireCrmEvent(eventName, extra) {
+		if (!state.config || !state.config.crm_url) return;
+		extra = extra || {};
+
+		var record = state.currentCallRecord || {};
+		var direction = record.direction || extra.direction || 'unknown';
+		var caller_id, destination;
+
+		if (direction === 'inbound') {
+			caller_id = record.number || '';
+			destination = (state.selectedExtension || {}).extension || '';
+		} else {
+			caller_id = (state.selectedExtension || {}).extension || '';
+			destination = record.number || extra.destination || '';
+		}
+		if (extra.caller_id) caller_id = extra.caller_id;
+		if (extra.destination) destination = extra.destination;
+
+		var placeholders = {
+			'{event}': eventName,
+			'{caller_id}': caller_id,
+			'{destination}': destination,
+			'{direction}': direction,
+			'{duration}': String(state.callDuration || 0),
+			'{extension}': (state.selectedExtension || {}).extension || '',
+			'{call_id}': state.currentSession ? (state.currentSession.id || '') : '',
+			'{timestamp}': new Date().toISOString()
+		};
+
+		var url = state.config.crm_url;
+		for (var key in placeholders) {
+			url = url.split(key).join(encodeURIComponent(placeholders[key]));
+		}
+
+		console.log('WebRTC Phone: CRM event', eventName, url);
+
+		try {
+			var method = (state.config.crm_method || 'GET').toUpperCase();
+			var xhr = new XMLHttpRequest();
+			if (method === 'POST') {
+				xhr.open('POST', url, true);
+				xhr.setRequestHeader('Content-Type', 'text/plain');
+				var body = {};
+				for (var k in placeholders) body[k.replace(/[{}]/g, '')] = placeholders[k];
+				xhr.send(JSON.stringify(body));
+			} else {
+				xhr.open('GET', url, true);
+				xhr.send();
+			}
+		} catch (e) {
+			console.warn('WebRTC Phone: CRM event error', e);
+		}
+	}
+
 	function preferCodec(sdp, codecName) {
 		var lines = sdp.split('\r\n');
 		var mLineIdx = -1;
@@ -2803,7 +2858,9 @@ var WebRTCPhone = (function () {
 				}
 				if (state.currentCallRecord) state.currentCallRecord.status = 'answered';
 				state.callStatusText = '';
-				state.callState = 'in_call'; stopRingtone(); hideFABBadge(); renderPhone();
+				state.callState = 'in_call'; stopRingtone(); hideFABBadge();
+				fireCrmEvent('answered');
+				renderPhone();
 			},
 			'confirmed': function (data) {
 				console.log('WebRTC Phone: call confirmed', data);
@@ -2867,6 +2924,7 @@ var WebRTCPhone = (function () {
 			state.callStatusText = t('connecting');
 			state.muted = false;
 			state.held = false;
+			fireCrmEvent('dial_out', { destination: target });
 			renderPhone();
 		} catch (e) {
 			console.error('WebRTC Phone: Call exception', e);
@@ -2892,6 +2950,7 @@ var WebRTCPhone = (function () {
 			}
 		} catch (e) {}
 		state.currentCallRecord = { direction: 'inbound', number: inNum, name: inName, timestamp: Date.now(), status: 'missed' };
+		fireCrmEvent('new_call', { caller_id: inNum });
 		showPanel();
 		playRingtone();
 		showFABBadge('!');
@@ -2976,7 +3035,9 @@ var WebRTCPhone = (function () {
 		});
 		session.on('accepted', function () {
 			if (state.currentCallRecord) state.currentCallRecord.status = 'answered';
-			state.callState = 'in_call'; stopRingtone(); hideFABBadge(); renderPhone();
+			state.callState = 'in_call'; stopRingtone(); hideFABBadge();
+			fireCrmEvent('answered');
+			renderPhone();
 		});
 		session.on('confirmed', function () {
 			if (state.currentCallRecord) state.currentCallRecord.status = 'answered';
@@ -3092,6 +3153,8 @@ var WebRTCPhone = (function () {
 	}
 
 	function endCall() {
+		// Fire CRM hangup before clearing call data
+		fireCrmEvent('hangup');
 		if (state.currentCallRecord) {
 			if (state.currentCallRecord.status === 'answered') {
 				state.currentCallRecord.duration = state.callDuration;

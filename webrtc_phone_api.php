@@ -41,6 +41,8 @@ $turn_server = $_SESSION['webrtc_phone']['turn_server']['text'] ?? '';
 $turn_username = $_SESSION['webrtc_phone']['turn_username']['text'] ?? '';
 $turn_password = $_SESSION['webrtc_phone']['turn_password']['text'] ?? '';
 $webrtc_enabled = $_SESSION['webrtc_phone']['enabled']['boolean'] ?? 'true';
+$crm_url = $_SESSION['webrtc_phone']['crm_url']['text'] ?? '';
+$crm_method = $_SESSION['webrtc_phone']['crm_method']['text'] ?? 'GET';
 
 if ($webrtc_enabled !== 'true') {
 	echo json_encode(['error' => 'webrtc_phone_disabled']);
@@ -75,6 +77,8 @@ $response = [
 	'turn_server' => $turn_server,
 	'turn_username' => $turn_username,
 	'turn_password' => $turn_password,
+	'crm_url' => $crm_url,
+	'crm_method' => strtoupper($crm_method),
 	'extensions' => []
 ];
 

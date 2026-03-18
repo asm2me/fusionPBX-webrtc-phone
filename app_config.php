@@ -86,5 +86,23 @@
 	$apps[$x]['default_settings'][$y]['default_setting_value'] = "";
 	$apps[$x]['default_settings'][$y]['default_setting_enabled'] = "false";
 	$apps[$x]['default_settings'][$y]['default_setting_description'] = "TURN server password for authentication.";
+	$y++;
+
+	$apps[$x]['default_settings'][$y]['default_setting_uuid'] = "b8c9d0e1-f2a3-4567-bcde-678901234567";
+	$apps[$x]['default_settings'][$y]['default_setting_category'] = "webrtc_phone";
+	$apps[$x]['default_settings'][$y]['default_setting_subcategory'] = "crm_url";
+	$apps[$x]['default_settings'][$y]['default_setting_name'] = "text";
+	$apps[$x]['default_settings'][$y]['default_setting_value'] = "";
+	$apps[$x]['default_settings'][$y]['default_setting_enabled'] = "false";
+	$apps[$x]['default_settings'][$y]['default_setting_description'] = "CRM webhook URL with placeholders: {event} {caller_id} {destination} {direction} {duration} {extension} {call_id} {timestamp}";
+	$y++;
+
+	$apps[$x]['default_settings'][$y]['default_setting_uuid'] = "c9d0e1f2-a3b4-5678-cdef-789012345678";
+	$apps[$x]['default_settings'][$y]['default_setting_category'] = "webrtc_phone";
+	$apps[$x]['default_settings'][$y]['default_setting_subcategory'] = "crm_method";
+	$apps[$x]['default_settings'][$y]['default_setting_name'] = "text";
+	$apps[$x]['default_settings'][$y]['default_setting_value'] = "GET";
+	$apps[$x]['default_settings'][$y]['default_setting_enabled'] = "false";
+	$apps[$x]['default_settings'][$y]['default_setting_description'] = "CRM webhook HTTP method: GET or POST.";
 
 ?>
