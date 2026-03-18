@@ -871,6 +871,13 @@
 	text-align: center;
 }
 
+.webrtc-net-domain {
+	font-size: 11px;
+	color: #888;
+	text-align: center;
+	margin-bottom: 8px;
+}
+
 .webrtc-network-test-running {
 	text-align: center;
 	font-size: 13px;

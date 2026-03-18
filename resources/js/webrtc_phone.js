@@ -549,11 +549,11 @@ var WebRTCPhone = (function () {
 	function runNetworkTest() {
 		if (state.networkTestRunning || !state.config) return;
 		state.networkTestRunning = true;
-		state.networkTestResults = { wss: null, stun: null, latency: null, jitterTest: null, sipPing: null, demoCall: null, refPings: null, diagnosis: null, pathTrace: null };
+		state.networkTestResults = { wss: null, stun: null, turn: null, latency: null, jitterTest: null, sipPing: null, demoCall: null, refPings: null, diagnosis: null, pathTrace: null };
 		renderPhone();
 
 		var results = state.networkTestResults;
-		var testsRemaining = 6; // WSS, STUN+latency, jitter, SIP ping, reference pings, path trace (demo call runs separately)
+		var testsRemaining = 7; // WSS, STUN+latency, TURN, jitter, SIP ping, reference pings, path trace (demo call runs separately)
 		function checkDone() {
 			testsRemaining--;
 			if (testsRemaining <= 0) {
@@ -651,6 +651,59 @@ var WebRTCPhone = (function () {
 			}
 		})();
 
+		// Test 2b: TURN server connectivity
+		(function testTURN() {
+			if (!state.config.turn_server) {
+				results.turn = { ok: false, error: 'Not configured' };
+				checkDone();
+				return;
+			}
+			var start = Date.now();
+			var timeout = setTimeout(function () {
+				results.turn = { ok: false, error: 'Timeout (8s)' };
+				try { pc.close(); } catch (e) {}
+				checkDone();
+			}, 8000);
+			try {
+				var turnConfig = { urls: state.config.turn_server };
+				if (state.config.turn_username) turnConfig.username = state.config.turn_username;
+				if (state.config.turn_password) turnConfig.credential = state.config.turn_password;
+				var pc = new RTCPeerConnection({ iceServers: [turnConfig], iceTransportPolicy: 'relay' });
+				pc.createDataChannel('turntest');
+				var gotRelay = false;
+				pc.onicecandidate = function (e) {
+					if (gotRelay) return;
+					if (e.candidate && e.candidate.type === 'relay') {
+						gotRelay = true;
+						clearTimeout(timeout);
+						var elapsed = Date.now() - start;
+						results.turn = { ok: true, time: elapsed, relayIP: e.candidate.address || e.candidate.ip || '' };
+						pc.close();
+						checkDone();
+					}
+				};
+				pc.onicegatheringstatechange = function () {
+					if (pc.iceGatheringState === 'complete' && !gotRelay) {
+						clearTimeout(timeout);
+						results.turn = { ok: false, error: 'No relay candidate received' };
+						pc.close();
+						checkDone();
+					}
+				};
+				pc.createOffer().then(function (offer) {
+					return pc.setLocalDescription(offer);
+				}).catch(function (e) {
+					clearTimeout(timeout);
+					results.turn = { ok: false, error: e.message };
+					checkDone();
+				});
+			} catch (e) {
+				clearTimeout(timeout);
+				results.turn = { ok: false, error: e.message };
+				checkDone();
+			}
+		})();
+
 		// Test 3: Jitter estimation via timing consistency
 		(function testJitter() {
 			var samples = [];
@@ -716,11 +769,11 @@ var WebRTCPhone = (function () {
 			}
 		})();
 
-		// Test 5: Reference latency pings to third-party servers
+		// Test 5: Reference latency pings to third-party servers (image load timing)
 		(function testReferencePings() {
 			var refServers = [
-				{ name: 'Cloudflare', url: 'https://1.1.1.1/favicon.ico' },
-				{ name: 'Google', url: 'https://www.google.com/generate_204' },
+				{ name: 'Cloudflare', url: 'https://www.cloudflare.com/favicon.ico' },
+				{ name: 'Google', url: 'https://www.google.com/favicon.ico' },
 				{ name: 'Microsoft', url: 'https://www.microsoft.com/favicon.ico' }
 			];
 			var refResults = [];
@@ -736,26 +789,62 @@ var WebRTCPhone = (function () {
 
 			for (var ri = 0; ri < refServers.length; ri++) {
 				(function (server) {
-					var start = Date.now();
-					var timeout = setTimeout(function () {
-						refResults.push({ name: server.name, ok: false, time: 0, error: 'Timeout' });
-						refDone();
-					}, 5000);
-					fetch(server.url, { mode: 'no-cors', cache: 'no-store' }).then(function () {
-						clearTimeout(timeout);
-						refResults.push({ name: server.name, ok: true, time: Date.now() - start });
-						refDone();
-					}).catch(function () {
-						clearTimeout(timeout);
-						// Even a CORS error means we reached the server, measure timing
-						var elapsed = Date.now() - start;
-						if (elapsed < 4500) {
-							refResults.push({ name: server.name, ok: true, time: elapsed });
-						} else {
-							refResults.push({ name: server.name, ok: false, time: 0, error: 'Unreachable' });
+					var pingsPerServer = 3;
+					var pingResults = [];
+					var pinged = 0;
+
+					function doPing() {
+						if (pinged >= pingsPerServer) {
+							// Analyze results
+							var okPings = pingResults.filter(function(p) { return p > 0; });
+							var failCount = pingsPerServer - okPings.length;
+							var avgTime = 0;
+							if (okPings.length > 0) {
+								var sum = 0;
+								for (var i = 0; i < okPings.length; i++) sum += okPings[i];
+								avgTime = Math.round(sum / okPings.length);
+							}
+							refResults.push({
+								name: server.name,
+								ok: okPings.length > 0,
+								time: avgTime,
+								loss: failCount + '/' + pingsPerServer,
+								lossPercent: Math.round((failCount / pingsPerServer) * 100),
+								error: okPings.length === 0 ? 'All pings failed' : ''
+							});
+							refDone();
+							return;
 						}
-						refDone();
-					});
+
+						var start = performance.now();
+						var timeout = setTimeout(function () {
+							pingResults.push(-1);
+							pinged++;
+							doPing();
+						}, 3000);
+
+						var img = new Image();
+						img.onload = function () {
+							clearTimeout(timeout);
+							pingResults.push(Math.round(performance.now() - start));
+							pinged++;
+							setTimeout(doPing, 100); // small delay between pings
+						};
+						img.onerror = function () {
+							clearTimeout(timeout);
+							var elapsed = Math.round(performance.now() - start);
+							if (elapsed < 2500) {
+								pingResults.push(elapsed); // server responded (CORS error = still reachable)
+							} else {
+								pingResults.push(-1);
+							}
+							pinged++;
+							setTimeout(doPing, 100);
+						};
+						img.src = server.url + '?_t=' + Date.now() + '_' + pinged + '_' + Math.random();
+					}
+
+					doPing();
 				})(refServers[ri]);
 			}
 		})();
@@ -987,6 +1076,29 @@ var WebRTCPhone = (function () {
 			diagnosis.issues.push('Moderate internet latency (' + refAvg + 'ms avg)');
 		}
 
+		// Check reference ping packet loss
+		if (r.refPings && r.refPings.length > 0) {
+			var totalLoss = 0, totalPings = 0;
+			for (var rli = 0; rli < r.refPings.length; rli++) {
+				if (r.refPings[rli].lossPercent !== undefined) {
+					totalLoss += r.refPings[rli].lossPercent;
+					totalPings++;
+				}
+			}
+			if (totalPings > 0) {
+				var avgLoss = Math.round(totalLoss / totalPings);
+				if (avgLoss > 30) {
+					diagnosis.source = 'user';
+					diagnosis.confidence = 'high';
+					diagnosis.issues.push('High packet loss to internet servers (' + avgLoss + '% average)');
+					diagnosis.suggestions.push('Your internet connection is dropping packets - check cable/WiFi signal');
+				} else if (avgLoss > 10) {
+					diagnosis.issues.push('Some packet loss to internet servers (' + avgLoss + '% average)');
+					diagnosis.suggestions.push('Minor packet loss detected - may affect call quality');
+				}
+			}
+		}
+
 		// Case 3: Compare server latency vs reference
 		if (wssTime > 0 && refAvg > 0) {
 			var serverToRefRatio = wssTime / refAvg;
@@ -1029,6 +1141,19 @@ var WebRTCPhone = (function () {
 			} else {
 				diagnosis.source = 'user';
 				diagnosis.issues.push('STUN failure likely due to poor connectivity');
+			}
+		}
+
+		// Case 5b: TURN test analysis
+		if (r.turn) {
+			if (r.turn.ok) {
+				// TURN works - good fallback available
+				if (r.stun && !r.stun.ok) {
+					diagnosis.suggestions.push('TURN relay is available as fallback for blocked STUN');
+				}
+			} else if (r.turn.error !== 'Not configured') {
+				diagnosis.issues.push('TURN server unreachable: ' + (r.turn.error || 'Connection failed'));
+				diagnosis.suggestions.push('Check TURN server configuration and firewall rules for port 3478/UDP and 5349/TCP');
 			}
 		}
 
@@ -1589,6 +1714,9 @@ var WebRTCPhone = (function () {
 	function renderNetworkTestPanel() {
 		var html = '<div class="webrtc-network-test">';
 		html += '<div class="webrtc-network-test-title">' + t('networkQualityTest') + '</div>';
+		if (state.config && state.config.domain) {
+			html += '<div class="webrtc-net-domain">Server: ' + escapeHtml(state.config.domain) + ':' + escapeHtml(state.config.wss_port || '7443') + '</div>';
+		}
 
 		if (state.networkTestRunning) {
 			html += '<div class="webrtc-network-test-running">' + t('runningTests') + '</div>';
@@ -1606,6 +1734,14 @@ var WebRTCPhone = (function () {
 			if (r.wss !== null) html += renderNetRow(r.wss.ok ? 'webrtc-net-pass' : 'webrtc-net-fail', r.wss.ok ? '&#10003;' : '&#10007;', t('wssServer'), r.wss.ok ? r.wss.time + 'ms' : escapeHtml(r.wss.error));
 			// STUN
 			if (r.stun !== null) html += renderNetRow(r.stun.ok ? 'webrtc-net-pass' : 'webrtc-net-fail', r.stun.ok ? '&#10003;' : '&#10007;', t('stunServer'), r.stun.ok ? r.stun.time + 'ms' + (r.stun.ip ? ' (' + escapeHtml(r.stun.ip) + ')' : '') : escapeHtml(r.stun.error));
+			// TURN
+			if (r.turn !== null) {
+				if (r.turn.error === 'Not configured') {
+					html += renderNetRow('webrtc-net-warn', '&#9888;', 'TURN Server', 'Not configured');
+				} else {
+					html += renderNetRow(r.turn.ok ? 'webrtc-net-pass' : 'webrtc-net-fail', r.turn.ok ? '&#10003;' : '&#10007;', 'TURN Server', r.turn.ok ? r.turn.time + 'ms' + (r.turn.relayIP ? ' (relay: ' + escapeHtml(r.turn.relayIP) + ')' : '') : escapeHtml(r.turn.error));
+				}
+			}
 			// Latency
 			if (r.latency !== null) {
 				var latOk = r.latency.rtt > 0 && r.latency.rtt < 300;
@@ -1682,7 +1818,9 @@ var WebRTCPhone = (function () {
 				for (var rpi = 0; rpi < r.refPings.length; rpi++) {
 					var rp = r.refPings[rpi];
 					var rpOk = rp.ok && rp.time < 200;
-					html += renderNetRow(rp.ok ? (rpOk ? 'webrtc-net-pass' : 'webrtc-net-warn') : 'webrtc-net-fail', rp.ok ? (rpOk ? '&#10003;' : '&#9888;') : '&#10007;', escapeHtml(rp.name), rp.ok ? rp.time + 'ms' : escapeHtml(rp.error || 'Failed'));
+					var detail = rp.ok ? rp.time + 'ms' : escapeHtml(rp.error || 'Failed');
+					if (rp.lossPercent > 0) detail += ' (loss: ' + rp.loss + ')';
+					html += renderNetRow(rp.ok ? (rpOk ? 'webrtc-net-pass' : 'webrtc-net-warn') : 'webrtc-net-fail', rp.ok ? (rpOk ? '&#10003;' : '&#9888;') : '&#10007;', escapeHtml(rp.name), detail);
 				}
 			}
 
