@@ -31,6 +31,16 @@
 	$apps[$x]['permissions'][$y]['name'] = "click_to_dial_delete";
 	$apps[$x]['permissions'][$y]['groups'][] = "superadmin";
 	$apps[$x]['permissions'][$y]['groups'][] = "admin";
+	$y++;
+
+	$apps[$x]['permissions'][$y]['name'] = "crm_settings_view";
+	$apps[$x]['permissions'][$y]['groups'][] = "superadmin";
+	$apps[$x]['permissions'][$y]['groups'][] = "admin";
+	$y++;
+
+	$apps[$x]['permissions'][$y]['name'] = "crm_settings_edit";
+	$apps[$x]['permissions'][$y]['groups'][] = "superadmin";
+	$apps[$x]['permissions'][$y]['groups'][] = "admin";
 
 	//default settings
 	$y = 0;
@@ -104,5 +114,14 @@
 	$apps[$x]['default_settings'][$y]['default_setting_value'] = "GET";
 	$apps[$x]['default_settings'][$y]['default_setting_enabled'] = "false";
 	$apps[$x]['default_settings'][$y]['default_setting_description'] = "CRM webhook HTTP method: GET or POST.";
+	$y++;
+
+	$apps[$x]['default_settings'][$y]['default_setting_uuid'] = "d0e1f2a3-b4c5-6789-defa-890123456789";
+	$apps[$x]['default_settings'][$y]['default_setting_category'] = "webrtc_phone";
+	$apps[$x]['default_settings'][$y]['default_setting_subcategory'] = "crm_login_url";
+	$apps[$x]['default_settings'][$y]['default_setting_name'] = "text";
+	$apps[$x]['default_settings'][$y]['default_setting_value'] = "";
+	$apps[$x]['default_settings'][$y]['default_setting_enabled'] = "false";
+	$apps[$x]['default_settings'][$y]['default_setting_description'] = "CRM screen-pop URL opened on incoming call. Placeholders: {caller_id} {caller_name} {destination} {extension} {call_id} {timestamp}";
 
 ?>

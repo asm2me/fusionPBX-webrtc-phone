@@ -56,6 +56,15 @@ if ($domains_processed == 1) {
 	$array['default_settings'][$y]['default_setting_value'] = "GET";
 	$array['default_settings'][$y]['default_setting_enabled'] = "false";
 	$array['default_settings'][$y]['default_setting_description'] = "CRM webhook HTTP method: GET or POST.";
+	$y++;
+
+	$array['default_settings'][$y]['default_setting_uuid'] = "d0e1f2a3-b4c5-6789-defa-890123456789";
+	$array['default_settings'][$y]['default_setting_category'] = "webrtc_phone";
+	$array['default_settings'][$y]['default_setting_subcategory'] = "crm_login_url";
+	$array['default_settings'][$y]['default_setting_name'] = "text";
+	$array['default_settings'][$y]['default_setting_value'] = "";
+	$array['default_settings'][$y]['default_setting_enabled'] = "false";
+	$array['default_settings'][$y]['default_setting_description'] = "CRM screen-pop URL opened on incoming call. Placeholders: {caller_id} {caller_name} {destination} {extension} {call_id} {timestamp}";
 
 	//add or update the default settings
 	$p = new permissions;

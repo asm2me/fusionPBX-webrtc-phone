@@ -2680,10 +2680,8 @@ var WebRTCPhone = (function () {
 
 	// Reorder SDP to prefer a specific codec (e.g. 'PCMA' for G.711a)
 	// --- CRM Integration ---
-	function fireCrmEvent(eventName, extra) {
-		if (!state.config || !state.config.crm_url) return;
+	function buildCrmPlaceholders(extra) {
 		extra = extra || {};
-
 		var record = state.currentCallRecord || {};
 		var direction = record.direction || extra.direction || 'unknown';
 		var caller_id, destination;
@@ -2698,9 +2696,10 @@ var WebRTCPhone = (function () {
 		if (extra.caller_id) caller_id = extra.caller_id;
 		if (extra.destination) destination = extra.destination;
 
-		var placeholders = {
-			'{event}': eventName,
+		return {
+			'{event}': extra.event || '',
 			'{caller_id}': caller_id,
+			'{caller_name}': record.name || extra.caller_name || '',
 			'{destination}': destination,
 			'{direction}': direction,
 			'{duration}': String(state.callDuration || 0),
@@ -2708,11 +2707,37 @@ var WebRTCPhone = (function () {
 			'{call_id}': state.currentSession ? (state.currentSession.id || '') : '',
 			'{timestamp}': new Date().toISOString()
 		};
+	}
 
-		var url = state.config.crm_url;
+	function replacePlaceholders(urlTemplate, placeholders) {
+		var url = urlTemplate;
 		for (var key in placeholders) {
 			url = url.split(key).join(encodeURIComponent(placeholders[key]));
 		}
+		return url;
+	}
+
+	function fireCrmScreenPop(extra) {
+		if (!state.config || !state.config.crm_login_url) return;
+		var placeholders = buildCrmPlaceholders(extra);
+		placeholders['{event}'] = 'new_call';
+		var url = replacePlaceholders(state.config.crm_login_url, placeholders);
+		console.log('WebRTC Phone: CRM screen-pop', url);
+		try {
+			window.open(url, 'crm_screen_pop');
+		} catch (e) {
+			console.warn('WebRTC Phone: CRM screen-pop error', e);
+		}
+	}
+
+	function fireCrmEvent(eventName, extra) {
+		if (!state.config || !state.config.crm_url) return;
+		extra = extra || {};
+		extra.event = eventName;
+
+		var placeholders = buildCrmPlaceholders(extra);
+		placeholders['{event}'] = eventName;
+		var url = replacePlaceholders(state.config.crm_url, placeholders);
 
 		console.log('WebRTC Phone: CRM event', eventName, url);
 
@@ -2950,7 +2975,8 @@ var WebRTCPhone = (function () {
 			}
 		} catch (e) {}
 		state.currentCallRecord = { direction: 'inbound', number: inNum, name: inName, timestamp: Date.now(), status: 'missed' };
-		fireCrmEvent('new_call', { caller_id: inNum });
+		fireCrmEvent('new_call', { caller_id: inNum, caller_name: inName });
+		fireCrmScreenPop({ caller_id: inNum, caller_name: inName, direction: 'inbound' });
 		showPanel();
 		playRingtone();
 		showFABBadge('!');

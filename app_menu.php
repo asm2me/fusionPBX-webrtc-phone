@@ -22,5 +22,16 @@
 	$apps[$x]['menu'][$y]['order'] = "";
 	$apps[$x]['menu'][$y]['groups'][] = "superadmin";
 	$apps[$x]['menu'][$y]['groups'][] = "admin";
+	$y++;
+
+	$apps[$x]['menu'][$y]['title']['en-us'] = "CRM Integration";
+	$apps[$x]['menu'][$y]['uuid'] = "a7b8c9d0-e1f2-3456-abcd-567890123457";
+	$apps[$x]['menu'][$y]['parent_uuid'] = "1a455e6f-f56a-4f59-a551-e09a8b467235"; //applications menu
+	$apps[$x]['menu'][$y]['category'] = "internal";
+	$apps[$x]['menu'][$y]['icon'] = "";
+	$apps[$x]['menu'][$y]['path'] = "/app/web_phone2/crm_settings.php";
+	$apps[$x]['menu'][$y]['order'] = "";
+	$apps[$x]['menu'][$y]['groups'][] = "superadmin";
+	$apps[$x]['menu'][$y]['groups'][] = "admin";
 
 ?>
