@@ -2753,27 +2753,33 @@ var WebRTCPhone = (function () {
 	function fireCrmEvent(eventName, extra) {
 		if (!state.config || !state.config.crm_url) return;
 		extra = extra || {};
-		extra.event = eventName;
 
 		var placeholders = buildCrmPlaceholders(extra);
 		placeholders['{event}'] = eventName;
-		var url = replacePlaceholders(state.config.crm_url, placeholders);
 
-		console.log('WebRTC Phone: CRM event', eventName, url);
+		// Build query params for the local PHP proxy
+		var params = [];
+		for (var k in placeholders) {
+			var paramName = k.replace(/[{}]/g, '');
+			params.push(encodeURIComponent(paramName) + '=' + encodeURIComponent(placeholders[k]));
+		}
+		var proxyUrl = '/app/web_phone2/crm_webhook_proxy.php?' + params.join('&');
+
+		console.log('WebRTC Phone: CRM event', eventName, '(via proxy)');
 
 		try {
-			var method = (state.config.crm_method || 'GET').toUpperCase();
 			var xhr = new XMLHttpRequest();
-			if (method === 'POST') {
-				xhr.open('POST', url, true);
-				xhr.setRequestHeader('Content-Type', 'text/plain');
-				var body = {};
-				for (var k in placeholders) body[k.replace(/[{}]/g, '')] = placeholders[k];
-				xhr.send(JSON.stringify(body));
-			} else {
-				xhr.open('GET', url, true);
-				xhr.send();
-			}
+			xhr.open('GET', proxyUrl, true);
+			xhr.onload = function () {
+				try {
+					var resp = JSON.parse(xhr.responseText);
+					if (!resp.ok) console.warn('WebRTC Phone: CRM webhook failed', resp);
+				} catch (e) {}
+			};
+			xhr.onerror = function () {
+				console.warn('WebRTC Phone: CRM proxy request failed');
+			};
+			xhr.send();
 		} catch (e) {
 			console.warn('WebRTC Phone: CRM event error', e);
 		}
