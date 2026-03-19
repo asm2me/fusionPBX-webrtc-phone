@@ -524,6 +524,36 @@
 	opacity: 1;
 }
 
+/* --- Agent Queue Button --- */
+.webrtc-agent-btn {
+	background: none;
+	border: 1px solid rgba(255,255,255,0.4);
+	border-radius: 4px;
+	cursor: pointer;
+	padding: 2px 5px;
+	line-height: 1;
+	font-size: 11px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 3px;
+	transition: all 0.2s;
+}
+.webrtc-agent-btn-out {
+	color: #ff6b6b;
+	border-color: #ff6b6b;
+}
+.webrtc-agent-btn-out:hover {
+	background: rgba(255,107,107,0.2);
+}
+.webrtc-agent-btn-in {
+	color: #51cf66;
+	border-color: #51cf66;
+}
+.webrtc-agent-btn-in:hover {
+	background: rgba(81,207,102,0.2);
+}
+
 /* --- Settings Panel --- */
 .webrtc-settings-panel {
 	padding: 12px 16px 16px;

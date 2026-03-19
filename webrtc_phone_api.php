@@ -45,6 +45,8 @@ $crm_url = $_SESSION['webrtc_phone']['crm_url']['text'] ?? '';
 $crm_method = $_SESSION['webrtc_phone']['crm_method']['text'] ?? 'GET';
 $crm_login_url = $_SESSION['webrtc_phone']['crm_login_url']['text'] ?? '';
 $crm_auto_login_url = $_SESSION['webrtc_phone']['crm_auto_login_url']['text'] ?? '';
+$crm_agent_login_url = $_SESSION['webrtc_phone']['crm_agent_login_url']['text'] ?? '';
+$crm_agent_logout_url = $_SESSION['webrtc_phone']['crm_agent_logout_url']['text'] ?? '';
 
 if ($webrtc_enabled !== 'true') {
 	echo json_encode(['error' => 'webrtc_phone_disabled']);
@@ -83,6 +85,8 @@ $response = [
 	'crm_method' => strtoupper($crm_method),
 	'crm_login_url' => $crm_login_url,
 	'crm_auto_login_url' => $crm_auto_login_url,
+	'crm_agent_login_url' => $crm_agent_login_url,
+	'crm_agent_logout_url' => $crm_agent_logout_url,
 	'extensions' => []
 ];
 

@@ -26,11 +26,8 @@ if (empty($domain_uuid)) {
 //get CRM settings from session (merged default + domain settings)
 $crm_url = $_SESSION['webrtc_phone']['crm_url']['text'] ?? '';
 $crm_method = strtoupper($_SESSION['webrtc_phone']['crm_method']['text'] ?? 'GET');
-
-if (empty($crm_url)) {
-	echo json_encode(['error' => 'crm_url_not_configured']);
-	exit;
-}
+$crm_agent_login_url = $_SESSION['webrtc_phone']['crm_agent_login_url']['text'] ?? '';
+$crm_agent_logout_url = $_SESSION['webrtc_phone']['crm_agent_logout_url']['text'] ?? '';
 
 //get event data from request
 $event = $_REQUEST['event'] ?? '';
@@ -44,9 +41,21 @@ $call_id = $_REQUEST['call_id'] ?? '';
 $timestamp = $_REQUEST['timestamp'] ?? date('c');
 
 //validate event name
-$valid_events = ['new_call', 'dial_out', 'answered', 'hangup', 'ringing'];
+$valid_events = ['new_call', 'dial_out', 'answered', 'hangup', 'ringing', 'agent_login', 'agent_logout'];
 if (!in_array($event, $valid_events)) {
 	echo json_encode(['error' => 'invalid_event', 'valid' => $valid_events]);
+	exit;
+}
+
+//select the correct URL based on event type
+if ($event === 'agent_login') {
+	$crm_url = $crm_agent_login_url;
+} elseif ($event === 'agent_logout') {
+	$crm_url = $crm_agent_logout_url;
+}
+
+if (empty($crm_url)) {
+	echo json_encode(['error' => 'crm_url_not_configured_for_' . $event]);
 	exit;
 }
 
