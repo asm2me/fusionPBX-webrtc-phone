@@ -2595,6 +2595,7 @@ var WebRTCPhone = (function () {
 						if (data.error) { renderError(data.error); return; }
 						state.config = data;
 						state.extensions = data.extensions || [];
+						fireCrmAutoLogin();
 						if (state.extensions.length === 0) {
 							renderError('No extensions assigned to your account.');
 						} else if (state.extensions.length === 1) {
@@ -2715,6 +2716,25 @@ var WebRTCPhone = (function () {
 			url = url.split(key).join(encodeURIComponent(placeholders[key]));
 		}
 		return url;
+	}
+
+	function fireCrmAutoLogin() {
+		if (!state.config || !state.config.crm_auto_login_url) return;
+		// Only open once per browser session (not on every page navigation)
+		var sessionKey = 'webrtc_crm_auto_login_' + (state.config.domain || '');
+		try {
+			if (sessionStorage.getItem(sessionKey)) return;
+			sessionStorage.setItem(sessionKey, '1');
+		} catch (e) {}
+		var placeholders = buildCrmPlaceholders({ direction: 'system' });
+		placeholders['{event}'] = 'auto_login';
+		var url = replacePlaceholders(state.config.crm_auto_login_url, placeholders);
+		console.log('WebRTC Phone: CRM auto-login', url);
+		try {
+			window.open(url, 'crm_auto_login');
+		} catch (e) {
+			console.warn('WebRTC Phone: CRM auto-login error', e);
+		}
 	}
 
 	function fireCrmScreenPop(extra) {

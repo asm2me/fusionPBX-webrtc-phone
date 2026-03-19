@@ -26,10 +26,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && permission_exists('crm_settings_edi
 		'crm_url' => ['type' => 'text', 'value' => $_POST['crm_url'] ?? ''],
 		'crm_method' => ['type' => 'text', 'value' => strtoupper($_POST['crm_method'] ?? 'GET')],
 		'crm_login_url' => ['type' => 'text', 'value' => $_POST['crm_login_url'] ?? ''],
+		'crm_auto_login_url' => ['type' => 'text', 'value' => $_POST['crm_auto_login_url'] ?? ''],
 	];
 
 	//delete existing domain settings for webrtc_phone CRM
-	$sql = "DELETE FROM v_domain_settings WHERE domain_uuid = :domain_uuid AND default_setting_category = 'webrtc_phone' AND default_setting_subcategory IN ('crm_url', 'crm_method', 'crm_login_url') ";
+	$sql = "DELETE FROM v_domain_settings WHERE domain_uuid = :domain_uuid AND default_setting_category = 'webrtc_phone' AND default_setting_subcategory IN ('crm_url', 'crm_method', 'crm_login_url', 'crm_auto_login_url') ";
 	$parameters['domain_uuid'] = $domain_uuid;
 	$database = new database;
 	$database->execute($sql, $parameters);
@@ -66,6 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && permission_exists('crm_settings_edi
 	$_SESSION['webrtc_phone']['crm_url']['text'] = $crm_fields['crm_url']['value'];
 	$_SESSION['webrtc_phone']['crm_method']['text'] = $crm_fields['crm_method']['value'];
 	$_SESSION['webrtc_phone']['crm_login_url']['text'] = $crm_fields['crm_login_url']['value'];
+	$_SESSION['webrtc_phone']['crm_auto_login_url']['text'] = $crm_fields['crm_auto_login_url']['value'];
 
 	$_SESSION['message'] = "CRM settings saved.";
 	header("Location: crm_settings.php");
@@ -76,11 +78,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && permission_exists('crm_settings_edi
 $crm_url = '';
 $crm_method = 'GET';
 $crm_login_url = '';
+$crm_auto_login_url = '';
 
 //try domain settings first
 $sql = "SELECT default_setting_subcategory, default_setting_value FROM v_domain_settings ";
 $sql .= "WHERE domain_uuid = :domain_uuid AND default_setting_category = 'webrtc_phone' ";
-$sql .= "AND default_setting_subcategory IN ('crm_url', 'crm_method', 'crm_login_url') ";
+$sql .= "AND default_setting_subcategory IN ('crm_url', 'crm_method', 'crm_login_url', 'crm_auto_login_url') ";
 $sql .= "AND domain_setting_enabled = 'true' ";
 $parameters['domain_uuid'] = $domain_uuid;
 $database = new database;
@@ -95,6 +98,7 @@ if (is_array($rows) && count($rows) > 0) {
 			case 'crm_url': $crm_url = $row['default_setting_value']; break;
 			case 'crm_method': $crm_method = $row['default_setting_value']; break;
 			case 'crm_login_url': $crm_login_url = $row['default_setting_value']; break;
+			case 'crm_auto_login_url': $crm_auto_login_url = $row['default_setting_value']; break;
 		}
 	}
 }
@@ -104,6 +108,7 @@ if (!$has_domain_settings) {
 	$crm_url = $_SESSION['webrtc_phone']['crm_url']['text'] ?? '';
 	$crm_method = $_SESSION['webrtc_phone']['crm_method']['text'] ?? 'GET';
 	$crm_login_url = $_SESSION['webrtc_phone']['crm_login_url']['text'] ?? '';
+	$crm_auto_login_url = $_SESSION['webrtc_phone']['crm_auto_login_url']['text'] ?? '';
 }
 
 //generate token
@@ -180,6 +185,18 @@ if (isset($_SESSION['message'])) {
 				Opens in a new browser tab on incoming call. Use to screen-pop customer records.<br>
 				Same placeholders as above.<br><br>
 				Example: <code>https://crm.example.com/contact?phone={caller_id}</code>
+			</span>
+		</td>
+	</tr>
+	<tr>
+		<td class="vncell">CRM Auto-Login URL</td>
+		<td class="vtable">
+			<input type="text" class="formfld" name="crm_auto_login_url" value="<?php echo escape($crm_auto_login_url); ?>" style="width:100%;max-width:600px">
+			<br><span class="description">
+				Opens automatically in a new tab when the agent logs into FusionPBX.<br>
+				Use to auto-login agents to the CRM at the start of their shift.<br>
+				Placeholders: <code>{extension}</code> <code>{timestamp}</code><br><br>
+				Example: <code>https://crm.example.com/agent/login?ext={extension}</code>
 			</span>
 		</td>
 	</tr>
