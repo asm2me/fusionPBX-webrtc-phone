@@ -2,7 +2,7 @@
 
 	//application details
 	$apps[$x]['name'] = "WebRTC Phone";
-	$apps[$x]['uuid'] = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+	$apps[$x]['uuid'] = "3c8f2e1a-9b4d-4f7e-a6c5-7d2b0f1e4c8b";
 	$apps[$x]['category'] = "Switch";
 	$apps[$x]['subcategory'] = "";
 	$apps[$x]['version'] = "1.0.0";

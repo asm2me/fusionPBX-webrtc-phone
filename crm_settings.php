@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && permission_exists('crm_settings_edi
 
 	$database = new database;
 	$database->app_name = "webrtc_phone";
-	$database->app_uuid = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+	$database->app_uuid = "3c8f2e1a-9b4d-4f7e-a6c5-7d2b0f1e4c8b";
 	$database->save($array);
 	unset($array);
 
