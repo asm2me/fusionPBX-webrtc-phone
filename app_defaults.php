@@ -10,6 +10,26 @@
 
 if ($domains_processed == 1) {
 
+	//remove stale menu items (wrong parent or old UUIDs from previous installs)
+	$database = new database;
+	$known_menu_uuids = [
+		'e5f6a7b8-c9d0-1234-efab-345678901234', //WebRTC Phone
+		'f6a7b8c9-d0e1-2345-fabc-456789012345', //Click-to-Dial Setup
+		'a7b8c9d0-e1f2-3456-abcd-567890123457', //CRM Integration
+	];
+	$placeholders = implode(',', array_map(fn($i) => ":uuid{$i}", array_keys($known_menu_uuids)));
+	$params = [];
+	foreach ($known_menu_uuids as $i => $u) { $params["uuid{$i}"] = $u; }
+	$sql = "DELETE FROM v_menu_items
+	        WHERE menu_item_link IN (
+	            '/app/web_phone2/webrtc_phone.php',
+	            '/app/web_phone2/click_to_dial/click_to_dial_setup.php',
+	            '/app/web_phone2/crm_settings.php'
+	        )
+	        AND menu_item_uuid NOT IN ({$placeholders})";
+	$database->execute($sql, $params);
+	unset($sql, $params, $placeholders, $known_menu_uuids);
+
 	//default settings
 	$y = 0;
 
