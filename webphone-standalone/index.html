@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Webphone Standalone</title>
+	<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%231a73e8'><path d='M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 00-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z'/></svg>">
+	<link rel="stylesheet" href="resources/css/webrtc_phone.css">
+	<style>
+		* { box-sizing: border-box; margin: 0; padding: 0; }
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+			background: #f0f2f5;
+			min-height: 100vh;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: flex-start;
+			padding: 20px;
+		}
+		.standalone-header {
+			text-align: center;
+			margin-bottom: 16px;
+		}
+		.standalone-header h1 {
+			font-size: 22px;
+			color: #1a73e8;
+			font-weight: 700;
+			margin-bottom: 4px;
+		}
+		.standalone-header p {
+			font-size: 12px;
+			color: #888;
+		}
+		#webrtc-phone-standalone {
+			max-width: 380px;
+			width: 100%;
+			margin: 0 auto;
+		}
+		@media (prefers-color-scheme: dark) {
+			body { background: #1a1a1a; }
+			.standalone-header h1 { color: #90b8f8; }
+			.standalone-header p { color: #666; }
+		}
+	</style>
+</head>
+<body>
+	<div class="standalone-header">
+		<h1>Webphone Standalone</h1>
+		<p>SIP WebRTC Softphone</p>
+	</div>
+	<div id="webrtc-phone-standalone">
+		<div id="webrtc-phone-mount"></div>
+	</div>
+
+	<script src="config.js"></script>
+	<script src="resources/js/jssip.min.js"></script>
+	<script src="resources/js/webrtc_phone.js"></script>
+	<script>
+		document.addEventListener('DOMContentLoaded', function() {
+			WebRTCPhone.init('webrtc-phone-mount');
+		});
+	</script>
+</body>
+</html>

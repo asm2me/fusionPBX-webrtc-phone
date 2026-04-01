@@ -1,0 +1,1468 @@
+/* ============================================
+   Webphone Standalone - SIP WebRTC Softphone UI
+   ============================================ */
+
+/* --- Floating Action Button (FAB) --- */
+#webrtc-phone-floating-container {
+	position: fixed;
+	bottom: 24px;
+	right: 24px;
+	z-index: 99999;
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+}
+
+#webrtc-phone-fab {
+	width: 56px;
+	height: 56px;
+	border-radius: 50%;
+	background: #1a73e8;
+	color: #fff;
+	border: none;
+	cursor: pointer;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+	position: relative;
+}
+
+#webrtc-phone-fab:hover {
+	background: #1557b0;
+	transform: scale(1.08);
+	box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+}
+
+#webrtc-phone-fab:active {
+	transform: scale(0.95);
+}
+
+#webrtc-phone-fab svg {
+	width: 24px;
+	height: 24px;
+}
+
+/* Badge */
+.webrtc-badge {
+	position: absolute;
+	top: -4px;
+	right: -4px;
+	background: #e53935;
+	color: #fff;
+	font-size: 11px;
+	font-weight: 700;
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	animation: webrtc-pulse 1.5s infinite;
+}
+
+@keyframes webrtc-pulse {
+	0%, 100% { box-shadow: 0 0 0 0 rgba(229, 57, 53, 0.5); }
+	50% { box-shadow: 0 0 0 8px rgba(229, 57, 53, 0); }
+}
+
+/* --- Phone Panel --- */
+.webrtc-phone-panel {
+	position: absolute;
+	bottom: 68px;
+	right: 0;
+	width: 320px;
+	background: #fff;
+	border-radius: 12px;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+	overflow: hidden;
+	transition: opacity 0.2s, transform 0.2s;
+}
+
+.webrtc-phone-panel.hidden {
+	display: none;
+}
+
+/* --- Phone Inner --- */
+.webrtc-phone-inner {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+/* --- Header --- */
+.webrtc-phone-header {
+	background: #1a73e8;
+	color: #fff;
+	padding: 12px 16px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.webrtc-phone-title {
+	font-size: 14px;
+	font-weight: 600;
+	flex: 1;
+}
+
+.webrtc-status {
+	font-size: 11px;
+	padding: 2px 8px;
+	border-radius: 10px;
+	font-weight: 500;
+}
+
+.webrtc-status-registered {
+	background: rgba(76, 175, 80, 0.9);
+}
+
+.webrtc-status-unregistered {
+	background: rgba(255, 152, 0, 0.9);
+}
+
+.webrtc-status-connecting {
+	background: rgba(255, 193, 7, 0.9);
+	color: #333;
+}
+
+.webrtc-status-error {
+	background: rgba(244, 67, 54, 0.9);
+}
+
+.webrtc-close-btn {
+	background: none;
+	border: none;
+	color: #fff;
+	font-size: 20px;
+	cursor: pointer;
+	padding: 0 4px;
+	line-height: 1;
+	opacity: 0.8;
+}
+
+.webrtc-close-btn:hover {
+	opacity: 1;
+}
+
+/* --- Body --- */
+.webrtc-phone-body {
+	padding: 16px;
+}
+
+/* --- Extension Selector --- */
+.webrtc-ext-selector {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.webrtc-ext-selector label {
+	font-size: 13px;
+	font-weight: 600;
+	color: #333;
+}
+
+.webrtc-ext-switch {
+	margin-bottom: 12px;
+}
+
+.webrtc-select {
+	width: 100%;
+	padding: 8px 12px;
+	border: 1px solid #ddd;
+	border-radius: 6px;
+	font-size: 13px;
+	background: #fff;
+	color: #333;
+	cursor: pointer;
+	outline: none;
+}
+
+.webrtc-select:focus {
+	border-color: #1a73e8;
+	box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+}
+
+.webrtc-select-sm {
+	padding: 4px 8px;
+	font-size: 12px;
+}
+
+/* --- Input --- */
+.webrtc-input {
+	width: 100%;
+	padding: 10px 14px;
+	border: 1px solid #ddd;
+	border-radius: 8px;
+	font-size: 18px;
+	text-align: center;
+	letter-spacing: 2px;
+	outline: none;
+	box-sizing: border-box;
+	color: #222;
+	background: #f8f9fa;
+}
+
+.webrtc-input:focus {
+	border-color: #1a73e8;
+	box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+}
+
+.webrtc-input-sm {
+	font-size: 13px;
+	padding: 6px 10px;
+	letter-spacing: 0;
+	text-align: left;
+	flex: 1;
+}
+
+/* --- Dial Pad --- */
+.webrtc-dialpad {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.webrtc-dialpad-grid {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 8px;
+}
+
+.webrtc-dialpad-sm {
+	gap: 4px;
+	margin-top: 8px;
+}
+
+.webrtc-key {
+	padding: 12px;
+	font-size: 20px;
+	font-weight: 500;
+	border: 1px solid #e0e0e0;
+	border-radius: 8px;
+	background: #f8f9fa;
+	color: #333;
+	cursor: pointer;
+	transition: background 0.15s, transform 0.1s;
+	user-select: none;
+}
+
+.webrtc-key:hover {
+	background: #e8eaed;
+}
+
+.webrtc-key:active {
+	background: #d2d5db;
+	transform: scale(0.95);
+}
+
+.webrtc-key-sm {
+	padding: 6px;
+	font-size: 14px;
+}
+
+.webrtc-key-main {
+	display: block;
+	font-size: 20px;
+	line-height: 1.2;
+}
+
+.webrtc-key-sub {
+	display: block;
+	font-size: 9px;
+	color: #999;
+	letter-spacing: 1px;
+	margin-top: 1px;
+}
+
+/* --- Call Icon --- */
+.webrtc-call-icon {
+	font-size: 36px;
+	line-height: 1;
+	color: #666;
+}
+
+.webrtc-call-icon-incoming {
+	color: #4caf50;
+	animation: webrtc-ring 0.8s infinite alternate;
+}
+
+.webrtc-call-icon-active {
+	color: #1a73e8;
+}
+
+@keyframes webrtc-ring {
+	0% { transform: rotate(-15deg); }
+	100% { transform: rotate(15deg); }
+}
+
+/* --- Backspace Button --- */
+.webrtc-btn-backspace {
+	background: #eee;
+	color: #666;
+	padding: 10px 14px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.webrtc-btn-backspace:hover {
+	background: #ddd;
+	color: #333;
+}
+
+/* --- Buttons --- */
+.webrtc-btn {
+	padding: 10px 16px;
+	border: none;
+	border-radius: 8px;
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background 0.2s, transform 0.1s;
+}
+
+.webrtc-btn:active {
+	transform: scale(0.96);
+}
+
+.webrtc-btn:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.webrtc-btn-primary {
+	background: #1a73e8;
+	color: #fff;
+}
+
+.webrtc-btn-primary:hover:not(:disabled) {
+	background: #1557b0;
+}
+
+.webrtc-btn-call {
+	background: #4caf50;
+	color: #fff;
+	flex: 1;
+}
+
+.webrtc-btn-call:hover:not(:disabled) {
+	background: #43a047;
+}
+
+.webrtc-btn-hangup {
+	background: #e53935;
+	color: #fff;
+}
+
+.webrtc-btn-hangup:hover {
+	background: #c62828;
+}
+
+.webrtc-btn-answer {
+	background: #4caf50;
+	color: #fff;
+}
+
+.webrtc-btn-answer:hover {
+	background: #43a047;
+}
+
+.webrtc-btn-reject {
+	background: #e53935;
+	color: #fff;
+}
+
+.webrtc-btn-reject:hover {
+	background: #c62828;
+}
+
+.webrtc-btn-clear {
+	background: #9e9e9e;
+	color: #fff;
+	padding: 10px 14px;
+}
+
+.webrtc-btn-clear:hover {
+	background: #757575;
+}
+
+.webrtc-btn-sm {
+	padding: 6px 12px;
+	font-size: 12px;
+}
+
+.webrtc-btn-active {
+	background: #ff9800 !important;
+	color: #fff;
+}
+
+/* --- Dial Actions --- */
+.webrtc-dial-actions {
+	display: flex;
+	gap: 8px;
+}
+
+/* --- Call Info --- */
+.webrtc-call-info {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 0;
+}
+
+.webrtc-call-label {
+	font-size: 12px;
+	color: #666;
+	text-transform: uppercase;
+	letter-spacing: 1px;
+	font-weight: 600;
+}
+
+.webrtc-call-number {
+	font-size: 20px;
+	font-weight: 600;
+	color: #222;
+}
+
+.webrtc-call-status {
+	font-size: 14px;
+	color: #888;
+	font-weight: 400;
+	margin-top: 4px;
+	animation: webrtc-pulse 1.5s ease-in-out infinite;
+}
+@keyframes webrtc-pulse {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.4; }
+}
+
+.webrtc-call-icon-outgoing {
+	animation: webrtc-ring 1s ease-in-out infinite;
+}
+@keyframes webrtc-ring {
+	0%, 100% { transform: rotate(0deg); }
+	25% { transform: rotate(15deg); }
+	75% { transform: rotate(-15deg); }
+}
+
+.webrtc-call-timer {
+	font-size: 16px;
+	color: #1a73e8;
+	font-weight: 500;
+	font-variant-numeric: tabular-nums;
+}
+
+.webrtc-call-actions {
+	display: flex;
+	gap: 10px;
+	margin-top: 8px;
+}
+
+/* --- In-call DTMF --- */
+.webrtc-incall-dtmf {
+	width: 100%;
+	margin-top: 4px;
+}
+
+/* --- Transfer --- */
+.webrtc-transfer {
+	display: flex;
+	gap: 6px;
+	align-items: center;
+	margin-top: 8px;
+	width: 100%;
+}
+
+/* --- Error --- */
+.webrtc-error {
+	text-align: center;
+	color: #e53935;
+	padding: 20px;
+	font-size: 14px;
+}
+
+/* --- Hidden utility --- */
+.hidden {
+	display: none !important;
+}
+
+/* --- Standalone page mount --- */
+#webrtc-phone-standalone {
+	max-width: 360px;
+	margin: 40px auto;
+}
+
+#webrtc-phone-standalone .webrtc-phone-inner {
+	border: 1px solid #ddd;
+	border-radius: 12px;
+	overflow: hidden;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+#webrtc-phone-standalone .webrtc-close-btn {
+	display: none;
+}
+
+/* --- Settings Button (gear icon in header) --- */
+.webrtc-settings-btn {
+	background: none;
+	border: none;
+	color: #fff;
+	cursor: pointer;
+	padding: 0 4px;
+	line-height: 1;
+	opacity: 0.8;
+	font-size: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.webrtc-settings-btn:hover {
+	opacity: 1;
+}
+
+/* --- Agent Queue Button --- */
+.webrtc-agent-btn {
+	background: none;
+	border: 1px solid rgba(255,255,255,0.4);
+	border-radius: 4px;
+	cursor: pointer;
+	padding: 2px 5px;
+	line-height: 1;
+	font-size: 11px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 3px;
+	transition: all 0.2s;
+}
+.webrtc-agent-btn-out {
+	color: #ff6b6b;
+	border-color: #ff6b6b;
+}
+.webrtc-agent-btn-out:hover {
+	background: rgba(255,107,107,0.2);
+}
+.webrtc-agent-btn-in {
+	color: #51cf66;
+	border-color: #51cf66;
+}
+.webrtc-agent-btn-in:hover {
+	background: rgba(81,207,102,0.2);
+}
+
+/* --- Settings Panel --- */
+.webrtc-settings-panel {
+	padding: 12px 16px 16px;
+	background: #f8f9fa;
+	border-top: 1px solid #e0e0e0;
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+}
+
+.webrtc-settings-section {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.webrtc-settings-section label {
+	font-size: 11px;
+	font-weight: 700;
+	color: #555;
+	text-transform: uppercase;
+	letter-spacing: 0.8px;
+}
+
+/* --- Volume Row --- */
+.webrtc-volume-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.webrtc-volume-slider {
+	flex: 1;
+	height: 4px;
+	accent-color: #1a73e8;
+	cursor: pointer;
+}
+
+.webrtc-volume-pct {
+	font-size: 11px;
+	color: #666;
+	min-width: 32px;
+	text-align: right;
+}
+
+/* --- AGC Toggle --- */
+.webrtc-agc-toggle {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	cursor: pointer;
+	font-size: 11px;
+	color: #555;
+	margin-top: 2px;
+}
+.webrtc-agc-toggle input[type="checkbox"] {
+	width: 14px;
+	height: 14px;
+	accent-color: #1a73e8;
+	cursor: pointer;
+	margin: 0;
+}
+.webrtc-agc-toggle span {
+	user-select: none;
+}
+
+/* --- Ringtone Row --- */
+.webrtc-ringtone-row {
+	display: flex;
+	gap: 6px;
+	align-items: center;
+}
+
+.webrtc-ringtone-row .webrtc-select {
+	flex: 1;
+}
+
+/* --- Secondary Button --- */
+.webrtc-btn-secondary {
+	background: #e8eaed;
+	color: #333;
+}
+
+.webrtc-btn-secondary:hover {
+	background: #dadce0;
+}
+
+.webrtc-btn-secondary.webrtc-btn-active {
+	background: #ff9800 !important;
+	color: #fff;
+}
+
+/* --- Settings Done Button row --- */
+.webrtc-settings-done {
+	display: flex;
+	justify-content: flex-end;
+	margin-top: 4px;
+}
+
+/* --- Responsive --- */
+@media (max-width: 400px) {
+	.webrtc-phone-panel {
+		width: 290px;
+	}
+
+	.webrtc-key {
+		padding: 10px;
+		font-size: 18px;
+	}
+}
+
+/* --- Tabs (Keypad / Recent) --- */
+.webrtc-tabs {
+	display: flex;
+	border-bottom: 2px solid #e0e0e0;
+	margin-bottom: 12px;
+}
+
+.webrtc-tab {
+	flex: 1;
+	padding: 7px 8px;
+	background: none;
+	border: none;
+	font-size: 13px;
+	font-weight: 500;
+	color: #777;
+	cursor: pointer;
+	border-bottom: 2px solid transparent;
+	margin-bottom: -2px;
+	transition: color 0.15s;
+}
+
+.webrtc-tab:hover {
+	color: #1a73e8;
+}
+
+.webrtc-tab-active {
+	color: #1a73e8;
+	border-bottom-color: #1a73e8;
+	font-weight: 600;
+}
+
+/* --- History Panel --- */
+.webrtc-history {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 0;
+}
+
+.webrtc-history-empty {
+	text-align: center;
+	color: #aaa;
+	font-size: 13px;
+	padding: 28px 0;
+}
+
+.webrtc-history-list {
+	display: flex;
+	flex-direction: column;
+	max-height: 260px;
+	overflow-y: auto;
+}
+
+.webrtc-history-item {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 7px 4px;
+	border-radius: 6px;
+	cursor: pointer;
+	transition: background 0.1s;
+}
+
+.webrtc-history-item:hover {
+	background: #f0f4ff;
+}
+
+.webrtc-history-icon {
+	font-size: 18px;
+	width: 22px;
+	text-align: center;
+	font-weight: 700;
+	flex-shrink: 0;
+	line-height: 1;
+}
+
+/* Direction + status icon colors */
+.webrtc-history-icon-inbound-answered  { color: #4caf50; }
+.webrtc-history-icon-inbound-missed    { color: #e53935; }
+.webrtc-history-icon-inbound-rejected  { color: #9e9e9e; }
+.webrtc-history-icon-outbound-answered { color: #1a73e8; }
+.webrtc-history-icon-outbound-cancelled { color: #9e9e9e; }
+.webrtc-history-icon-outbound-failed   { color: #e53935; }
+
+.webrtc-history-details {
+	flex: 1;
+	min-width: 0;
+}
+
+.webrtc-history-name {
+	font-size: 13px;
+	font-weight: 600;
+	color: #222;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.webrtc-history-number {
+	font-size: 11px;
+	color: #666;
+}
+
+.webrtc-history-meta {
+	font-size: 11px;
+	color: #999;
+}
+
+.webrtc-history-call-btn {
+	background: none;
+	border: none;
+	color: #4caf50;
+	cursor: pointer;
+	padding: 5px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0.6;
+	flex-shrink: 0;
+	transition: background 0.15s, opacity 0.15s;
+}
+
+.webrtc-history-call-btn:hover {
+	background: #e8f5e9;
+	opacity: 1;
+}
+
+.webrtc-history-clear {
+	align-self: center;
+	margin-top: 10px;
+	background: none;
+	color: #aaa;
+	border: 1px solid #ddd;
+	font-size: 11px;
+}
+
+.webrtc-history-clear:hover {
+	color: #e53935;
+	border-color: #e53935;
+	background: none;
+}
+
+/* --- Call Quality Indicator (in-call) --- */
+.webrtc-quality-indicator {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 12px;
+	font-weight: 600;
+	padding: 3px 10px;
+	border-radius: 10px;
+	letter-spacing: 0.5px;
+}
+
+.webrtc-quality-dots {
+	font-size: 10px;
+	letter-spacing: 2px;
+}
+
+.webrtc-quality-label {
+	font-size: 11px;
+}
+
+.webrtc-quality-excellent {
+	background: rgba(76, 175, 80, 0.15);
+	color: #2e7d32;
+}
+
+.webrtc-quality-good {
+	background: rgba(26, 115, 232, 0.12);
+	color: #1565c0;
+}
+
+.webrtc-quality-fair {
+	background: rgba(255, 152, 0, 0.15);
+	color: #e65100;
+}
+
+.webrtc-quality-poor {
+	background: rgba(244, 67, 54, 0.15);
+	color: #c62828;
+}
+
+.webrtc-quality-unknown {
+	background: rgba(158, 158, 158, 0.12);
+	color: #757575;
+}
+
+.webrtc-quality-details {
+	font-size: 10px;
+	color: #888;
+	text-align: center;
+	padding: 2px 4px;
+	word-break: break-word;
+}
+
+.webrtc-quality-issues {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	justify-content: center;
+	padding: 0 4px;
+}
+
+.webrtc-quality-issue {
+	font-size: 10px;
+	background: rgba(244, 67, 54, 0.1);
+	color: #c62828;
+	padding: 1px 6px;
+	border-radius: 8px;
+	white-space: nowrap;
+}
+
+/* --- History Quality Badge --- */
+.webrtc-history-quality {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+	margin-top: 2px;
+}
+
+.webrtc-history-quality-badge {
+	font-size: 10px;
+	font-weight: 600;
+	padding: 1px 6px;
+	border-radius: 8px;
+}
+
+.webrtc-history-quality-badge.webrtc-quality-excellent { background: rgba(76, 175, 80, 0.15); color: #2e7d32; }
+.webrtc-history-quality-badge.webrtc-quality-good { background: rgba(26, 115, 232, 0.12); color: #1565c0; }
+.webrtc-history-quality-badge.webrtc-quality-fair { background: rgba(255, 152, 0, 0.15); color: #e65100; }
+.webrtc-history-quality-badge.webrtc-quality-poor { background: rgba(244, 67, 54, 0.15); color: #c62828; }
+
+.webrtc-history-quality-issues {
+	font-size: 9px;
+	color: #999;
+	font-style: italic;
+}
+
+/* --- Network Quality Test --- */
+.webrtc-network-test {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+/* Widen panel when showing network test */
+.webrtc-phone-panel:has(.webrtc-network-test) {
+	width: 640px;
+}
+
+#webrtc-phone-standalone .webrtc-phone-inner:has(.webrtc-network-test) {
+	max-width: 660px;
+}
+
+.webrtc-net-columns {
+	display: flex;
+	gap: 10px;
+	width: 100%;
+}
+
+.webrtc-net-col {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.webrtc-network-test-title {
+	font-size: 14px;
+	font-weight: 600;
+	color: #333;
+	text-align: center;
+}
+
+.webrtc-net-domain {
+	font-size: 11px;
+	color: #888;
+	text-align: center;
+	margin-bottom: 8px;
+}
+
+.webrtc-network-test-running {
+	text-align: center;
+	font-size: 13px;
+	color: #1a73e8;
+	padding: 8px 0;
+}
+
+.webrtc-network-test-results {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.webrtc-net-result {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 3px 6px;
+	border-radius: 4px;
+	font-size: 11px;
+}
+
+.webrtc-net-pass {
+	background: rgba(76, 175, 80, 0.08);
+}
+
+.webrtc-net-fail {
+	background: rgba(244, 67, 54, 0.08);
+}
+
+.webrtc-net-warn {
+	background: rgba(255, 152, 0, 0.08);
+}
+
+.webrtc-net-icon {
+	font-size: 12px;
+	width: 14px;
+	text-align: center;
+	flex-shrink: 0;
+}
+
+.webrtc-net-pass .webrtc-net-icon { color: #4caf50; }
+.webrtc-net-fail .webrtc-net-icon { color: #e53935; }
+.webrtc-net-warn .webrtc-net-icon { color: #ff9800; }
+
+.webrtc-net-label {
+	font-weight: 600;
+	color: #444;
+	min-width: 70px;
+	font-size: 11px;
+}
+
+.webrtc-net-value {
+	color: #666;
+	flex: 1;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+	font-size: 11px;
+}
+
+.webrtc-net-verdict {
+	text-align: center;
+	font-size: 11px;
+	font-weight: 600;
+	padding: 5px;
+	border-radius: 4px;
+	margin-top: 2px;
+}
+
+.webrtc-net-verdict-pass {
+	background: rgba(76, 175, 80, 0.12);
+	color: #2e7d32;
+}
+
+.webrtc-net-verdict-fail {
+	background: rgba(244, 67, 54, 0.12);
+	color: #c62828;
+}
+
+.webrtc-net-demo-details {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 3px 8px;
+	padding: 2px 6px;
+	font-size: 9px;
+	color: #666;
+}
+
+.webrtc-net-demo-details span {
+	white-space: nowrap;
+}
+
+.webrtc-net-demo-issues {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	padding: 2px 10px;
+}
+
+.webrtc-net-verdict-warn {
+	background: rgba(255, 152, 0, 0.12);
+	color: #e65100;
+}
+
+.webrtc-net-section-label {
+	font-size: 9px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.8px;
+	color: #888;
+	margin-top: 4px;
+}
+
+.webrtc-net-diagnosis {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin-top: 2px;
+}
+
+.webrtc-net-diag-source {
+	font-size: 12px;
+}
+
+.webrtc-net-diag-list {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	padding: 0 4px;
+}
+
+.webrtc-net-diag-heading {
+	font-size: 10px;
+	font-weight: 700;
+	color: #666;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.webrtc-net-diag-item {
+	font-size: 11px;
+	padding: 2px 0 2px 10px;
+	position: relative;
+}
+
+.webrtc-net-diag-item::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 8px;
+	width: 4px;
+	height: 4px;
+	border-radius: 50%;
+}
+
+.webrtc-net-diag-issue::before {
+	background: #e53935;
+}
+
+.webrtc-net-diag-issue {
+	color: #c62828;
+}
+
+.webrtc-net-diag-fix::before {
+	background: #4caf50;
+}
+
+.webrtc-net-diag-fix {
+	color: #2e7d32;
+}
+
+.webrtc-ping-timeline {
+	display: flex;
+	align-items: flex-end;
+	gap: 2px;
+	height: 30px;
+	padding: 2px 0;
+	border-bottom: 1px solid #e0e0e0;
+	margin: 2px 0;
+}
+
+.webrtc-ping-bar {
+	flex: 1;
+	min-width: 4px;
+	border-radius: 2px 2px 0 0;
+	transition: height 0.2s;
+}
+
+.webrtc-ping-bar-ok { background: #4caf50; }
+.webrtc-ping-bar-spike { background: #ff9800; }
+.webrtc-ping-bar-fail { background: #f44336; height: 100% !important; opacity: 0.4; }
+
+.webrtc-network-test-actions {
+	display: flex;
+	gap: 6px;
+	justify-content: center;
+	flex-wrap: wrap;
+	padding: 8px 0 4px;
+}
+
+/* --- Audio Level Indicators --- */
+.webrtc-audio-levels {
+	display: flex;
+	gap: 12px;
+	align-items: center;
+	justify-content: center;
+	padding: 4px 0;
+	width: 100%;
+}
+
+.webrtc-audio-level {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex: 1;
+}
+
+.webrtc-audio-level-label {
+	font-size: 10px;
+	color: #888;
+	min-width: 28px;
+	text-align: right;
+}
+
+.webrtc-audio-level-bar-bg {
+	flex: 1;
+	height: 4px;
+	background: #e0e0e0;
+	border-radius: 2px;
+	overflow: hidden;
+}
+
+.webrtc-audio-level-bar {
+	height: 100%;
+	border-radius: 2px;
+	transition: width 0.15s ease;
+	min-width: 0;
+}
+
+.webrtc-audio-level-mic .webrtc-audio-level-bar {
+	background: #4caf50;
+}
+
+.webrtc-audio-level-spk .webrtc-audio-level-bar {
+	background: #1a73e8;
+}
+
+/* --- Dark theme support --- */
+@media (prefers-color-scheme: dark) {
+	.webrtc-phone-panel,
+	#webrtc-phone-standalone .webrtc-phone-inner {
+		background: #2d2d2d;
+		border-color: #444;
+	}
+
+	.webrtc-input {
+		background: #3a3a3a;
+		border-color: #555;
+		color: #eee;
+	}
+
+	.webrtc-key {
+		background: #3a3a3a;
+		border-color: #555;
+		color: #eee;
+	}
+
+	.webrtc-key:hover {
+		background: #4a4a4a;
+	}
+
+	.webrtc-select {
+		background: #3a3a3a;
+		border-color: #555;
+		color: #eee;
+	}
+
+	.webrtc-call-number {
+		color: #eee;
+	}
+
+	.webrtc-call-label {
+		color: #aaa;
+	}
+
+	.webrtc-ext-selector label {
+		color: #ccc;
+	}
+
+	.webrtc-settings-panel {
+		background: #252525;
+		border-color: #444;
+	}
+
+	.webrtc-settings-section label {
+		color: #aaa;
+	}
+
+	.webrtc-volume-pct {
+		color: #aaa;
+	}
+
+	.webrtc-btn-secondary {
+		background: #3a3a3a;
+		color: #eee;
+	}
+
+	.webrtc-btn-secondary:hover {
+		background: #4a4a4a;
+	}
+
+	.webrtc-tabs {
+		border-bottom-color: #444;
+	}
+
+	.webrtc-tab {
+		color: #999;
+	}
+
+	.webrtc-tab:hover {
+		color: #90b8f8;
+	}
+
+	.webrtc-tab-active {
+		color: #90b8f8;
+		border-bottom-color: #90b8f8;
+	}
+
+	.webrtc-history-empty {
+		color: #666;
+	}
+
+	.webrtc-history-item:hover {
+		background: #3a3a3a;
+	}
+
+	.webrtc-history-name {
+		color: #eee;
+	}
+
+	.webrtc-history-number,
+	.webrtc-history-meta {
+		color: #777;
+	}
+
+	.webrtc-history-call-btn:hover {
+		background: #1a3a1a;
+	}
+
+	.webrtc-history-clear {
+		color: #666;
+		border-color: #444;
+	}
+
+	.webrtc-history-clear:hover {
+		color: #ef9a9a;
+		border-color: #ef9a9a;
+	}
+
+	/* Quality indicator dark mode */
+	.webrtc-quality-excellent { background: rgba(76, 175, 80, 0.2); color: #81c784; }
+	.webrtc-quality-good { background: rgba(26, 115, 232, 0.2); color: #90b8f8; }
+	.webrtc-quality-fair { background: rgba(255, 152, 0, 0.2); color: #ffb74d; }
+	.webrtc-quality-poor { background: rgba(244, 67, 54, 0.2); color: #ef9a9a; }
+	.webrtc-quality-unknown { background: rgba(158, 158, 158, 0.15); color: #aaa; }
+	.webrtc-quality-details { color: #777; }
+	.webrtc-quality-issue { background: rgba(244, 67, 54, 0.15); color: #ef9a9a; }
+
+	.webrtc-history-quality-badge.webrtc-quality-excellent { background: rgba(76, 175, 80, 0.2); color: #81c784; }
+	.webrtc-history-quality-badge.webrtc-quality-good { background: rgba(26, 115, 232, 0.2); color: #90b8f8; }
+	.webrtc-history-quality-badge.webrtc-quality-fair { background: rgba(255, 152, 0, 0.2); color: #ffb74d; }
+	.webrtc-history-quality-badge.webrtc-quality-poor { background: rgba(244, 67, 54, 0.2); color: #ef9a9a; }
+	.webrtc-history-quality-issues { color: #666; }
+
+	/* Network test dark mode */
+	.webrtc-network-test-title { color: #eee; }
+	.webrtc-net-label { color: #ccc; }
+	.webrtc-net-value { color: #aaa; }
+	.webrtc-net-pass { background: rgba(76, 175, 80, 0.12); }
+	.webrtc-net-fail { background: rgba(244, 67, 54, 0.12); }
+	.webrtc-net-warn { background: rgba(255, 152, 0, 0.12); }
+	.webrtc-net-verdict-pass { background: rgba(76, 175, 80, 0.15); color: #81c784; }
+	.webrtc-net-verdict-warn { background: rgba(255, 152, 0, 0.15); color: #ffb74d; }
+	.webrtc-net-verdict-fail { background: rgba(244, 67, 54, 0.15); color: #ef9a9a; }
+	.webrtc-net-demo-details { color: #888; }
+	.webrtc-net-section-label { color: #777; }
+	.webrtc-net-diag-heading { color: #999; }
+	.webrtc-net-diag-issue { color: #ef9a9a; }
+	.webrtc-net-diag-fix { color: #81c784; }
+	.webrtc-net-diag-issue::before { background: #ef9a9a; }
+	.webrtc-net-diag-fix::before { background: #81c784; }
+	.webrtc-ping-timeline { border-bottom-color: #444; }
+
+	/* Audio levels dark mode */
+	.webrtc-audio-level-label { color: #aaa; }
+	.webrtc-audio-level-bar-bg { background: #444; }
+
+	/* SIP Settings dark mode */
+	.webrtc-sip-section { border-color: #444; }
+	.webrtc-sip-section-title { color: #ccc; background: #333; }
+	.webrtc-sip-section-title:hover { background: #3a3a3a; }
+	.webrtc-sip-field label { color: #aaa; }
+	.webrtc-sip-ext-block { border-color: #444; background: #2a2a2a; }
+	.webrtc-sip-ext-header { color: #bbb; border-color: #444; }
+	.webrtc-sip-extensions-header label { color: #ccc; }
+}
+
+/* ============================================
+   SIP Settings (Standalone)
+   ============================================ */
+
+.webrtc-sip-section {
+	border: 1px solid #e0e0e0;
+	border-radius: 8px;
+	margin-bottom: 10px;
+	overflow: hidden;
+}
+
+.webrtc-sip-section-title {
+	font-size: 13px;
+	font-weight: 600;
+	color: #333;
+	padding: 10px 14px;
+	background: #f5f6f7;
+	cursor: pointer;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	user-select: none;
+	transition: background 0.15s;
+}
+
+.webrtc-sip-section-title:hover {
+	background: #ebedf0;
+}
+
+.webrtc-sip-arrow {
+	font-size: 10px;
+	color: #888;
+}
+
+.webrtc-sip-section-body {
+	padding: 10px 14px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.webrtc-sip-field {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+}
+
+.webrtc-sip-field label {
+	font-size: 11px;
+	font-weight: 600;
+	color: #555;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.webrtc-sip-field input[type="text"],
+.webrtc-sip-field input[type="password"] {
+	text-align: left;
+	letter-spacing: 0;
+}
+
+.webrtc-sip-extensions-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-top: 8px;
+	padding-top: 8px;
+	border-top: 1px solid #e0e0e0;
+}
+
+.webrtc-sip-extensions-header label {
+	font-size: 12px;
+	font-weight: 700;
+	color: #333;
+}
+
+.webrtc-sip-ext-block {
+	border: 1px solid #e8e8e8;
+	border-radius: 6px;
+	padding: 8px;
+	background: #fafbfc;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.webrtc-sip-ext-block + .webrtc-sip-ext-block {
+	margin-top: 8px;
+}
+
+.webrtc-sip-ext-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	font-size: 12px;
+	font-weight: 600;
+	color: #666;
+	padding-bottom: 4px;
+	border-bottom: 1px solid #e8e8e8;
+	margin-bottom: 2px;
+}
+
+.webrtc-sip-actions {
+	display: flex;
+	gap: 8px;
+	margin-top: 12px;
+	padding-top: 12px;
+	border-top: 1px solid #e0e0e0;
+}
