@@ -3,6 +3,7 @@
 /*
 	FusionPBX
 	Version: MPL 1.1
+	Copyright (c) VOIPEGYPT - https://voipegypt.com
 
 	WebRTC Phone - Default Settings
 	This file is executed during the upgrade process to apply default settings.

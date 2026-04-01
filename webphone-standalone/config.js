@@ -1,5 +1,6 @@
 /*
 	Webphone Standalone - Configuration File
+	Copyright (c) VOIPEGYPT - https://voipegypt.com
 	==========================================
 	Edit this file to set server and account defaults.
 	Users will only be prompted for Extension and Password if not set here.

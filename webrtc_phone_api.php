@@ -3,6 +3,7 @@
 /*
 	FusionPBX
 	Version: MPL 1.1
+	Copyright (c) VOIPEGYPT - https://voipegypt.com
 
 	WebRTC Phone API
 	Returns the current user's extensions and WSS configuration as JSON.

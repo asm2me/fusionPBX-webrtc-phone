@@ -3,6 +3,7 @@
 /*
 	FusionPBX
 	Version: MPL 1.1
+	Copyright (c) VOIPEGYPT - https://voipegypt.com
 
 	WebRTC Phone - Include File
 	Add this to the FusionPBX template footer to inject the floating phone on every page.

@@ -3,6 +3,7 @@
 /*
 	FusionPBX
 	Version: MPL 1.1
+	Copyright (c) VOIPEGYPT - https://voipegypt.com
 
 	Click-to-Dial - Database Schema
 	Creates the v_click_to_dial_tokens table.

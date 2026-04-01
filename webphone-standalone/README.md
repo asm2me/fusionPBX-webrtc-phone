@@ -829,7 +829,9 @@ Verify TURN works by checking for `typ relay` in browser console ICE candidates.
 
 ## License
 
-MPL 1.1 -- Same as FusionPBX.
+Copyright (c) **VOIPEGYPT** -- [https://voipegypt.com](https://voipegypt.com)
+
+All rights reserved. Licensed under MPL 1.1.
 
 The standalone version is derived from the FusionPBX WebRTC Phone module but operates independently without any FusionPBX components.
 

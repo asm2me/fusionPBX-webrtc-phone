@@ -2,6 +2,10 @@
 	Webphone Standalone
 	Browser-based SIP softphone using JsSIP over WebSocket Secure (WSS).
 	Completely standalone — no FusionPBX dependency. SIP credentials are entered in the Settings page.
+
+	Copyright (c) VOIPEGYPT - https://voipegypt.com
+	All rights reserved.
+	License: MPL 1.1
 */
 
 var WebRTCPhone = (function () {

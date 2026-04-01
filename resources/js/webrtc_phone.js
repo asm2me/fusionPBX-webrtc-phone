@@ -2,6 +2,10 @@
 	FusionPBX WebRTC Phone
 	Browser-based SIP softphone using JsSIP over WebSocket Secure (WSS).
 	Fetches the active user's extensions from FusionPBX and registers via WebRTC.
+
+	Copyright (c) VOIPEGYPT - https://voipegypt.com
+	All rights reserved.
+	License: MPL 1.1
 */
 
 var WebRTCPhone = (function () {

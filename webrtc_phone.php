@@ -3,6 +3,7 @@
 /*
 	FusionPBX
 	Version: MPL 1.1
+	Copyright (c) VOIPEGYPT - https://voipegypt.com
 
 	WebRTC Phone - Main Page
 	Standalone page for the WebRTC phone (also loadable via the persistent overlay).
