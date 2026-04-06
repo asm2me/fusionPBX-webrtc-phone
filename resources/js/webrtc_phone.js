@@ -328,7 +328,7 @@ var WebRTCPhone = (function () {
 	}
 
 	// --- Build Version ---
-	var BUILD_VERSION = '1.2.5-' + (function () {
+	var BUILD_VERSION = '1.2.6-' + (function () {
 		// Auto build ID from file content hash (changes on each deploy)
 		var d = new Date();
 		return d.getFullYear() + (d.getMonth() + 1 < 10 ? '0' : '') + (d.getMonth() + 1) + (d.getDate() < 10 ? '0' : '') + d.getDate();
@@ -508,6 +508,7 @@ var WebRTCPhone = (function () {
 		document.addEventListener('click', handleLinkClick, true);
 		installNavigationTrap();
 		installDeviceChangeListener();
+		installOnlineOfflineListeners();
 
 		// Request notification permission early
 		requestNotificationPermission();
@@ -2456,6 +2457,116 @@ var WebRTCPhone = (function () {
 		return null;
 	}
 
+	// --- ICE Recovery & Connection Loss Handling ---
+
+	var _iceRestartTimer = null;
+	var _iceRestartAttempts = 0;
+	var _maxIceRestarts = 3;
+
+	function handleICEStateChange(pc) {
+		var iceState = pc.iceConnectionState;
+
+		if (iceState === 'connected' || iceState === 'completed') {
+			// Recovered
+			if (_iceRestartTimer) { clearTimeout(_iceRestartTimer); _iceRestartTimer = null; }
+			_iceRestartAttempts = 0;
+			hideConnectionWarning();
+			logActivity('ice_recovered', 'ICE connection restored');
+		}
+
+		if (iceState === 'disconnected') {
+			// Temporary loss — show warning, wait for auto-recovery
+			logActivity('ice_disconnected', 'ICE temporarily disconnected');
+			showConnectionWarning('Connection interrupted — waiting to reconnect...');
+			// ICE may self-recover within ~5 seconds. If not, try restart.
+			if (!_iceRestartTimer) {
+				_iceRestartTimer = setTimeout(function () {
+					_iceRestartTimer = null;
+					if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+						attemptICERestart(pc);
+					}
+				}, 5000);
+			}
+		}
+
+		if (iceState === 'failed') {
+			logActivity('ice_failed', 'ICE connection failed');
+			showConnectionWarning('Connection lost — attempting to recover...');
+			attemptICERestart(pc);
+		}
+	}
+
+	function attemptICERestart(pc) {
+		if (!state.currentSession || state.callState !== 'in_call') return;
+		if (_iceRestartAttempts >= _maxIceRestarts) {
+			logActivity('ice_restart_exhausted', 'Max ICE restart attempts reached (' + _maxIceRestarts + ')');
+			showConnectionWarning('Connection could not be restored');
+			return;
+		}
+		_iceRestartAttempts++;
+		logActivity('ice_restart', 'Attempt ' + _iceRestartAttempts + '/' + _maxIceRestarts);
+		console.warn('WebRTC Phone: Attempting ICE restart', _iceRestartAttempts + '/' + _maxIceRestarts);
+
+		try {
+			// Create a new offer with iceRestart flag
+			pc.createOffer({ iceRestart: true }).then(function (offer) {
+				return pc.setLocalDescription(offer);
+			}).then(function () {
+				// Send re-INVITE with new SDP via JsSIP
+				if (state.currentSession && state.currentSession.renegotiate) {
+					state.currentSession.renegotiate({ rtcOfferConstraints: { iceRestart: true } }, function () {
+						console.log('WebRTC Phone: ICE restart renegotiation sent');
+					});
+				}
+			}).catch(function (e) {
+				console.warn('WebRTC Phone: ICE restart offer failed', e);
+			});
+		} catch (e) {
+			console.warn('WebRTC Phone: ICE restart error', e);
+		}
+	}
+
+	function showConnectionWarning(msg) {
+		var el = document.getElementById('webrtc-conn-warning');
+		if (!el) {
+			el = document.createElement('div');
+			el.id = 'webrtc-conn-warning';
+			el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#e53935;color:#fff;padding:8px 16px;font-size:13px;font-weight:600;text-align:center;font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,0.2);animation:webrtc-pulse 1.5s infinite;';
+			document.body.appendChild(el);
+		}
+		el.innerHTML = '<span style="font-size:16px;">&#9888;</span> ' + msg;
+	}
+
+	function hideConnectionWarning() {
+		var el = document.getElementById('webrtc-conn-warning');
+		if (el && el.parentNode) el.parentNode.removeChild(el);
+	}
+
+	function installOnlineOfflineListeners() {
+		window.addEventListener('offline', function () {
+			console.warn('WebRTC Phone: Browser went OFFLINE');
+			logActivity('network_offline', 'Internet connection lost');
+			if (isCallActive()) {
+				showConnectionWarning('Internet disconnected — call will resume when online');
+			}
+		});
+
+		window.addEventListener('online', function () {
+			console.warn('WebRTC Phone: Browser back ONLINE');
+			logActivity('network_online', 'Internet connection restored');
+			// Give network a moment to stabilize, then check call state
+			setTimeout(function () {
+				hideConnectionWarning();
+				// If SIP UA is disconnected, it will auto-reconnect via JsSIP's recovery
+				// If ICE is still failed, the iceconnectionstatechange handler will retry
+				if (state.ua && !state.registered) {
+					logActivity('sip_reconnecting', 'Attempting SIP re-registration after network recovery');
+					console.log('WebRTC Phone: Network restored, SIP will auto-reconnect');
+				}
+			}, 2000);
+		});
+	}
+
 	function renderNetRow(cls, icon, label, value) {
 		return '<div class="webrtc-net-result ' + cls + '"><span class="webrtc-net-icon">' + icon + '</span><span class="webrtc-net-label">' + label + '</span><span class="webrtc-net-value">' + value + '</span></div>';
 	}
@@ -3500,19 +3611,12 @@ var WebRTCPhone = (function () {
 				});
 				pc.addEventListener('iceconnectionstatechange', function () {
 					console.log('WebRTC Phone: ICE connection state:', pc.iceConnectionState);
-					if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
-						pc.getStats().then(function (stats) {
-							stats.forEach(function (r) {
-								if (r.type === 'candidate-pair') console.log('WebRTC Phone: ICE pair state:', r.state, 'nominated:', r.nominated, 'bytesSent:', r.bytesSent, 'bytesReceived:', r.bytesReceived);
-								if (r.type === 'local-candidate') console.log('WebRTC Phone: local candidate:', r.candidateType, r.ip || r.address, r.port, r.protocol);
-								if (r.type === 'remote-candidate') console.log('WebRTC Phone: remote candidate:', r.candidateType, r.ip || r.address, r.port, r.protocol);
-							});
-						}).catch(function () {});
-					}
+					handleICEStateChange(pc);
 				});
 				pc.addEventListener('connectionstatechange', function () {
 					console.log('WebRTC Phone: Peer connection state:', pc.connectionState);
 					if (pc.connectionState === 'connected' && state.callState === 'in_call' && !state.callTimer) startCallTimer();
+					if (pc.connectionState === 'connected') hideConnectionWarning();
 				});
 				pc.ontrack = function (event) {
 					console.log('WebRTC Phone: ontrack fired', event.track && event.track.kind, 'streams:', event.streams && event.streams.length);
@@ -3852,19 +3956,12 @@ var WebRTCPhone = (function () {
 			});
 			pc.addEventListener('iceconnectionstatechange', function () {
 				console.log('WebRTC Phone: ICE connection state:', pc.iceConnectionState);
-				if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
-					pc.getStats().then(function (stats) {
-						stats.forEach(function (r) {
-							if (r.type === 'candidate-pair') console.log('WebRTC Phone: ICE pair state:', r.state, 'nominated:', r.nominated, 'bytesSent:', r.bytesSent, 'bytesReceived:', r.bytesReceived);
-							if (r.type === 'local-candidate') console.log('WebRTC Phone: local candidate:', r.candidateType, r.ip || r.address, r.port, r.protocol);
-							if (r.type === 'remote-candidate') console.log('WebRTC Phone: remote candidate:', r.candidateType, r.ip || r.address, r.port, r.protocol);
-						});
-					}).catch(function () {});
-				}
+				handleICEStateChange(pc);
 			});
 			pc.addEventListener('connectionstatechange', function () {
 				console.log('WebRTC Phone: Peer connection state:', pc.connectionState);
 				if (pc.connectionState === 'connected' && state.callState === 'in_call' && !state.callTimer) startCallTimer();
+				if (pc.connectionState === 'connected') hideConnectionWarning();
 			});
 			pc.ontrack = function (event) {
 				console.log('WebRTC Phone: ontrack fired', event.track && event.track.kind, 'streams:', event.streams && event.streams.length);
@@ -3939,7 +4036,10 @@ var WebRTCPhone = (function () {
 		console.trace('WebRTC Phone: endCall stack trace');
 		state._micLowCount = 0;
 		state._micWarningFired = false;
+		_iceRestartAttempts = 0;
+		if (_iceRestartTimer) { clearTimeout(_iceRestartTimer); _iceRestartTimer = null; }
 		hideMicWarning();
+		hideConnectionWarning();
 		closeHangupConfirmation();
 		// Fire CRM hangup before clearing call data
 		fireCrmEvent('hangup');
