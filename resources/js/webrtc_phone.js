@@ -2220,16 +2220,26 @@ var WebRTCPhone = (function () {
 
 		// Mic level warning: track consecutive low samples during active call
 		if (state.callState === 'in_call') {
-			if (state.micLevel < 2) {
+			if (state.micLevel < 20) {
 				state._micLowCount = (state._micLowCount || 0) + 1;
 			} else {
 				state._micLowCount = 0;
 				hideMicWarning();
 			}
-			// After 5 seconds (50 samples at 100ms) of silence, show warning
+			// After 5 seconds (50 samples at 100ms) of low mic, show warning and auto-enable AGC
 			if (state._micLowCount === 50) {
 				showMicWarning();
-				logActivity('mic_warning', 'Microphone audio very low or silent for 5 seconds');
+				logActivity('mic_warning', 'Microphone level below 20% for 5 seconds (level: ' + state.micLevel + '%)');
+				// Auto-enable mic AGC to boost the signal
+				if (!state.audioSettings.micAGC) {
+					state.audioSettings.micAGC = true;
+					saveAudioSettings();
+					logActivity('mic_agc_auto', 'AGC auto-enabled due to low mic level');
+					console.log('WebRTC Phone: Mic AGC auto-enabled due to low level');
+					if (state.currentSession && state.audioLevelCtx) {
+						startAudioLevels();
+					}
+				}
 			}
 		}
 	}
