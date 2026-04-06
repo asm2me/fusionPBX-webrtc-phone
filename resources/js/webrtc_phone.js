@@ -2290,20 +2290,26 @@ var WebRTCPhone = (function () {
 		var spkBar = document.getElementById('webrtc-spk-level-bar');
 		if (micBar) {
 			micBar.style.width = state.micLevel + '%';
-			// Update tooltip with current mic percentage
-			var micContainer = micBar.closest('.webrtc-audio-level-mic');
-			if (micContainer) micContainer.title = 'Mic Level: ' + state.micLevel + '%';
+			// Tooltip on bar, background, and parent container
+			var micTip = 'Mic: ' + state.micLevel + '%';
+			micBar.title = micTip;
+			if (micBar.parentNode) micBar.parentNode.title = micTip;
+			var micRow = micBar.closest ? micBar.closest('.webrtc-audio-level') : null;
+			if (micRow) micRow.title = micTip;
 		}
 		if (spkBar) {
 			spkBar.style.width = state.spkLevel + '%';
-			var spkContainer = spkBar.closest('.webrtc-audio-level-spk');
-			if (spkContainer) spkContainer.title = 'Speaker Level: ' + state.spkLevel + '%';
+			var spkTip = 'Speaker: ' + state.spkLevel + '%';
+			spkBar.title = spkTip;
+			if (spkBar.parentNode) spkBar.parentNode.title = spkTip;
+			var spkRow = spkBar.closest ? spkBar.closest('.webrtc-audio-level') : null;
+			if (spkRow) spkRow.title = spkTip;
 		}
 
 		// Mic level warning: track consecutive low samples during active call
-		// Skip warning if the other party is talking (speaker above 30%)
+		// Skip warning if the other party is talking (speaker above 20%)
 		if (state.callState === 'in_call') {
-			if (state.micLevel < 30 && state.spkLevel < 30) {
+			if (state.micLevel < 30 && state.spkLevel < 20) {
 				state._micLowCount = (state._micLowCount || 0) + 1;
 			} else {
 				state._micLowCount = 0;
