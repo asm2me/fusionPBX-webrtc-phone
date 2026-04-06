@@ -328,7 +328,7 @@ var WebRTCPhone = (function () {
 	}
 
 	// --- Build Version ---
-	var BUILD_VERSION = '1.2.3-' + (function () {
+	var BUILD_VERSION = '1.2.4-' + (function () {
 		// Auto build ID from file content hash (changes on each deploy)
 		var d = new Date();
 		return d.getFullYear() + (d.getMonth() + 1 < 10 ? '0' : '') + (d.getMonth() + 1) + (d.getDate() < 10 ? '0' : '') + d.getDate();
@@ -2288,28 +2288,18 @@ var WebRTCPhone = (function () {
 
 		var micBar = document.getElementById('webrtc-mic-level-bar');
 		var spkBar = document.getElementById('webrtc-spk-level-bar');
-		if (micBar) {
-			micBar.style.width = state.micLevel + '%';
-			// Tooltip on bar, background, and parent container
-			var micTip = 'Mic: ' + state.micLevel + '%';
-			micBar.title = micTip;
-			if (micBar.parentNode) micBar.parentNode.title = micTip;
-			var micRow = micBar.closest ? micBar.closest('.webrtc-audio-level') : null;
-			if (micRow) micRow.title = micTip;
-		}
-		if (spkBar) {
-			spkBar.style.width = state.spkLevel + '%';
-			var spkTip = 'Speaker: ' + state.spkLevel + '%';
-			spkBar.title = spkTip;
-			if (spkBar.parentNode) spkBar.parentNode.title = spkTip;
-			var spkRow = spkBar.closest ? spkBar.closest('.webrtc-audio-level') : null;
-			if (spkRow) spkRow.title = spkTip;
-		}
+		if (micBar) micBar.style.width = state.micLevel + '%';
+		if (spkBar) spkBar.style.width = state.spkLevel + '%';
+		// Live percentage display next to labels
+		var micPctEl = document.getElementById('webrtc-mic-pct');
+		var spkPctEl = document.getElementById('webrtc-spk-pct');
+		if (micPctEl) micPctEl.textContent = state.micLevel + '%';
+		if (spkPctEl) spkPctEl.textContent = state.spkLevel + '%';
 
 		// Mic level warning: track consecutive low samples during active call
-		// Skip warning if the other party is talking (speaker above 20%)
+		// Skip warning if the other party is talking (speaker above 10%)
 		if (state.callState === 'in_call') {
-			if (state.micLevel < 30 && state.spkLevel < 20) {
+			if (state.micLevel < 30 && state.spkLevel < 10) {
 				state._micLowCount = (state._micLowCount || 0) + 1;
 			} else {
 				state._micLowCount = 0;
@@ -4224,10 +4214,12 @@ var WebRTCPhone = (function () {
 				html += '<div class="webrtc-audio-level webrtc-audio-level-mic">';
 				html += '<span class="webrtc-audio-level-label">MIC' + (state.audioSettings.micAGC ? ' <span style="font-size:8px;background:#ff9800;color:#fff;padding:0 3px;border-radius:3px;vertical-align:middle;" title="Auto Gain Control active">AGC</span>' : '') + '</span>';
 				html += '<div class="webrtc-audio-level-bar-bg"><div id="webrtc-mic-level-bar" class="webrtc-audio-level-bar" style="width:0%"></div></div>';
+				html += '<span id="webrtc-mic-pct" style="font-size:9px;color:#888;min-width:28px;text-align:right;">0%</span>';
 				html += '</div>';
 				html += '<div class="webrtc-audio-level webrtc-audio-level-spk">';
 				html += '<span class="webrtc-audio-level-label">SPK' + (state.audioSettings.spkAGC ? ' <span style="font-size:8px;background:#ff9800;color:#fff;padding:0 3px;border-radius:3px;vertical-align:middle;" title="Auto Gain Control active">AGC</span>' : '') + '</span>';
 				html += '<div class="webrtc-audio-level-bar-bg"><div id="webrtc-spk-level-bar" class="webrtc-audio-level-bar" style="width:0%"></div></div>';
+				html += '<span id="webrtc-spk-pct" style="font-size:9px;color:#888;min-width:28px;text-align:right;">0%</span>';
 				html += '</div></div>';
 				html += '<div class="webrtc-call-actions">';
 				html += '<button class="webrtc-btn webrtc-btn-sm ' + (state.muted ? 'webrtc-btn-active' : '') + '" onclick="WebRTCPhone.toggleMute()">' + (state.muted ? t('unmute') : t('mute')) + '</button>';
