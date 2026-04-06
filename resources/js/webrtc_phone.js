@@ -328,7 +328,7 @@ var WebRTCPhone = (function () {
 	}
 
 	// --- Build Version ---
-	var BUILD_VERSION = '1.2.4-' + (function () {
+	var BUILD_VERSION = '1.2.5-' + (function () {
 		// Auto build ID from file content hash (changes on each deploy)
 		var d = new Date();
 		return d.getFullYear() + (d.getMonth() + 1 < 10 ? '0' : '') + (d.getMonth() + 1) + (d.getDate() < 10 ? '0' : '') + d.getDate();
@@ -2381,27 +2381,23 @@ var WebRTCPhone = (function () {
 					logActivity('device_connected', addedNames);
 					showDeviceNotification('&#128266; Device connected: ' + addedNames, '#4caf50');
 
-					// Auto-select headset mic
-					var headsetMic = findHeadsetMic(devices.inputs);
-					if (headsetMic && headsetMic.id !== state.audioSettings.micDeviceId) {
-						console.log('WebRTC Phone: Headset mic detected, auto-switching to:', headsetMic.label);
-						logActivity('mic_switched', headsetMic.label, { auto: true });
-						setMicDevice(headsetMic.id);
-					}
-
-					// Auto-select headset speaker
+					// Auto-select headset speaker first (fast, no getUserMedia)
 					var headsetSpk = findHeadsetDevice(devices.outputs);
 					if (headsetSpk && headsetSpk.id !== state.audioSettings.speakerDeviceId) {
 						console.log('WebRTC Phone: Headset speaker detected, auto-switching to:', headsetSpk.label);
 						logActivity('spk_switched', headsetSpk.label, { auto: true });
 						setSpeakerDevice(headsetSpk.id);
-						// Also switch ring device
 						setRingDevice(headsetSpk.id);
 					}
 
-					// If in a call, rebuild audio processing to use new device
-					if (state.currentSession && state.audioLevelCtx) {
-						setTimeout(function () { startAudioLevels(); }, 500);
+					// Auto-select headset mic — delay 1s to let device fully initialize
+					var headsetMic = findHeadsetMic(devices.inputs);
+					if (headsetMic) {
+						setTimeout(function () {
+							console.log('WebRTC Phone: Headset mic detected, auto-switching to:', headsetMic.label);
+							logActivity('mic_switched', headsetMic.label, { auto: true });
+							setMicDevice(headsetMic.id);
+						}, 1000);
 					}
 					// Clear mic warning since new device connected
 					state._micLowCount = 0;
@@ -2860,26 +2856,66 @@ var WebRTCPhone = (function () {
 		saveAudioSettings();
 		// If in a call, switch the active mic track
 		if (state.currentSession && state.currentSession.connection) {
-			var constraints = { audio: { deviceId: { exact: deviceId || 'default' } } };
+			// Use 'ideal' not 'exact' — device IDs can change on re-insert
+			var constraints = { audio: deviceId && deviceId !== 'default' ? { deviceId: { ideal: deviceId } } : true };
+			console.log('WebRTC Phone: Requesting mic with constraints', JSON.stringify(constraints));
 			navigator.mediaDevices.getUserMedia(constraints).then(function (newStream) {
 				var newTrack = newStream.getAudioTracks()[0];
-				var senders = state.currentSession.connection.getSenders();
+				if (!newTrack) { console.warn('WebRTC Phone: No audio track from getUserMedia'); return; }
+				console.log('WebRTC Phone: Got new mic track:', newTrack.label, 'state:', newTrack.readyState);
+				logActivity('mic_track_acquired', newTrack.label);
+
+				var pc = state.currentSession.connection;
+				var senders = pc.getSenders();
+				var audioSender = null;
+
+				// Find the audio sender — even if its track is null/ended
 				for (var i = 0; i < senders.length; i++) {
 					if (senders[i].track && senders[i].track.kind === 'audio') {
-						// Stop old track
-						senders[i].track.stop();
-						senders[i].replaceTrack(newTrack).then(function () {
-							console.log('WebRTC Phone: Mic switched to', deviceId);
-							// Rebuild audio processing chain with new track
-							startAudioLevels();
-						}).catch(function (e) {
-							console.warn('WebRTC Phone: Mic switch replaceTrack failed', e);
-						});
+						audioSender = senders[i];
 						break;
 					}
+					// Sender with no track (track was removed/stopped)
+					if (!senders[i].track) {
+						audioSender = senders[i];
+					}
 				}
+
+				if (!audioSender) {
+					console.warn('WebRTC Phone: No audio sender found on peer connection');
+					logActivity('mic_switch_failed', 'No audio sender found');
+					return;
+				}
+
+				// Stop old track if alive
+				if (audioSender.track && audioSender.track.readyState === 'live') {
+					audioSender.track.stop();
+				}
+
+				audioSender.replaceTrack(newTrack).then(function () {
+					console.log('WebRTC Phone: Mic track replaced successfully:', newTrack.label);
+					logActivity('mic_switched', newTrack.label, { auto: false });
+					// Rebuild audio processing chain with new track
+					setTimeout(function () { startAudioLevels(); }, 200);
+				}).catch(function (e) {
+					console.warn('WebRTC Phone: replaceTrack failed, trying addTrack fallback', e);
+					logActivity('mic_switch_failed', 'replaceTrack: ' + e.message);
+					// Fallback: try removing old sender and adding new track
+					try {
+						pc.removeTrack(audioSender);
+						pc.addTrack(newTrack, newStream);
+						console.log('WebRTC Phone: Mic added via addTrack fallback');
+						logActivity('mic_switched', newTrack.label + ' (fallback)', { auto: false });
+						setTimeout(function () { startAudioLevels(); }, 200);
+					} catch (e2) {
+						console.error('WebRTC Phone: addTrack fallback also failed', e2);
+						logActivity('mic_switch_failed', 'addTrack: ' + e2.message);
+					}
+				});
 			}).catch(function (e) {
 				console.warn('WebRTC Phone: getUserMedia failed for mic switch', e);
+				logActivity('mic_switch_failed', 'getUserMedia: ' + e.message);
+				showDeviceNotification('&#9888; Could not access microphone: ' + e.message, '#e53935');
 			});
 		}
 	}
