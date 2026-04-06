@@ -149,6 +149,20 @@
 /* --- Body --- */
 .webrtc-phone-body {
 	padding: 16px;
+	background-color: #f8f9fa;
+	background-image:
+		radial-gradient(circle at 15% 85%, rgba(26, 115, 232, 0.06) 0%, transparent 45%),
+		radial-gradient(circle at 85% 15%, rgba(76, 175, 80, 0.05) 0%, transparent 45%),
+		url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='20' cy='20' r='1' fill='%231a73e8' opacity='0.07'/%3E%3C/svg%3E");
+	background-size: 100% 100%, 100% 100%, 40px 40px;
+}
+
+/* --- Dialpad area background --- */
+.webrtc-dialpad {
+	background: linear-gradient(180deg, rgba(26, 115, 232, 0.03) 0%, rgba(26, 115, 232, 0.07) 100%);
+	border-radius: 10px;
+	padding: 14px;
+	border: 1px solid rgba(26, 115, 232, 0.08);
 }
 
 /* --- Extension Selector --- */
@@ -1199,12 +1213,25 @@
 	background: #1a73e8;
 }
 
-/* --- Dark theme support --- */
+/* --- Dark theme support (FusionPBX dark mode) --- */
 @media (prefers-color-scheme: dark) {
 	.webrtc-phone-panel,
 	#webrtc-phone-standalone .webrtc-phone-inner {
 		background: #2d2d2d;
 		border-color: #444;
+	}
+
+	.webrtc-phone-body {
+		background-color: #2d2d2d;
+		background-image:
+			radial-gradient(circle at 15% 85%, rgba(100, 160, 255, 0.05) 0%, transparent 45%),
+			radial-gradient(circle at 85% 15%, rgba(100, 200, 120, 0.04) 0%, transparent 45%),
+			url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='20' cy='20' r='1' fill='%2390b8f8' opacity='0.06'/%3E%3C/svg%3E");
+	}
+
+	.webrtc-dialpad {
+		background: linear-gradient(180deg, rgba(100, 160, 255, 0.04) 0%, rgba(100, 160, 255, 0.08) 100%);
+		border-color: rgba(100, 160, 255, 0.1);
 	}
 
 	.webrtc-input {
@@ -1348,123 +1375,4 @@
 	/* Audio levels dark mode */
 	.webrtc-audio-level-label { color: #aaa; }
 	.webrtc-audio-level-bar-bg { background: #444; }
-
-	/* SIP Settings dark mode */
-	.webrtc-sip-section { border-color: #444; }
-	.webrtc-sip-section-title { color: #ccc; background: #333; }
-	.webrtc-sip-section-title:hover { background: #3a3a3a; }
-	.webrtc-sip-field label { color: #aaa; }
-	.webrtc-sip-ext-block { border-color: #444; background: #2a2a2a; }
-	.webrtc-sip-ext-header { color: #bbb; border-color: #444; }
-	.webrtc-sip-extensions-header label { color: #ccc; }
-}
-
-/* ============================================
-   SIP Settings (Standalone)
-   ============================================ */
-
-.webrtc-sip-section {
-	border: 1px solid #e0e0e0;
-	border-radius: 8px;
-	margin-bottom: 10px;
-	overflow: hidden;
-}
-
-.webrtc-sip-section-title {
-	font-size: 13px;
-	font-weight: 600;
-	color: #333;
-	padding: 10px 14px;
-	background: #f5f6f7;
-	cursor: pointer;
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	user-select: none;
-	transition: background 0.15s;
-}
-
-.webrtc-sip-section-title:hover {
-	background: #ebedf0;
-}
-
-.webrtc-sip-arrow {
-	font-size: 10px;
-	color: #888;
-}
-
-.webrtc-sip-section-body {
-	padding: 10px 14px;
-	display: flex;
-	flex-direction: column;
-	gap: 8px;
-}
-
-.webrtc-sip-field {
-	display: flex;
-	flex-direction: column;
-	gap: 3px;
-}
-
-.webrtc-sip-field label {
-	font-size: 11px;
-	font-weight: 600;
-	color: #555;
-	text-transform: uppercase;
-	letter-spacing: 0.5px;
-}
-
-.webrtc-sip-field input[type="text"],
-.webrtc-sip-field input[type="password"] {
-	text-align: left;
-	letter-spacing: 0;
-}
-
-.webrtc-sip-extensions-header {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	margin-top: 8px;
-	padding-top: 8px;
-	border-top: 1px solid #e0e0e0;
-}
-
-.webrtc-sip-extensions-header label {
-	font-size: 12px;
-	font-weight: 700;
-	color: #333;
-}
-
-.webrtc-sip-ext-block {
-	border: 1px solid #e8e8e8;
-	border-radius: 6px;
-	padding: 8px;
-	background: #fafbfc;
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-}
-
-.webrtc-sip-ext-block + .webrtc-sip-ext-block {
-	margin-top: 8px;
-}
-
-.webrtc-sip-ext-header {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	font-size: 12px;
-	font-weight: 600;
-	color: #666;
-	padding-bottom: 4px;
-	border-bottom: 1px solid #e8e8e8;
-	margin-bottom: 2px;
-}
-
-.webrtc-sip-actions {
-	display: flex;
-	gap: 8px;
-	margin-top: 12px;
-	padding-top: 12px;
-	border-top: 1px solid #e0e0e0;
 }
