@@ -388,12 +388,18 @@ var WebRTCPhone = (function () {
 			sip_disconnected: '! Disconnected',
 			sip_registration_failed: '! Reg Failed',
 			mic_warning: '! Mic Warning',
-			mic_switched: '~ Mic Switched'
+			mic_switched: '~ Mic Switched',
+			mic_agc_auto: '~ AGC Enabled',
+			device_connected: '+ Device Connected',
+			device_disconnected: '! Device Removed',
+			separator: '---'
 		};
 		return icons[action] || action;
 	}
 
 	function getActivityColor(action) {
+		if (action === 'device_disconnected') return '#e53935';
+		if (action === 'device_connected' || action === 'mic_agc_auto') return '#4caf50';
 		if (action.indexOf('fail') >= 0 || action.indexOf('disconnect') >= 0 || action === 'sip_unregistered' || action === 'mic_warning') return '#e53935';
 		if (action.indexOf('call_ended') >= 0 || action === 'hangup') return '#ff9800';
 		if (action.indexOf('answered') >= 0 || action === 'sip_registered' || action === 'agent_login') return '#4caf50';
@@ -427,9 +433,13 @@ var WebRTCPhone = (function () {
 		if (a === 'sip_registration_failed') return 'Registration failed: ' + d;
 		if (a === 'mic_warning') return d;
 		if (a === 'mic_switched') return 'Switched to: ' + d;
+		if (a === 'mic_agc_auto') return 'AGC auto-enabled (low mic level)';
+		if (a === 'device_connected') return 'Connected: ' + d;
+		if (a === 'device_disconnected') return 'Removed: ' + d;
 		if (a === 'init') return 'Phone started';
 		if (a === 'agent_login') return 'Logged into queue';
 		if (a === 'agent_logout') return 'Logged out of queue';
+		if (a === 'separator') return d;
 		return d || a;
 	}
 
@@ -443,6 +453,7 @@ var WebRTCPhone = (function () {
 		loadAudioSettings();
 		loadCallHistory();
 		loadActivityLog();
+		logActivity('separator', '--- Page loaded ---');
 		logActivity('init', 'Phone initialized');
 
 		// Create hidden audio element for remote audio
@@ -2236,6 +2247,9 @@ var WebRTCPhone = (function () {
 					saveAudioSettings();
 					logActivity('mic_agc_auto', 'AGC auto-enabled due to low mic level');
 					console.log('WebRTC Phone: Mic AGC auto-enabled due to low level');
+					// Update the MIC label to show AGC badge
+					var micLabel = document.querySelector('.webrtc-audio-level-mic .webrtc-audio-level-label');
+					if (micLabel) micLabel.innerHTML = 'MIC <span style="font-size:8px;background:#ff9800;color:#fff;padding:0 3px;border-radius:3px;vertical-align:middle;" title="Auto Gain Control active">AGC</span>';
 					if (state.currentSession && state.audioLevelCtx) {
 						startAudioLevels();
 					}
@@ -2264,22 +2278,78 @@ var WebRTCPhone = (function () {
 
 	function installDeviceChangeListener() {
 		if (!navigator.mediaDevices || !navigator.mediaDevices.addEventListener) return;
+		// Store initial device count to detect insert/remove
+		state._prevDeviceInputs = [];
+		state._prevDeviceOutputs = [];
+		enumerateAudioDevices(function (d) {
+			state._prevDeviceInputs = d.inputs.map(function (i) { return i.id; });
+			state._prevDeviceOutputs = d.outputs.map(function (o) { return o.id; });
+		});
+
 		navigator.mediaDevices.addEventListener('devicechange', function () {
 			console.log('WebRTC Phone: Audio devices changed');
-			// Re-enumerate devices
 			enumerateAudioDevices(function (devices) {
+				var prevIn = state._prevDeviceInputs || [];
+				var prevOut = state._prevDeviceOutputs || [];
+				var newInIds = devices.inputs.map(function (i) { return i.id; });
+				var newOutIds = devices.outputs.map(function (o) { return o.id; });
+
+				// Detect added/removed devices
+				var addedInputs = devices.inputs.filter(function (d) { return prevIn.indexOf(d.id) === -1; });
+				var removedInputs = prevIn.filter(function (id) { return newInIds.indexOf(id) === -1; });
+				var addedOutputs = devices.outputs.filter(function (d) { return prevOut.indexOf(d.id) === -1; });
+				var removedOutputs = prevOut.filter(function (id) { return newOutIds.indexOf(id) === -1; });
+
+				// Save new state
+				state._prevDeviceInputs = newInIds;
+				state._prevDeviceOutputs = newOutIds;
 				state.audioDevices = devices;
-				// Auto-select headset mic if one appeared and we're in a call or idle
-				var headsetMic = findHeadsetMic(devices.inputs);
-				if (headsetMic && headsetMic.id !== state.audioSettings.micDeviceId) {
-					console.log('WebRTC Phone: Headset mic detected, auto-switching to:', headsetMic.label);
-					logActivity('mic_switched', headsetMic.label, { auto: true });
-					setMicDevice(headsetMic.id);
-					// Also update settings UI if open
-					if (state.showSettings) renderPhone();
+
+				// Headset inserted
+				if (addedInputs.length > 0 || addedOutputs.length > 0) {
+					var addedNames = addedInputs.concat(addedOutputs).map(function (d) { return d.label || 'Unknown device'; }).join(', ');
+					logActivity('device_connected', addedNames);
+					showDeviceNotification('&#128266; Device connected: ' + addedNames, '#4caf50');
+
+					// Auto-select headset mic
+					var headsetMic = findHeadsetMic(devices.inputs);
+					if (headsetMic && headsetMic.id !== state.audioSettings.micDeviceId) {
+						console.log('WebRTC Phone: Headset mic detected, auto-switching to:', headsetMic.label);
+						logActivity('mic_switched', headsetMic.label, { auto: true });
+						setMicDevice(headsetMic.id);
+					}
 				}
+
+				// Headset removed
+				if (removedInputs.length > 0 || removedOutputs.length > 0) {
+					logActivity('device_disconnected', removedInputs.length + ' input(s), ' + removedOutputs.length + ' output(s) removed');
+					showDeviceNotification('&#9888; Audio device disconnected! Check your headset.', '#e53935');
+
+					// If active mic was removed, warn
+					if (removedInputs.indexOf(state.audioSettings.micDeviceId) >= 0) {
+						logActivity('mic_warning', 'Active microphone was disconnected');
+						showMicWarning();
+					}
+				}
+
+				if (state.showSettings) renderPhone();
 			});
 		});
+	}
+
+	function showDeviceNotification(html, color) {
+		// Remove existing
+		var existing = document.getElementById('webrtc-device-notify');
+		if (existing) existing.remove();
+
+		var el = document.createElement('div');
+		el.id = 'webrtc-device-notify';
+		el.style.cssText = 'position:fixed;bottom:80px;right:24px;z-index:99999;background:' + color + ';color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,0.25);max-width:320px;animation:webrtc-slide-in 0.3s ease;';
+		el.innerHTML = html;
+		document.body.appendChild(el);
+		setTimeout(function () {
+			if (el.parentNode) { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(function () { if (el.parentNode) el.remove(); }, 300); }
+		}, 5000);
 	}
 
 	function findHeadsetMic(inputs) {
@@ -4165,6 +4235,10 @@ var WebRTCPhone = (function () {
 		}
 		for (var li = 0; li < logEntries.length; li++) {
 			var le = logEntries[li];
+			if (le.action === 'separator') {
+				html += '<div style="text-align:center;font-size:9px;color:#aaa;padding:4px 0;border-bottom:2px solid rgba(26,115,232,0.15);margin:2px 0;letter-spacing:1px;">' + escapeHtml(le.detail || '---') + ' <span style="color:#bbb;">' + escapeHtml(formatActivityTime(le.ts)) + '</span></div>';
+				continue;
+			}
 			html += '<div style="font-size:11px;padding:3px 4px;border-bottom:1px solid rgba(0,0,0,0.05);display:flex;gap:6px;align-items:baseline;">';
 			html += '<span style="color:#aaa;font-size:10px;white-space:nowrap;">' + escapeHtml(formatActivityTime(le.ts)) + '</span>';
 			html += '<span style="font-weight:600;color:' + getActivityColor(le.action) + ';">' + escapeHtml(formatActivityIcon(le.action)) + '</span>';
@@ -4265,7 +4339,7 @@ var WebRTCPhone = (function () {
 		html += '</button></div>';
 		// Last call status bar
 		if (state.lastCallStatus) {
-			html += '<div style="text-align:center;font-size:15px;font-weight:700;color:#b8860b;padding:10px 12px;margin-top:8px;background:rgba(184,134,11,0.08);border-radius:6px;border:1px solid rgba(184,134,11,0.2);">' + escapeHtml(state.lastCallStatus.text) + '</div>';
+			html += '<div style="text-align:center;font-size:14px;font-weight:700;color:#b8860b;padding:10px 12px;margin-top:8px;background:rgba(184,134,11,0.08);border-radius:6px;border:1px solid rgba(184,134,11,0.2);">' + escapeHtml(state.lastCallStatus.text) + '</div>';
 		}
 		// Build version
 		html += '<div style="text-align:center;font-size:9px;color:#bbb;padding:4px 0 0;">v' + BUILD_VERSION + '</div>';
