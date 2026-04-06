@@ -328,7 +328,7 @@ var WebRTCPhone = (function () {
 	}
 
 	// --- Build Version ---
-	var BUILD_VERSION = '1.2.6-' + (function () {
+	var BUILD_VERSION = '1.2.7-' + (function () {
 		// Auto build ID from file content hash (changes on each deploy)
 		var d = new Date();
 		return d.getFullYear() + (d.getMonth() + 1 < 10 ? '0' : '') + (d.getMonth() + 1) + (d.getDate() < 10 ? '0' : '') + d.getDate();
@@ -2478,14 +2478,14 @@ var WebRTCPhone = (function () {
 			// Temporary loss — show warning, wait for auto-recovery
 			logActivity('ice_disconnected', 'ICE temporarily disconnected');
 			showConnectionWarning('Connection interrupted — waiting to reconnect...');
-			// ICE may self-recover within ~5 seconds. If not, try restart.
+			// ICE may self-recover within ~30 seconds. If not, try restart.
 			if (!_iceRestartTimer) {
 				_iceRestartTimer = setTimeout(function () {
 					_iceRestartTimer = null;
 					if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
 						attemptICERestart(pc);
 					}
-				}, 5000);
+				}, 30000);
 			}
 		}
 
