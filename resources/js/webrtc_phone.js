@@ -236,7 +236,7 @@ var WebRTCPhone = (function () {
 	// Logs all user and system actions to localStorage for debugging and audit.
 
 	var ACTIVITY_LOG_KEY = 'webrtc_phone_activity_log';
-	var ACTIVITY_LOG_MAX = 500;
+	var ACTIVITY_LOG_MAX = 5000;
 
 	function loadActivityLog() {
 		try {
@@ -250,7 +250,12 @@ var WebRTCPhone = (function () {
 
 	function saveActivityLog() {
 		try {
-			// Keep only last ACTIVITY_LOG_MAX entries
+			// Purge entries older than 7 days
+			var cutoff = Date.now() - (7 * 24 * 60 * 60 * 1000);
+			state.activityLog = state.activityLog.filter(function (e) {
+				return e.ts && new Date(e.ts).getTime() > cutoff;
+			});
+			// Also cap at max entries as safety limit
 			if (state.activityLog.length > ACTIVITY_LOG_MAX) {
 				state.activityLog = state.activityLog.slice(-ACTIVITY_LOG_MAX);
 			}
@@ -328,7 +333,7 @@ var WebRTCPhone = (function () {
 	}
 
 	// --- Build Version ---
-	var BUILD_VERSION = '1.2.7-' + (function () {
+	var BUILD_VERSION = '1.2.8-' + (function () {
 		// Auto build ID from file content hash (changes on each deploy)
 		var d = new Date();
 		return d.getFullYear() + (d.getMonth() + 1 < 10 ? '0' : '') + (d.getMonth() + 1) + (d.getDate() < 10 ? '0' : '') + d.getDate();
