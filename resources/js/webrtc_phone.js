@@ -2220,7 +2220,7 @@ var WebRTCPhone = (function () {
 
 		// Mic level warning: track consecutive low samples during active call
 		if (state.callState === 'in_call') {
-			if (state.micLevel < 20) {
+			if (state.micLevel < 30) {
 				state._micLowCount = (state._micLowCount || 0) + 1;
 			} else {
 				state._micLowCount = 0;
@@ -2229,7 +2229,7 @@ var WebRTCPhone = (function () {
 			// After 3 seconds (30 samples at 100ms) of low mic, show warning and auto-enable AGC
 			if (state._micLowCount === 30) {
 				showMicWarning();
-				logActivity('mic_warning', 'Microphone level below 20% for 3 seconds (level: ' + state.micLevel + '%)');
+				logActivity('mic_warning', 'Microphone level below 30% for 3 seconds (level: ' + state.micLevel + '%)');
 				// Auto-enable mic AGC to boost the signal
 				if (!state.audioSettings.micAGC) {
 					state.audioSettings.micAGC = true;
