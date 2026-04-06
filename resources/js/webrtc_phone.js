@@ -4386,7 +4386,7 @@ var WebRTCPhone = (function () {
 		html += '</button></div>';
 		// Last call status bar
 		if (state.lastCallStatus) {
-			html += '<div style="text-align:center;font-size:20px;font-weight:700;color:#b8860b;padding:12px 14px;margin-top:8px;background:rgba(184,134,11,0.08);border-radius:6px;border:1px solid rgba(184,134,11,0.2);">' + escapeHtml(state.lastCallStatus.text) + '</div>';
+			html += '<div style="text-align:center;font-size:28px;font-weight:800;color:#b8860b;padding:16px;margin-top:10px;background:rgba(184,134,11,0.1);border-radius:8px;border:2px solid rgba(184,134,11,0.3);line-height:1.3;">' + escapeHtml(state.lastCallStatus.text) + '</div>';
 		}
 		// Build version
 		html += '<div style="text-align:center;font-size:9px;color:#bbb;padding:4px 0 0;">v' + BUILD_VERSION + '</div>';
