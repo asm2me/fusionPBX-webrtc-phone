@@ -2226,10 +2226,10 @@ var WebRTCPhone = (function () {
 				state._micLowCount = 0;
 				hideMicWarning();
 			}
-			// After 5 seconds (50 samples at 100ms) of low mic, show warning and auto-enable AGC
-			if (state._micLowCount === 50) {
+			// After 3 seconds (30 samples at 100ms) of low mic, show warning and auto-enable AGC
+			if (state._micLowCount === 30) {
 				showMicWarning();
-				logActivity('mic_warning', 'Microphone level below 20% for 5 seconds (level: ' + state.micLevel + '%)');
+				logActivity('mic_warning', 'Microphone level below 20% for 3 seconds (level: ' + state.micLevel + '%)');
 				// Auto-enable mic AGC to boost the signal
 				if (!state.audioSettings.micAGC) {
 					state.audioSettings.micAGC = true;
@@ -4048,11 +4048,11 @@ var WebRTCPhone = (function () {
 				// Audio level indicators
 				html += '<div class="webrtc-audio-levels">';
 				html += '<div class="webrtc-audio-level webrtc-audio-level-mic">';
-				html += '<span class="webrtc-audio-level-label">MIC</span>';
+				html += '<span class="webrtc-audio-level-label">MIC' + (state.audioSettings.micAGC ? ' <span style="font-size:8px;background:#ff9800;color:#fff;padding:0 3px;border-radius:3px;vertical-align:middle;" title="Auto Gain Control active">AGC</span>' : '') + '</span>';
 				html += '<div class="webrtc-audio-level-bar-bg"><div id="webrtc-mic-level-bar" class="webrtc-audio-level-bar" style="width:0%"></div></div>';
 				html += '</div>';
 				html += '<div class="webrtc-audio-level webrtc-audio-level-spk">';
-				html += '<span class="webrtc-audio-level-label">SPK</span>';
+				html += '<span class="webrtc-audio-level-label">SPK' + (state.audioSettings.spkAGC ? ' <span style="font-size:8px;background:#ff9800;color:#fff;padding:0 3px;border-radius:3px;vertical-align:middle;" title="Auto Gain Control active">AGC</span>' : '') + '</span>';
 				html += '<div class="webrtc-audio-level-bar-bg"><div id="webrtc-spk-level-bar" class="webrtc-audio-level-bar" style="width:0%"></div></div>';
 				html += '</div></div>';
 				html += '<div class="webrtc-call-actions">';
