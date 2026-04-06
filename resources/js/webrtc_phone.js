@@ -334,20 +334,42 @@ var WebRTCPhone = (function () {
 		return d.getFullYear() + (d.getMonth() + 1 < 10 ? '0' : '') + (d.getMonth() + 1) + (d.getDate() < 10 ? '0' : '') + d.getDate();
 	})();
 
+	function getHangupColor(originator, reason) {
+		// Remote ended normally
+		if (originator === 'remote' && (reason === 'Normal' || reason === 'Hung up')) return { fg: '#1565c0', bg: 'rgba(21,101,192,0.08)', border: 'rgba(21,101,192,0.25)' };
+		// You ended
+		if (originator === 'local') return { fg: '#2e7d32', bg: 'rgba(46,125,50,0.08)', border: 'rgba(46,125,50,0.25)' };
+		// Busy
+		if (reason === 'Busy') return { fg: '#e65100', bg: 'rgba(230,81,0,0.08)', border: 'rgba(230,81,0,0.25)' };
+		// Rejected / Declined
+		if (reason === 'Rejected' || reason === 'Declined') return { fg: '#c62828', bg: 'rgba(198,40,40,0.08)', border: 'rgba(198,40,40,0.25)' };
+		// Unavailable / No Answer / Timeout
+		if (reason === 'Unavailable' || reason === 'No Answer' || reason === 'Request Timeout') return { fg: '#b8860b', bg: 'rgba(184,134,11,0.08)', border: 'rgba(184,134,11,0.25)' };
+		// Cancelled
+		if (reason === 'Canceled' || reason === 'Cancelled') return { fg: '#757575', bg: 'rgba(117,117,117,0.08)', border: 'rgba(117,117,117,0.25)' };
+		// Failed / Error
+		if (reason === 'Call Failed' || reason === 'Incompatible SDP' || reason === 'Not Found') return { fg: '#c62828', bg: 'rgba(198,40,40,0.1)', border: 'rgba(198,40,40,0.3)' };
+		// Default
+		return { fg: '#b8860b', bg: 'rgba(184,134,11,0.08)', border: 'rgba(184,134,11,0.25)' };
+	}
+
 	function setLastCallStatus(originator, cause, duration) {
 		var who = originator === 'remote' ? 'Remote party' : (originator === 'local' ? 'You' : 'System');
 		var reason = cause || '';
 		if (reason === 'Terminated') reason = 'Hung up';
 		if (reason === 'BYE') reason = 'Hung up';
 		if (reason === 'NORMAL_CLEARING') reason = 'Normal';
+		var colors = getHangupColor(originator, reason);
 		state.lastCallStatus = {
 			text: who + ' ended call' + (reason && reason !== 'unknown' ? ' (' + reason + ')' : '') + (duration > 0 ? ' - ' + formatDuration(duration) : ''),
+			colors: colors,
 			time: Date.now()
 		};
 		// Store on current call record so it appears in history
 		if (state.currentCallRecord) {
 			state.currentCallRecord.hangupBy = who;
 			state.currentCallRecord.hangupCause = reason || '';
+			state.currentCallRecord.hangupColor = colors.fg;
 		}
 		// Auto-clear after 30 seconds
 		setTimeout(function () {
@@ -4355,7 +4377,8 @@ var WebRTCPhone = (function () {
 				}
 				// Hangup party info
 				if (rec.hangupBy) {
-					html += '<div style="font-size:10px;color:#b8860b;font-weight:600;margin-top:2px;">' + escapeHtml(rec.hangupBy + ' ended' + (rec.hangupCause ? ' (' + rec.hangupCause + ')' : '')) + '</div>';
+					var _hcHist = rec.hangupColor || '#b8860b';
+					html += '<div style="font-size:11px;color:' + _hcHist + ';font-weight:600;margin-top:2px;">' + escapeHtml(rec.hangupBy + ' ended' + (rec.hangupCause ? ' (' + rec.hangupCause + ')' : '')) + '</div>';
 				}
 				html += '</div>';
 				html += '<button class="webrtc-history-call-btn" onclick="event.stopPropagation();WebRTCPhone.dialFromHistory(' + i + ')" title="Dial">';
@@ -4395,7 +4418,8 @@ var WebRTCPhone = (function () {
 		html += '</button></div>';
 		// Last call status bar
 		if (state.lastCallStatus) {
-			html += '<div style="text-align:center;font-size:28px;font-weight:800;color:#b8860b;padding:16px;margin-top:10px;background:rgba(184,134,11,0.1);border-radius:8px;border:2px solid rgba(184,134,11,0.3);line-height:1.3;">' + escapeHtml(state.lastCallStatus.text) + '</div>';
+			var _hc = state.lastCallStatus.colors || { fg: '#b8860b', bg: 'rgba(184,134,11,0.08)', border: 'rgba(184,134,11,0.25)' };
+			html += '<div style="text-align:center;font-size:16px;font-weight:700;color:' + _hc.fg + ';padding:12px 14px;margin-top:10px;background:' + _hc.bg + ';border-radius:8px;border:2px solid ' + _hc.border + ';line-height:1.3;">' + escapeHtml(state.lastCallStatus.text) + '</div>';
 		}
 		// Build version
 		html += '<div style="text-align:center;font-size:9px;color:#bbb;padding:4px 0 0;">v' + BUILD_VERSION + '</div>';
