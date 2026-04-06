@@ -212,8 +212,105 @@ var WebRTCPhone = (function () {
 		spkAnalyser: null,
 		audioLevelInterval: null,
 		micLevel: 0,
-		spkLevel: 0
+		spkLevel: 0,
+		// Activity tracking
+		activityLog: []
 	};
+
+	// --- Activity Tracker ---
+	// Logs all user and system actions to localStorage for debugging and audit.
+
+	var ACTIVITY_LOG_KEY = 'webrtc_phone_activity_log';
+	var ACTIVITY_LOG_MAX = 500;
+
+	function loadActivityLog() {
+		try {
+			var raw = localStorage.getItem(ACTIVITY_LOG_KEY);
+			if (raw) {
+				var parsed = JSON.parse(raw);
+				if (Array.isArray(parsed)) state.activityLog = parsed;
+			}
+		} catch (e) {}
+	}
+
+	function saveActivityLog() {
+		try {
+			// Keep only last ACTIVITY_LOG_MAX entries
+			if (state.activityLog.length > ACTIVITY_LOG_MAX) {
+				state.activityLog = state.activityLog.slice(-ACTIVITY_LOG_MAX);
+			}
+			localStorage.setItem(ACTIVITY_LOG_KEY, JSON.stringify(state.activityLog));
+		} catch (e) {}
+	}
+
+	function logActivity(action, detail, extra) {
+		var entry = {
+			ts: new Date().toISOString(),
+			action: action,
+			detail: detail || ''
+		};
+		if (extra) {
+			for (var k in extra) {
+				if (extra.hasOwnProperty(k)) entry[k] = extra[k];
+			}
+		}
+		// Add call context if available
+		if (state.callState && state.callState !== 'idle') {
+			entry.callState = state.callState;
+		}
+		if (state.callDuration > 0) {
+			entry.callDuration = state.callDuration;
+		}
+		if (state.selectedExtension) {
+			entry.ext = state.selectedExtension.extension;
+		}
+		state.activityLog.push(entry);
+		saveActivityLog();
+	}
+
+	function exportActivityLog() {
+		var log = state.activityLog;
+		if (log.length === 0) {
+			alert('No activity to export.');
+			return;
+		}
+		// Build CSV
+		var headers = ['Timestamp', 'Action', 'Detail', 'Call State', 'Duration', 'Extension', 'Extra'];
+		var rows = [headers.join(',')];
+		for (var i = 0; i < log.length; i++) {
+			var e = log[i];
+			var extraFields = {};
+			for (var k in e) {
+				if (['ts', 'action', 'detail', 'callState', 'callDuration', 'ext'].indexOf(k) === -1) {
+					extraFields[k] = e[k];
+				}
+			}
+			var extraStr = Object.keys(extraFields).length > 0 ? JSON.stringify(extraFields) : '';
+			rows.push([
+				'"' + (e.ts || '') + '"',
+				'"' + (e.action || '') + '"',
+				'"' + String(e.detail || '').replace(/"/g, '""') + '"',
+				'"' + (e.callState || '') + '"',
+				e.callDuration || '',
+				'"' + (e.ext || '') + '"',
+				'"' + extraStr.replace(/"/g, '""') + '"'
+			].join(','));
+		}
+		var csv = rows.join('\n');
+		var blob = new Blob([csv], { type: 'text/csv' });
+		var url = URL.createObjectURL(blob);
+		var a = document.createElement('a');
+		a.href = url;
+		a.download = 'webrtc_phone_activity_' + new Date().toISOString().slice(0, 10) + '.csv';
+		document.body.appendChild(a);
+		a.click();
+		setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+	}
+
+	function clearActivityLog() {
+		state.activityLog = [];
+		saveActivityLog();
+	}
 
 	// --- Initialization ---
 
@@ -224,6 +321,8 @@ var WebRTCPhone = (function () {
 
 		loadAudioSettings();
 		loadCallHistory();
+		loadActivityLog();
+		logActivity('init', 'Phone initialized');
 
 		// Create hidden audio element for remote audio
 		state.remoteAudio = document.createElement('audio');
@@ -2713,10 +2812,21 @@ var WebRTCPhone = (function () {
 
 			state.ua = new JsSIP.UA(configuration);
 
-			state.ua.on('registered', function () { state.registered = true; renderPhone(); });
-			state.ua.on('unregistered', function () { state.registered = false; renderPhone(); });
+			state.ua.on('registered', function () {
+				var wasRegistered = state.registered;
+				state.registered = true;
+				logActivity('sip_registered', '', { wasRegistered: wasRegistered });
+				renderPhone();
+			});
+			state.ua.on('unregistered', function () {
+				logActivity('sip_unregistered', '', { hadActiveCall: !!state.currentSession, callState: state.callState });
+				state.registered = false;
+				// Do NOT end an active call — JsSIP auto-recovers the WebSocket
+				renderPhone();
+			});
 			state.ua.on('registrationFailed', function (e) {
 				state.registered = false;
+				logActivity('sip_registration_failed', e.cause || 'unknown');
 				console.error('WebRTC Phone: Registration failed', e.cause);
 				renderPhone();
 			});
@@ -2726,8 +2836,13 @@ var WebRTCPhone = (function () {
 			});
 			state.ua.on('disconnected', function () {
 				console.warn('WebRTC Phone: SIP UA disconnected event', 'hadActiveCall=' + !!state.currentSession, 'callState=' + state.callState);
+				logActivity('sip_disconnected', '', { hadActiveCall: !!state.currentSession, callState: state.callState });
 				state.registered = false;
-				if (state.currentSession) { endCall(); } else { renderPhone(); }
+				// Do NOT end an active call on WebSocket disconnect.
+				// JsSIP has built-in WebSocket reconnection (connection_recovery_min/max_interval).
+				// The call's RTP media flows over a separate UDP/DTLS channel — it survives WSS drops.
+				// Only update the UI registration status; the call session remains intact.
+				renderPhone();
 			});
 			state.ua.start();
 		} catch (e) {
@@ -2796,6 +2911,7 @@ var WebRTCPhone = (function () {
 
 	function agentLogin() {
 		state.agentLoggedIn = true;
+		logActivity('agent_login', '');
 		console.log('WebRTC Phone: Agent logged into queue');
 		// Fire CRM agent login webhook via proxy
 		if (state.config && state.config.crm_agent_login_url) {
@@ -2820,6 +2936,7 @@ var WebRTCPhone = (function () {
 
 	function agentLogout() {
 		state.agentLoggedIn = false;
+		logActivity('agent_logout', '');
 		console.log('WebRTC Phone: Agent logged out of queue');
 		// Fire CRM agent logout webhook via proxy
 		if (state.config && state.config.crm_agent_logout_url) {
@@ -2954,6 +3071,7 @@ var WebRTCPhone = (function () {
 
 	function makeCall(target) {
 		if (!state.ua || !state.registered || !target) return;
+		logActivity('call_outbound', target);
 
 		var domain = state.config.domain;
 		var targetURI = 'sip:' + target + '@' + domain;
@@ -3126,6 +3244,7 @@ var WebRTCPhone = (function () {
 			}
 		} catch (e) {}
 		state.currentCallRecord = { direction: 'inbound', number: inNum, name: inName, timestamp: Date.now(), status: 'missed' };
+		logActivity('call_inbound', inNum, { callerName: inName });
 		activatePageShield();
 		fireCrmEvent('new_call', { caller_id: inNum, caller_name: inName });
 		fireCrmScreenPop({ caller_id: inNum, caller_name: inName, direction: 'inbound' });
@@ -3139,6 +3258,7 @@ var WebRTCPhone = (function () {
 
 	function answerCall() {
 		if (!state.currentSession || state.callState !== 'ringing_in') return;
+		logActivity('call_answered', state.currentCallRecord ? state.currentCallRecord.number : '');
 		stopRingtone(); hideFABBadge(); closeIncomingNotification();
 		state.callState = 'in_call';
 		renderPhone();
@@ -3153,6 +3273,7 @@ var WebRTCPhone = (function () {
 
 	function rejectCall() {
 		if (!state.currentSession || state.callState !== 'ringing_in') return;
+		logActivity('call_rejected', state.currentCallRecord ? state.currentCallRecord.number : '');
 		stopRingtone(); hideFABBadge(); closeIncomingNotification();
 		if (state.currentCallRecord) state.currentCallRecord.status = 'rejected';
 		try { state.currentSession.terminate({ status_code: 486, reason_phrase: 'Busy Here' }); } catch (e) {}
@@ -3161,16 +3282,62 @@ var WebRTCPhone = (function () {
 
 	function hangupCall() {
 		if (!state.currentSession) return;
-		console.warn('WebRTC Phone: hangupCall() triggered', 'callState=' + state.callState, 'duration=' + state.callDuration + 's');
+		// If in active call, require confirmation to prevent accidental hangup
+		if (state.callState === 'in_call') {
+			showHangupConfirmation();
+			return;
+		}
+		// For ringing/connecting states, hang up immediately (no confirmation needed)
+		doHangup('user:cancel');
+	}
+
+	function doHangup(reason) {
+		if (!state.currentSession) return;
+		logActivity('hangup', reason || 'user', { callState: state.callState, duration: state.callDuration });
+		console.warn('WebRTC Phone: hangupCall() triggered', 'reason=' + (reason || 'user'), 'callState=' + state.callState, 'duration=' + state.callDuration + 's');
 		console.trace('WebRTC Phone: hangupCall stack trace');
 		stopRingtone(); hideFABBadge();
 		try { state.currentSession.terminate(); } catch (e) {}
 		endCall();
 	}
 
+	function showHangupConfirmation() {
+		if (document.getElementById('webrtc-hangup-confirm')) return;
+		logActivity('hangup_confirm_shown', '', { duration: state.callDuration });
+		var overlay = document.createElement('div');
+		overlay.id = 'webrtc-hangup-confirm';
+		overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.55);z-index:2147483647;display:flex;align-items:center;justify-content:center;';
+		overlay.innerHTML =
+			'<div style="background:#fff;border-radius:14px;padding:24px 20px;max-width:280px;width:90%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,0.3);">' +
+			'<div style="font-size:36px;margin-bottom:8px;">&#128222;</div>' +
+			'<div style="font-weight:700;font-size:16px;margin-bottom:6px;color:#222;">End this call?</div>' +
+			'<div style="font-size:12px;color:#888;margin-bottom:16px;">Duration: ' + formatDuration(state.callDuration) + '</div>' +
+			'<div style="display:flex;gap:10px;">' +
+			'<button id="webrtc-hangup-cancel" style="flex:1;padding:10px 0;border:none;border-radius:8px;background:#e8eaed;color:#333;font-weight:600;cursor:pointer;font-size:14px;">Continue Call</button>' +
+			'<button id="webrtc-hangup-yes" style="flex:1;padding:10px 0;border:none;border-radius:8px;background:#e53935;color:#fff;font-weight:600;cursor:pointer;font-size:14px;">Hang Up</button>' +
+			'</div></div>';
+		document.body.appendChild(overlay);
+		document.getElementById('webrtc-hangup-cancel').addEventListener('click', function () {
+			logActivity('hangup_cancelled', '', { duration: state.callDuration });
+			closeHangupConfirmation();
+		});
+		document.getElementById('webrtc-hangup-yes').addEventListener('click', function () {
+			closeHangupConfirmation();
+			doHangup('user:confirmed');
+		});
+		// Auto-close after 5 seconds (assume user changed mind)
+		setTimeout(function () { closeHangupConfirmation(); }, 5000);
+	}
+
+	function closeHangupConfirmation() {
+		var el = document.getElementById('webrtc-hangup-confirm');
+		if (el && el.parentNode) el.parentNode.removeChild(el);
+	}
+
 	function toggleMute() {
 		if (!state.currentSession || state.callState !== 'in_call') return;
 		state.muted = !state.muted;
+		logActivity(state.muted ? 'mute' : 'unmute', '');
 		try {
 			if (state.muted) { state.currentSession.mute({ audio: true }); }
 			else { state.currentSession.unmute({ audio: true }); }
@@ -3181,6 +3348,7 @@ var WebRTCPhone = (function () {
 	function toggleHold() {
 		if (!state.currentSession || state.callState !== 'in_call') return;
 		state.held = !state.held;
+		logActivity(state.held ? 'hold' : 'resume', '');
 		try {
 			if (state.held) { state.currentSession.hold(); } else { state.currentSession.unhold(); }
 		} catch (e) { state.held = !state.held; }
@@ -3189,6 +3357,7 @@ var WebRTCPhone = (function () {
 
 	function sendDTMF(tone) {
 		if (!state.currentSession || state.callState !== 'in_call') return;
+		logActivity('dtmf', tone);
 		try {
 			state.currentSession.sendDTMF(tone, { duration: 100, interToneGap: 50, transportType: 'RFC2833' });
 		} catch (e) {
@@ -3198,6 +3367,7 @@ var WebRTCPhone = (function () {
 
 	function transferCall(target) {
 		if (!state.currentSession || state.callState !== 'in_call' || !target) return;
+		logActivity('transfer', target);
 		var targetURI = 'sip:' + target + '@' + state.config.domain;
 		try { state.currentSession.refer(targetURI); } catch (e) {}
 	}
@@ -3227,16 +3397,22 @@ var WebRTCPhone = (function () {
 		session.on('ended', function (data) {
 			var originator = data && data.originator ? data.originator : 'unknown';
 			var cause = data && data.cause ? data.cause : 'unknown';
+			logActivity('call_ended', originator + ':' + cause, { duration: state.callDuration });
 			console.warn('WebRTC Phone: session ended — originator=' + originator + ' cause=' + cause + ' duration=' + state.callDuration + 's');
 			endCall();
 		});
 		session.on('failed', function (e) {
 			var originator = e && e.originator ? e.originator : 'unknown';
 			var cause = e && e.cause ? e.cause : 'unknown';
+			logActivity('call_failed', originator + ':' + cause);
 			console.warn('WebRTC Phone: session failed — originator=' + originator + ' cause=' + cause);
 			endCall();
 		});
-		session.on('getusermediafailed', function (e) { console.error('WebRTC Phone: Microphone access failed', e); endCall(); });
+		session.on('getusermediafailed', function (e) {
+			logActivity('call_failed', 'getusermediafailed');
+			console.error('WebRTC Phone: Microphone access failed', e);
+			endCall();
+		});
 		session.on('peerconnection', function (data) {
 			var pc = data.peerconnection;
 			var iceCompleted = false;
@@ -3757,6 +3933,15 @@ var WebRTCPhone = (function () {
 		html += '</div>';
 		html += '<label class="webrtc-agc-toggle"><input type="checkbox"' + (as.micAGC ? ' checked' : '') + ' onchange="WebRTCPhone.toggleMicAGC(this.checked)"><span>' + t('micAGC') + '</span></label>';
 		html += '</div>';
+
+		// Activity Log section
+		html += '<div class="webrtc-settings-section">';
+		html += '<div class="webrtc-settings-title">&#128203; Activity Log</div>';
+		html += '<div style="font-size:11px;color:#888;margin-bottom:6px;">' + state.activityLog.length + ' events tracked</div>';
+		html += '<div style="display:flex;gap:6px;">';
+		html += '<button class="webrtc-btn webrtc-btn-sm webrtc-btn-primary" onclick="WebRTCPhone.exportActivityLog()" style="flex:1;">Export CSV</button>';
+		html += '<button class="webrtc-btn webrtc-btn-sm webrtc-btn-secondary" onclick="if(confirm(\'Clear all activity logs?\'))WebRTCPhone.clearActivityLog()" style="flex:1;">Clear</button>';
+		html += '</div></div>';
 
 		html += '<button class="webrtc-btn webrtc-btn-primary webrtc-settings-done" onclick="WebRTCPhone.closeSettings()">Done</button>';
 		html += '</div>';
@@ -4352,7 +4537,8 @@ var WebRTCPhone = (function () {
 		openHistory: openHistory, closeHistory: closeHistory,
 		clearHistory: clearHistory, dialFromHistory: dialFromHistory,
 		openNetworkTest: openNetworkTest, closeNetworkTest: closeNetworkTest, runNetworkTest: runNetworkTest,
-		downloadReportPDF: downloadReportPDF, sendReportEmail: sendReportEmail
+		downloadReportPDF: downloadReportPDF, sendReportEmail: sendReportEmail,
+		exportActivityLog: exportActivityLog, clearActivityLog: function () { clearActivityLog(); renderPhone(); }
 	};
 
 })();

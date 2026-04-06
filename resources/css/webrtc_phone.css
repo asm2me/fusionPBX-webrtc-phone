@@ -149,6 +149,11 @@
 /* --- Body --- */
 .webrtc-phone-body {
 	padding: 16px;
+	background-image:
+		radial-gradient(circle at 20% 50%, rgba(26, 115, 232, 0.03) 0%, transparent 50%),
+		radial-gradient(circle at 80% 20%, rgba(76, 175, 80, 0.03) 0%, transparent 50%),
+		linear-gradient(135deg, transparent 25%, rgba(26, 115, 232, 0.015) 25%, rgba(26, 115, 232, 0.015) 50%, transparent 50%, transparent 75%, rgba(26, 115, 232, 0.015) 75%);
+	background-size: 100% 100%, 100% 100%, 20px 20px;
 }
 
 /* --- Extension Selector --- */
