@@ -248,6 +248,7 @@ var WebRTCPhone = (function () {
 		window.addEventListener('beforeunload', handleBeforeUnload);
 		document.addEventListener('submit', handleFormSubmit, true);
 		document.addEventListener('click', handleLinkClick, true);
+		installNavigationTrap();
 
 		// Request notification permission early
 		requestNotificationPermission();
@@ -2507,8 +2508,55 @@ var WebRTCPhone = (function () {
 			state.callState === 'connecting';
 	}
 
+	// -- Page Shield: blocks ALL interaction outside the phone during a call --
+	function activatePageShield() {
+		if (document.getElementById('webrtc-page-shield')) return;
+		var shield = document.createElement('div');
+		shield.id = 'webrtc-page-shield';
+		shield.style.cssText = [
+			'position:fixed', 'top:0', 'left:0', 'right:0', 'bottom:0',
+			'background:rgba(0,0,0,0.35)', 'z-index:99998',
+			'cursor:not-allowed', 'transition:opacity 0.3s'
+		].join(';');
+		// Show a subtle label
+		shield.innerHTML = '<div style="position:fixed;top:12px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.7);color:#fff;padding:6px 18px;border-radius:20px;font-size:13px;font-weight:600;font-family:-apple-system,BlinkMacSystemFont,sans-serif;pointer-events:none;z-index:99999;">Call in Progress &mdash; page locked</div>';
+		shield.addEventListener('click', function (e) {
+			e.preventDefault();
+			e.stopPropagation();
+			e.stopImmediatePropagation();
+			// Blink the phone panel to draw attention
+			var panel = document.getElementById('webrtc-phone-panel');
+			if (panel) {
+				panel.style.transform = 'scale(1.04)';
+				setTimeout(function () { panel.style.transform = ''; }, 200);
+			}
+			// Ensure the phone panel is visible
+			showPanel();
+		}, true);
+		// Block all keyboard shortcuts that might navigate (Ctrl+L, Alt+Left, F5, etc.)
+		shield.addEventListener('keydown', function (e) {
+			if (e.key === 'F5' || (e.ctrlKey && e.key === 'r') || (e.ctrlKey && e.key === 'l') ||
+				(e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight'))) {
+				e.preventDefault();
+				e.stopPropagation();
+			}
+		}, true);
+		document.body.appendChild(shield);
+		console.log('WebRTC Phone: Page shield activated');
+	}
+
+	function deactivatePageShield() {
+		var shield = document.getElementById('webrtc-page-shield');
+		if (shield) {
+			shield.style.opacity = '0';
+			setTimeout(function () { if (shield.parentNode) shield.parentNode.removeChild(shield); }, 300);
+			console.log('WebRTC Phone: Page shield deactivated');
+		}
+	}
+
 	function handleBeforeUnload(e) {
 		if (!isCallActive()) return;
+		console.warn('WebRTC Phone: beforeunload fired during active call! callState=' + state.callState);
 		e.preventDefault();
 		e.returnValue = '';
 		return '';
@@ -2519,12 +2567,11 @@ var WebRTCPhone = (function () {
 		var form = e.target;
 		// Allow the phone's own forms to submit without interception
 		if (state.mountEl && state.mountEl.contains(form)) return;
+		var container = document.getElementById('webrtc-phone-floating-container');
+		if (container && container.contains(form)) return;
 		e.preventDefault();
 		e.stopImmediatePropagation();
-		showNavigationWarning(function () {
-			hangupCall();
-			setTimeout(function () { form.submit(); }, 250);
-		});
+		console.warn('WebRTC Phone: Form submit BLOCKED during call', form.action || form.id || 'unknown form');
 	}
 
 	function handleLinkClick(e) {
@@ -2548,46 +2595,60 @@ var WebRTCPhone = (function () {
 		if (container && container.contains(link)) return;
 		e.preventDefault();
 		e.stopImmediatePropagation();
-		var href = link.href;
-		showNavigationWarning(function () {
-			hangupCall();
-			setTimeout(function () { window.location.href = href; }, 250);
-		});
+		console.warn('WebRTC Phone: Link click BLOCKED during call', link.href);
 	}
 
-	function showNavigationWarning(onConfirm) {
-		closeNavigationWarning();
-		var overlay = document.createElement('div');
-		overlay.id = 'webrtc-nav-warning';
-		overlay.style.cssText = [
-			'position:fixed', 'top:0', 'left:0', 'right:0', 'bottom:0',
-			'background:rgba(0,0,0,0.55)', 'z-index:2147483647',
-			'display:flex', 'align-items:center', 'justify-content:center'
-		].join(';');
-		overlay.innerHTML =
-			'<div style="background:#fff;border-radius:14px;padding:28px 24px;max-width:320px;width:90%;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,0.3);">' +
-			'<div style="font-size:40px;margin-bottom:10px;">&#9742;</div>' +
-			'<div style="font-weight:700;font-size:17px;margin-bottom:8px;color:#222;">Call in Progress</div>' +
-			'<div style="font-size:13px;color:#555;margin-bottom:22px;line-height:1.5;">Leaving this page will end your current call.<br>Are you sure you want to continue?</div>' +
-			'<div style="display:flex;gap:10px;justify-content:center;">' +
-			'<button id="webrtc-nav-stay" style="flex:1;padding:10px 0;border:none;border-radius:8px;background:#e8eaed;color:#333;font-weight:600;cursor:pointer;font-size:14px;">Stay on Page</button>' +
-			'<button id="webrtc-nav-leave" style="flex:1;padding:10px 0;border:none;border-radius:8px;background:#e53935;color:#fff;font-weight:600;cursor:pointer;font-size:14px;">End Call &amp; Leave</button>' +
-			'</div></div>';
-		document.body.appendChild(overlay);
-		document.getElementById('webrtc-nav-stay').addEventListener('click', closeNavigationWarning);
-		document.getElementById('webrtc-nav-leave').addEventListener('click', function () {
-			closeNavigationWarning();
-			onConfirm();
-		});
-		// Also close on backdrop click
-		overlay.addEventListener('click', function (e) {
-			if (e.target === overlay) closeNavigationWarning();
-		});
-	}
+	// Intercept programmatic navigation (window.location changes, pushState, etc.)
+	function installNavigationTrap() {
+		if (state._navTrapInstalled) return;
+		state._navTrapInstalled = true;
 
-	function closeNavigationWarning() {
-		var el = document.getElementById('webrtc-nav-warning');
-		if (el && el.parentNode) el.parentNode.removeChild(el);
+		// Trap history.pushState and replaceState
+		var origPushState = history.pushState;
+		var origReplaceState = history.replaceState;
+		history.pushState = function () {
+			if (isCallActive()) {
+				console.warn('WebRTC Phone: history.pushState BLOCKED during call');
+				return;
+			}
+			return origPushState.apply(this, arguments);
+		};
+		history.replaceState = function () {
+			if (isCallActive()) {
+				console.warn('WebRTC Phone: history.replaceState BLOCKED during call');
+				return;
+			}
+			return origReplaceState.apply(this, arguments);
+		};
+
+		// Trap popstate (back/forward buttons)
+		window.addEventListener('popstate', function (e) {
+			if (isCallActive()) {
+				console.warn('WebRTC Phone: popstate (back/forward) BLOCKED during call');
+				// Push the current state back to prevent navigation
+				history.pushState(null, '', window.location.href);
+			}
+		});
+
+		// Trap keyboard shortcuts that navigate
+		document.addEventListener('keydown', function (e) {
+			if (!isCallActive()) return;
+			// F5 / Ctrl+R = refresh
+			if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
+				e.preventDefault();
+				console.warn('WebRTC Phone: Page refresh BLOCKED during call');
+			}
+			// Alt+Left/Right = back/forward
+			if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+				e.preventDefault();
+				console.warn('WebRTC Phone: Browser back/forward BLOCKED during call');
+			}
+			// Ctrl+W = close tab
+			if (e.ctrlKey && e.key === 'w') {
+				e.preventDefault();
+				console.warn('WebRTC Phone: Tab close BLOCKED during call');
+			}
+		}, true);
 	}
 
 	function fetchConfig() {
@@ -2664,6 +2725,7 @@ var WebRTCPhone = (function () {
 				if (data.originator === 'remote') handleIncomingCall(data.session);
 			});
 			state.ua.on('disconnected', function () {
+				console.warn('WebRTC Phone: SIP UA disconnected event', 'hadActiveCall=' + !!state.currentSession, 'callState=' + state.callState);
 				state.registered = false;
 				if (state.currentSession) { endCall(); } else { renderPhone(); }
 			});
@@ -2984,12 +3046,12 @@ var WebRTCPhone = (function () {
 				renderPhone();
 			},
 			'ended': function (data) {
-				console.log('WebRTC Phone: call ended', data.cause);
+				console.warn('WebRTC Phone: outbound call ended — originator=' + (data.originator || 'unknown') + ' cause=' + (data.cause || 'unknown') + ' duration=' + state.callDuration + 's');
 				state.callStatusText = '';
 				endCall();
 			},
 			'failed': function (data) {
-				console.error('WebRTC Phone: call failed', data.cause);
+				console.warn('WebRTC Phone: outbound call failed — originator=' + (data.originator || 'unknown') + ' cause=' + (data.cause || 'unknown'));
 				var cause = data.cause || '';
 				if (state.currentCallRecord && state.currentCallRecord.status !== 'answered') state.currentCallRecord.status = 'failed';
 				// Show brief failure reason before returning to idle
@@ -3037,6 +3099,7 @@ var WebRTCPhone = (function () {
 			state.callStatusText = t('connecting');
 			state.muted = false;
 			state.held = false;
+			activatePageShield();
 			fireCrmEvent('dial_out', { destination: target });
 			renderPhone();
 		} catch (e) {
@@ -3063,6 +3126,7 @@ var WebRTCPhone = (function () {
 			}
 		} catch (e) {}
 		state.currentCallRecord = { direction: 'inbound', number: inNum, name: inName, timestamp: Date.now(), status: 'missed' };
+		activatePageShield();
 		fireCrmEvent('new_call', { caller_id: inNum, caller_name: inName });
 		fireCrmScreenPop({ caller_id: inNum, caller_name: inName, direction: 'inbound' });
 		showPanel();
@@ -3097,6 +3161,8 @@ var WebRTCPhone = (function () {
 
 	function hangupCall() {
 		if (!state.currentSession) return;
+		console.warn('WebRTC Phone: hangupCall() triggered', 'callState=' + state.callState, 'duration=' + state.callDuration + 's');
+		console.trace('WebRTC Phone: hangupCall stack trace');
 		stopRingtone(); hideFABBadge();
 		try { state.currentSession.terminate(); } catch (e) {}
 		endCall();
@@ -3158,8 +3224,18 @@ var WebRTCPhone = (function () {
 			state.callState = 'in_call'; stopRingtone(); hideFABBadge(); if (!state.remoteAudio.srcObject) attachRemoteAudio(session);
 			renderPhone();
 		});
-		session.on('ended', function () { endCall(); });
-		session.on('failed', function (e) { console.log('WebRTC Phone: Call failed/ended', e.cause); endCall(); });
+		session.on('ended', function (data) {
+			var originator = data && data.originator ? data.originator : 'unknown';
+			var cause = data && data.cause ? data.cause : 'unknown';
+			console.warn('WebRTC Phone: session ended — originator=' + originator + ' cause=' + cause + ' duration=' + state.callDuration + 's');
+			endCall();
+		});
+		session.on('failed', function (e) {
+			var originator = e && e.originator ? e.originator : 'unknown';
+			var cause = e && e.cause ? e.cause : 'unknown';
+			console.warn('WebRTC Phone: session failed — originator=' + originator + ' cause=' + cause);
+			endCall();
+		});
 		session.on('getusermediafailed', function (e) { console.error('WebRTC Phone: Microphone access failed', e); endCall(); });
 		session.on('peerconnection', function (data) {
 			var pc = data.peerconnection;
@@ -3267,6 +3343,8 @@ var WebRTCPhone = (function () {
 	}
 
 	function endCall() {
+		console.warn('WebRTC Phone: endCall() triggered', 'callState=' + state.callState, 'duration=' + state.callDuration + 's');
+		console.trace('WebRTC Phone: endCall stack trace');
 		// Fire CRM hangup before clearing call data
 		fireCrmEvent('hangup');
 		if (state.currentCallRecord) {
@@ -3298,6 +3376,7 @@ var WebRTCPhone = (function () {
 		state.muted = false;
 		state.held = false;
 		stopCallTimer(); stopRingtone(); hideFABBadge(); closeIncomingNotification();
+		deactivatePageShield();
 		if (state.remoteAudio) state.remoteAudio.srcObject = null;
 		renderPhone();
 	}
@@ -3307,6 +3386,7 @@ var WebRTCPhone = (function () {
 	function startCallTimer() {
 		state.callDuration = 0;
 		stopCallTimer();
+		activatePageShield();
 		state.callTimer = setInterval(function () {
 			state.callDuration++;
 			var timerEl = document.getElementById('webrtc-call-timer');
@@ -3856,7 +3936,7 @@ var WebRTCPhone = (function () {
 	function switchExtension(index) {
 		index = parseInt(index);
 		if (isNaN(index) || !state.extensions[index]) return;
-		if (state.currentSession) hangupCall();
+		if (state.currentSession) { console.warn('WebRTC Phone: switchExtension hanging up active call'); hangupCall(); }
 		unregisterSIP();
 		state.selectedExtension = state.extensions[index];
 		renderPhone(); registerSIP();
