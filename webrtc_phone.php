@@ -32,9 +32,9 @@ echo "<div id='webrtc-phone-standalone'>\n";
 echo "	<div id='webrtc-phone-mount'></div>\n";
 echo "</div>\n";
 
-$v = '1.1.6';
+$v = '1.2.0';
 echo "<script src='/app/web_phone2/resources/js/jssip.min.js?v=".$v."'></script>\n";
-echo "<script src='/app/web_phone2/resources/js/webrtc_phone.js?v=".$v."'></script>\n";
+echo "<script src='/app/web_phone2/resources/js/webrtc_phone.min.js?v=".$v."'></script>\n";
 echo "<link rel='stylesheet' href='/app/web_phone2/resources/css/webrtc_phone.css?v=".$v."'>\n";
 
 // Inject translations for the JS UI

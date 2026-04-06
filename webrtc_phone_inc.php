@@ -45,7 +45,7 @@ unset($_webrtc_debug, $_webrtc_script, $_webrtc_uri, $_webrtc_excluded_apps, $_w
 if (isset($_SESSION['user_uuid']) && permission_exists('webrtc_phone_view')) {
 	$webrtc_enabled = $_SESSION['webrtc_phone']['enabled']['boolean'] ?? 'true';
 	if ($webrtc_enabled === 'true') {
-		$v = '1.1.6';
+		$v = '1.2.0';
 		echo "\n<!-- WebRTC Phone Floating Overlay -->\n";
 		echo "<link rel='stylesheet' href='/app/web_phone2/resources/css/webrtc_phone.css?v=".$v."'>\n";
 		echo "<div id='webrtc-phone-floating-container'>\n";
@@ -58,7 +58,7 @@ if (isset($_SESSION['user_uuid']) && permission_exists('webrtc_phone_view')) {
 		echo "	</div>\n";
 		echo "</div>\n";
 		echo "<script src='/app/web_phone2/resources/js/jssip.min.js?v=".$v."'></script>\n";
-		echo "<script src='/app/web_phone2/resources/js/webrtc_phone.js?v=".$v."'></script>\n";
+		echo "<script src='/app/web_phone2/resources/js/webrtc_phone.min.js?v=".$v."'></script>\n";
 
 		// Inject translations for the JS UI based on user's language
 		$_webrtc_lang = 'en-us';
