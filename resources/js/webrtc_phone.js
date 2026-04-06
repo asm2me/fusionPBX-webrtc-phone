@@ -2392,6 +2392,25 @@ var WebRTCPhone = (function () {
 						logActivity('mic_switched', headsetMic.label, { auto: true });
 						setMicDevice(headsetMic.id);
 					}
+
+					// Auto-select headset speaker
+					var headsetSpk = findHeadsetDevice(devices.outputs);
+					if (headsetSpk && headsetSpk.id !== state.audioSettings.speakerDeviceId) {
+						console.log('WebRTC Phone: Headset speaker detected, auto-switching to:', headsetSpk.label);
+						logActivity('spk_switched', headsetSpk.label, { auto: true });
+						setSpeakerDevice(headsetSpk.id);
+						// Also switch ring device
+						setRingDevice(headsetSpk.id);
+					}
+
+					// If in a call, rebuild audio processing to use new device
+					if (state.currentSession && state.audioLevelCtx) {
+						setTimeout(function () { startAudioLevels(); }, 500);
+					}
+					// Clear mic warning since new device connected
+					state._micLowCount = 0;
+					state._micWarningFired = false;
+					hideMicWarning();
 				}
 
 				// Headset removed
@@ -2426,15 +2445,19 @@ var WebRTCPhone = (function () {
 		}, 5000);
 	}
 
+	var _headsetKeywords = ['headset', 'headphone', 'earphone', 'hands-free', 'handsfree', 'jabra', 'plantronics', 'poly', 'usb audio', 'bluetooth', 'airpods', 'buds', 'sennheiser', 'logitech'];
+
 	function findHeadsetMic(inputs) {
-		if (!inputs || inputs.length === 0) return null;
-		// Look for headset-related keywords in device label
-		var headsetKeywords = ['headset', 'headphone', 'earphone', 'hands-free', 'handsfree', 'jabra', 'plantronics', 'poly', 'usb audio', 'bluetooth'];
-		for (var i = 0; i < inputs.length; i++) {
-			var label = (inputs[i].label || '').toLowerCase();
-			for (var k = 0; k < headsetKeywords.length; k++) {
-				if (label.indexOf(headsetKeywords[k]) >= 0) {
-					return inputs[i];
+		return findHeadsetDevice(inputs);
+	}
+
+	function findHeadsetDevice(devices) {
+		if (!devices || devices.length === 0) return null;
+		for (var i = 0; i < devices.length; i++) {
+			var label = (devices[i].label || '').toLowerCase();
+			for (var k = 0; k < _headsetKeywords.length; k++) {
+				if (label.indexOf(_headsetKeywords[k]) >= 0) {
+					return devices[i];
 				}
 			}
 		}
