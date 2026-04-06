@@ -344,6 +344,11 @@ var WebRTCPhone = (function () {
 			text: who + ' ended call' + (reason && reason !== 'unknown' ? ' (' + reason + ')' : '') + (duration > 0 ? ' - ' + formatDuration(duration) : ''),
 			time: Date.now()
 		};
+		// Store on current call record so it appears in history
+		if (state.currentCallRecord) {
+			state.currentCallRecord.hangupBy = who;
+			state.currentCallRecord.hangupCause = reason || '';
+		}
 		// Auto-clear after 30 seconds
 		setTimeout(function () {
 			if (state.lastCallStatus && Date.now() - state.lastCallStatus.time >= 29000) {
@@ -4347,6 +4352,10 @@ var WebRTCPhone = (function () {
 						html += '<span class="webrtc-history-quality-issues">' + escapeHtml(rec.quality.issues.join(', ')) + '</span>';
 					}
 					html += '</div>';
+				}
+				// Hangup party info
+				if (rec.hangupBy) {
+					html += '<div style="font-size:10px;color:#b8860b;font-weight:600;margin-top:2px;">' + escapeHtml(rec.hangupBy + ' ended' + (rec.hangupCause ? ' (' + rec.hangupCause + ')' : '')) + '</div>';
 				}
 				html += '</div>';
 				html += '<button class="webrtc-history-call-btn" onclick="event.stopPropagation();WebRTCPhone.dialFromHistory(' + i + ')" title="Dial">';
