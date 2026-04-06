@@ -32,7 +32,7 @@ echo "<div id='webrtc-phone-standalone'>\n";
 echo "	<div id='webrtc-phone-mount'></div>\n";
 echo "</div>\n";
 
-$v = '1.2.1';
+$v = '1.2.2';
 echo "<script src='/app/web_phone2/resources/js/jssip.min.js?v=".$v."'></script>\n";
 echo "<script src='/app/web_phone2/resources/js/webrtc_phone.min.js?v=".$v."'></script>\n";
 echo "<link rel='stylesheet' href='/app/web_phone2/resources/css/webrtc_phone.css?v=".$v."'>\n";
