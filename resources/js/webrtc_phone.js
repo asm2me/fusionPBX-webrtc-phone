@@ -2152,6 +2152,41 @@ var WebRTCPhone = (function () {
 				}
 			}
 
+			// Fallback: if mic analyser wasn't created (no sender track found),
+			// try to get mic directly from getUserMedia
+			if (!state.micAnalyser && state.currentSession && state.currentSession.connection) {
+				try {
+					var localStreams = state.currentSession.connection.getLocalStreams ? state.currentSession.connection.getLocalStreams() : [];
+					var localTrack = null;
+					// Try getLocalStreams (older API)
+					for (var ls = 0; ls < localStreams.length; ls++) {
+						var at = localStreams[ls].getAudioTracks();
+						if (at.length > 0) { localTrack = at[0]; break; }
+					}
+					// Try getSenders (newer API)
+					if (!localTrack) {
+						var allSenders = state.currentSession.connection.getSenders();
+						for (var ss = 0; ss < allSenders.length; ss++) {
+							if (allSenders[ss].track && allSenders[ss].track.kind === 'audio' && allSenders[ss].track.readyState === 'live') {
+								localTrack = allSenders[ss].track; break;
+							}
+						}
+					}
+					if (localTrack) {
+						var fallbackStream = new MediaStream([localTrack]);
+						var fallbackSource = state.audioLevelCtx.createMediaStreamSource(fallbackStream);
+						state.micAnalyser = state.audioLevelCtx.createAnalyser();
+						state.micAnalyser.fftSize = 256;
+						fallbackSource.connect(state.micAnalyser);
+						console.log('WebRTC Phone: Mic analyser created via fallback (raw track)');
+					} else {
+						console.warn('WebRTC Phone: No mic track found for analyser');
+					}
+				} catch (e) {
+					console.warn('WebRTC Phone: Fallback mic analyser failed', e);
+				}
+			}
+
 			// Speaker (remote) — analyser only (no track replacement to avoid breaking audio)
 			// AGC for speaker uses dynamic gain adjustment instead of replacing srcObject
 			if (state.remoteAudio && state.remoteAudio.srcObject) {
@@ -2226,8 +2261,17 @@ var WebRTCPhone = (function () {
 
 		var micBar = document.getElementById('webrtc-mic-level-bar');
 		var spkBar = document.getElementById('webrtc-spk-level-bar');
-		if (micBar) micBar.style.width = state.micLevel + '%';
-		if (spkBar) spkBar.style.width = state.spkLevel + '%';
+		if (micBar) {
+			micBar.style.width = state.micLevel + '%';
+			// Update tooltip with current mic percentage
+			var micContainer = micBar.closest('.webrtc-audio-level-mic');
+			if (micContainer) micContainer.title = 'Mic Level: ' + state.micLevel + '%';
+		}
+		if (spkBar) {
+			spkBar.style.width = state.spkLevel + '%';
+			var spkContainer = spkBar.closest('.webrtc-audio-level-spk');
+			if (spkContainer) spkContainer.title = 'Speaker Level: ' + state.spkLevel + '%';
+		}
 
 		// Mic level warning: track consecutive low samples during active call
 		if (state.callState === 'in_call') {
@@ -2235,10 +2279,12 @@ var WebRTCPhone = (function () {
 				state._micLowCount = (state._micLowCount || 0) + 1;
 			} else {
 				state._micLowCount = 0;
+				state._micWarningFired = false;
 				hideMicWarning();
 			}
 			// After 3 seconds (30 samples at 100ms) of low mic, show warning and auto-enable AGC
-			if (state._micLowCount === 30) {
+			if (state._micLowCount >= 30 && !state._micWarningFired) {
+				state._micWarningFired = true;
 				showMicWarning();
 				logActivity('mic_warning', 'Microphone level below 30% for 3 seconds (level: ' + state.micLevel + '%)');
 				// Auto-enable mic AGC to boost the signal
@@ -3477,7 +3523,7 @@ var WebRTCPhone = (function () {
 			state.currentSession.on('sdp', function (ev) {
 				// Prefer G.711a (PCMA) codec by reordering SDP offer
 				if (ev.type === 'offer') {
-					ev.sdp = preferCodec(ev.sdp, 'PCMA');
+					ev.sdp = preferCodec(ev.sdp, 'PCMU');
 				}
 				// Add ice-lite to FS answer SDP for ICE compatibility
 				if (ev.type === 'answer' && ev.sdp.indexOf('a=ice-lite') === -1) {
@@ -3662,7 +3708,7 @@ var WebRTCPhone = (function () {
 		session.on('sdp', function (ev) {
 			// For incoming calls: prefer PCMA in our answer only (not the remote offer)
 			if (ev.type === 'answer') {
-				ev.sdp = preferCodec(ev.sdp, 'PCMA');
+				ev.sdp = preferCodec(ev.sdp, 'PCMU');
 				if (ev.sdp.indexOf('a=ice-lite') === -1) {
 					ev.sdp = ev.sdp.replace(/(m=audio)/, 'a=ice-lite\r\n$1');
 				}
@@ -3809,6 +3855,7 @@ var WebRTCPhone = (function () {
 		console.warn('WebRTC Phone: endCall() triggered', 'callState=' + state.callState, 'duration=' + state.callDuration + 's');
 		console.trace('WebRTC Phone: endCall stack trace');
 		state._micLowCount = 0;
+		state._micWarningFired = false;
 		hideMicWarning();
 		closeHangupConfirmation();
 		// Fire CRM hangup before clearing call data
