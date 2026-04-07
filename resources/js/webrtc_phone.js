@@ -142,7 +142,21 @@ var WebRTCPhone = (function () {
 		// Last call status
 		remoteEndedCall: 'Remote party ended call',
 		youEndedCall: 'You ended call',
-		systemEndedCall: 'System ended call'
+		systemEndedCall: 'System ended call',
+		// Ticket system
+		reportIssue: 'Report Issue',
+		reportCallIssue: 'Report Call Issue',
+		issueSubject: 'Issue Subject',
+		issueDescription: 'Describe the issue...',
+		submitReport: 'Submit Report',
+		cancelReport: 'Cancel',
+		reportSubmitted: 'Ticket submitted successfully!',
+		reportFailed: 'Failed to submit ticket. Please try again.',
+		ticketResolved: 'Ticket resolved',
+		ticketAnswered: 'Ticket answered',
+		ticketClosed: 'Ticket closed',
+		viewTicket: 'View Ticket',
+		ticketAlert: 'Ticket Update'
 	};
 
 	function t(key) {
@@ -229,7 +243,14 @@ var WebRTCPhone = (function () {
 		// Activity tracking
 		activityLog: [],
 		// Last call status
-		lastCallStatus: null
+		lastCallStatus: null,
+		// Ticket system
+		ticketReportIndex: -1,
+		showTicketReport: false,
+		ticketAlerts: [],
+		ticketPollTimer: null,
+		ticketLastCheck: null,
+		ticketLinkedCalls: {}   // maps call history index to ticket info
 	};
 
 	// --- Activity Tracker ---
@@ -485,6 +506,7 @@ var WebRTCPhone = (function () {
 		loadAudioSettings();
 		loadCallHistory();
 		loadActivityLog();
+		loadTicketLinkedCalls();
 		logActivity('separator', '--- Page loaded ---');
 		logActivity('init', 'Phone initialized');
 
@@ -517,6 +539,9 @@ var WebRTCPhone = (function () {
 
 		// Request notification permission early
 		requestNotificationPermission();
+
+		// Start ticket status polling
+		startTicketPolling();
 
 		fetchConfig();
 	}
@@ -4544,9 +4569,26 @@ var WebRTCPhone = (function () {
 					html += '<div style="font-size:11px;color:' + _hcHist + ';font-weight:600;margin-top:2px;">' + escapeHtml(rec.hangupBy + ' ended' + (rec.hangupCause ? ' (' + rec.hangupCause + ')' : '')) + '</div>';
 				}
 				html += '</div>';
+				//ticket status badge
+				var ticketInfo = state.ticketLinkedCalls[i];
+				if (ticketInfo) {
+					var tBadgeClass = (ticketInfo.status === 'resolved' || ticketInfo.status === 'closed') ? 'webrtc-history-ticket-resolved' : '';
+					html += '<div class="webrtc-history-ticket-badge ' + tBadgeClass + '">' + escapeHtml(ticketInfo.ticket_number) + ' - ' + escapeHtml(ticketInfo.status) + '</div>';
+					if (ticketInfo.resolved_note) {
+						html += '<div style="font-size:10px;color:#666;margin-top:1px;font-style:italic;">' + escapeHtml(ticketInfo.resolved_note) + '</div>';
+					}
+				}
+				html += '</div>';
+				html += '<div style="display:flex;flex-direction:column;gap:4px;align-items:center;">';
 				html += '<button class="webrtc-history-call-btn" onclick="event.stopPropagation();WebRTCPhone.dialFromHistory(' + i + ')" title="Dial">';
 				html += '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 00-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/></svg>';
 				html += '</button>';
+				if (!ticketInfo) {
+					html += '<button class="webrtc-history-report-btn" onclick="event.stopPropagation();WebRTCPhone.openTicketReport(' + i + ')" title="' + escapeHtml(t('reportIssue')) + '">';
+					html += '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+					html += '</button>';
+				}
+				html += '</div>';
 				html += '</div>';
 			}
 			html += '</div>';
@@ -5080,6 +5122,284 @@ var WebRTCPhone = (function () {
 		});
 	}
 
+	// --- Ticket System ---
+	// Report issues from call history, poll for ticket status updates, show alerts.
+
+	function openTicketReport(historyIndex) {
+		var rec = state.callHistory[historyIndex];
+		if (!rec) return;
+		state.ticketReportIndex = historyIndex;
+		state.showTicketReport = true;
+		renderTicketReportModal(rec);
+		logActivity('ticket_report_opened', rec.number || 'unknown');
+	}
+
+	function closeTicketReport() {
+		state.showTicketReport = false;
+		state.ticketReportIndex = -1;
+		var overlay = document.getElementById('ticket-report-overlay');
+		if (overlay) overlay.remove();
+	}
+
+	function renderTicketReportModal(rec) {
+		//remove existing
+		var existing = document.getElementById('ticket-report-overlay');
+		if (existing) existing.remove();
+
+		var overlay = document.createElement('div');
+		overlay.id = 'ticket-report-overlay';
+		overlay.className = 'ticket-report-overlay';
+		overlay.onclick = function (e) { if (e.target === overlay) closeTicketReport(); };
+
+		var num = rec.number || 'Unknown';
+		var dir = rec.direction || '';
+		var durStr = rec.duration > 0 ? formatDuration(rec.duration) : '-';
+		var timeStr = rec.timestamp ? new Date(rec.timestamp).toLocaleString() : '-';
+		var qualityStr = rec.quality ? rec.quality.rating + ' (MOS ' + rec.quality.mos.toFixed(1) + ')' : '-';
+		var issuesStr = (rec.quality && rec.quality.issues && rec.quality.issues.length > 0) ? rec.quality.issues.join(', ') : '-';
+
+		var html = '<div class="ticket-report-modal">';
+		html += '<h3>' + escapeHtml(t('reportCallIssue')) + '</h3>';
+
+		//call info summary
+		html += '<div class="ticket-report-call-info">';
+		html += '<div class="info-row"><span class="info-label">Number</span><span class="info-value">' + escapeHtml(num) + '</span></div>';
+		html += '<div class="info-row"><span class="info-label">Direction</span><span class="info-value">' + escapeHtml(dir) + '</span></div>';
+		html += '<div class="info-row"><span class="info-label">Duration</span><span class="info-value">' + escapeHtml(durStr) + '</span></div>';
+		html += '<div class="info-row"><span class="info-label">Time</span><span class="info-value">' + escapeHtml(timeStr) + '</span></div>';
+		html += '<div class="info-row"><span class="info-label">Quality</span><span class="info-value">' + escapeHtml(qualityStr) + '</span></div>';
+		if (issuesStr !== '-') {
+			html += '<div class="info-row"><span class="info-label">Issues</span><span class="info-value" style="color:#c62828;">' + escapeHtml(issuesStr) + '</span></div>';
+		}
+		if (rec.hangupBy) {
+			html += '<div class="info-row"><span class="info-label">Hangup</span><span class="info-value">' + escapeHtml(rec.hangupBy + (rec.hangupCause ? ' (' + rec.hangupCause + ')' : '')) + '</span></div>';
+		}
+		html += '</div>';
+
+		//form fields
+		html += '<div class="report-field">';
+		html += '<label>' + escapeHtml(t('issueSubject')) + '</label>';
+		html += '<input type="text" id="ticket-report-subject" value="Call issue: ' + escapeHtml(num) + ' (' + escapeHtml(dir) + ')" maxlength="255">';
+		html += '</div>';
+
+		html += '<div class="report-field">';
+		html += '<label>' + escapeHtml(t('issueDescription')) + '</label>';
+		html += '<textarea id="ticket-report-description" placeholder="' + escapeHtml(t('issueDescription')) + '" rows="4"></textarea>';
+		html += '</div>';
+
+		html += '<div class="report-field">';
+		html += '<label>Priority</label>';
+		html += '<select id="ticket-report-priority">';
+		html += '<option value="low">Low</option>';
+		html += '<option value="normal" selected>Normal</option>';
+		html += '<option value="high">High</option>';
+		html += '<option value="urgent">Urgent</option>';
+		html += '</select>';
+		html += '</div>';
+
+		html += '<div class="ticket-report-actions">';
+		html += '<button type="button" class="ticket-report-btn-cancel" onclick="WebRTCPhone.closeTicketReport()">' + escapeHtml(t('cancelReport')) + '</button>';
+		html += '<button type="button" class="ticket-report-btn-submit" id="ticket-report-submit" onclick="WebRTCPhone.submitTicketReport()">' + escapeHtml(t('submitReport')) + '</button>';
+		html += '</div>';
+
+		html += '</div>';
+		overlay.innerHTML = html;
+		document.body.appendChild(overlay);
+
+		//focus subject
+		setTimeout(function () {
+			var subj = document.getElementById('ticket-report-subject');
+			if (subj) subj.focus();
+		}, 100);
+	}
+
+	function submitTicketReport() {
+		var rec = state.callHistory[state.ticketReportIndex];
+		if (!rec) return;
+
+		var subject = (document.getElementById('ticket-report-subject') || {}).value || '';
+		var description = (document.getElementById('ticket-report-description') || {}).value || '';
+		var priority = (document.getElementById('ticket-report-priority') || {}).value || 'normal';
+
+		if (!subject.trim()) {
+			alert('Subject is required.');
+			return;
+		}
+
+		var btn = document.getElementById('ticket-report-submit');
+		if (btn) { btn.disabled = true; btn.textContent = 'Submitting...'; }
+
+		var payload = {
+			action: 'create',
+			subject: subject,
+			description: description,
+			priority: priority,
+			source: 'webphone',
+			call_number: rec.number || '',
+			call_direction: rec.direction || '',
+			call_duration: rec.duration || 0,
+			call_status: rec.status || '',
+			call_timestamp: rec.timestamp ? new Date(rec.timestamp).toISOString() : '',
+			extension: (state.selectedExtension ? state.selectedExtension.extension : ''),
+			call_detail_json: JSON.stringify(rec)
+		};
+
+		//attach quality data
+		if (rec.quality) {
+			payload.call_quality_mos = rec.quality.mos || 0;
+			payload.call_quality_rating = rec.quality.rating || '';
+			payload.call_quality_issues = (rec.quality.issues || []).join(', ');
+		}
+
+		if (rec.hangupBy) {
+			payload.call_hangup_by = rec.hangupBy;
+			payload.call_hangup_cause = rec.hangupCause || '';
+		}
+
+		//attach activity log
+		if (state.activityLog && state.activityLog.length > 0) {
+			payload.activity_log = JSON.stringify(state.activityLog);
+		}
+
+		fetch('/app/tickets/ticket_api.php?action=create', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			credentials: 'same-origin',
+			body: JSON.stringify(payload)
+		}).then(function (resp) {
+			if (!resp.ok) throw new Error('HTTP ' + resp.status);
+			return resp.json();
+		}).then(function (data) {
+			if (data.status === 'success') {
+				//mark this history entry as having a ticket
+				state.ticketLinkedCalls[state.ticketReportIndex] = {
+					ticket_uuid: data.ticket_uuid,
+					ticket_number: data.ticket_number,
+					status: 'open'
+				};
+				saveTicketLinkedCalls();
+				closeTicketReport();
+				logActivity('ticket_submitted', data.ticket_number, { ticket_uuid: data.ticket_uuid });
+				alert(t('reportSubmitted') + ' (' + data.ticket_number + ')');
+				renderPhone();
+			} else {
+				throw new Error(data.error || 'Unknown error');
+			}
+		}).catch(function (err) {
+			alert(t('reportFailed') + ': ' + err.message);
+		}).finally(function () {
+			if (btn) { btn.disabled = false; btn.textContent = t('submitReport'); }
+		});
+	}
+
+	//persist ticket-linked call mappings
+	function saveTicketLinkedCalls() {
+		try {
+			localStorage.setItem('webrtc_phone_ticket_calls', JSON.stringify(state.ticketLinkedCalls));
+		} catch (e) {}
+	}
+
+	function loadTicketLinkedCalls() {
+		try {
+			var raw = localStorage.getItem('webrtc_phone_ticket_calls');
+			if (raw) {
+				var parsed = JSON.parse(raw);
+				if (parsed && typeof parsed === 'object') state.ticketLinkedCalls = parsed;
+			}
+		} catch (e) {}
+	}
+
+	//poll for ticket status updates
+	function startTicketPolling() {
+		stopTicketPolling();
+		state.ticketLastCheck = localStorage.getItem('webrtc_phone_ticket_last_check') || null;
+		pollTicketUpdates();
+		state.ticketPollTimer = setInterval(pollTicketUpdates, 60000); //every 60s
+	}
+
+	function stopTicketPolling() {
+		if (state.ticketPollTimer) {
+			clearInterval(state.ticketPollTimer);
+			state.ticketPollTimer = null;
+		}
+	}
+
+	function pollTicketUpdates() {
+		var url = '/app/tickets/ticket_api.php?action=updates';
+		if (state.ticketLastCheck) url += '&since=' + encodeURIComponent(state.ticketLastCheck);
+
+		fetch(url, { credentials: 'same-origin' })
+		.then(function (resp) {
+			if (!resp.ok) return null;
+			return resp.json();
+		})
+		.then(function (data) {
+			if (!data || !data.updates) return;
+			state.ticketLastCheck = data.timestamp;
+			localStorage.setItem('webrtc_phone_ticket_last_check', data.timestamp);
+
+			//update linked calls and show alerts
+			for (var i = 0; i < data.updates.length; i++) {
+				var upd = data.updates[i];
+				//find linked call in history
+				for (var idx in state.ticketLinkedCalls) {
+					if (state.ticketLinkedCalls[idx].ticket_uuid === upd.ticket_uuid) {
+						state.ticketLinkedCalls[idx].status = upd.new_status;
+						if (upd.note) state.ticketLinkedCalls[idx].resolved_note = upd.note;
+					}
+				}
+				//show alert notification
+				showTicketAlert(upd);
+			}
+			if (data.updates.length > 0) {
+				saveTicketLinkedCalls();
+				renderPhone();
+			}
+		}).catch(function () {});
+	}
+
+	function showTicketAlert(update) {
+		var statusText = '';
+		if (update.new_status === 'resolved') statusText = t('ticketResolved');
+		else if (update.new_status === 'answered') statusText = t('ticketAnswered');
+		else if (update.new_status === 'closed') statusText = t('ticketClosed');
+		else statusText = update.new_status;
+
+		//browser notification
+		if ('Notification' in window && Notification.permission === 'granted') {
+			new Notification(t('ticketAlert') + ': ' + (update.ticket_number || ''), {
+				body: statusText + (update.call_number ? ' - ' + update.call_number : ''),
+				icon: '/app/web_phone2/resources/images/phone_icon.png'
+			});
+		}
+
+		//show inline alert near the FAB
+		var container = document.getElementById('webrtc-phone-floating-container');
+		if (!container) return;
+
+		var alert = document.createElement('div');
+		alert.className = 'webrtc-ticket-alert';
+		alert.innerHTML = '<div class="webrtc-ticket-alert-header">'
+			+ '<span class="webrtc-ticket-alert-title">' + escapeHtml(t('ticketAlert')) + '</span>'
+			+ '<button class="webrtc-ticket-alert-close" onclick="this.parentElement.parentElement.remove()">&times;</button>'
+			+ '</div>'
+			+ '<div class="webrtc-ticket-alert-body">'
+			+ '<strong>' + escapeHtml(update.ticket_number || '') + '</strong>: ' + escapeHtml(statusText)
+			+ (update.subject ? '<br>' + escapeHtml(update.subject) : '')
+			+ (update.status_note ? '<br><em>' + escapeHtml(update.status_note) + '</em>' : '')
+			+ '</div>'
+			+ '<a class="webrtc-ticket-alert-link" href="/app/tickets/ticket_detail.php?id=' + encodeURIComponent(update.ticket_uuid) + '" target="_blank">' + escapeHtml(t('viewTicket')) + ' &rarr;</a>';
+
+		container.appendChild(alert);
+
+		//auto-dismiss after 15 seconds
+		setTimeout(function () {
+			if (alert.parentNode) alert.remove();
+		}, 15000);
+
+		logActivity('ticket_alert', update.ticket_number + ' ' + update.new_status, { ticket_uuid: update.ticket_uuid });
+	}
+
 	// --- Public API ---
 
 	return {
@@ -5096,7 +5416,9 @@ var WebRTCPhone = (function () {
 		clearHistory: clearHistory, dialFromHistory: dialFromHistory,
 		openNetworkTest: openNetworkTest, closeNetworkTest: closeNetworkTest, runNetworkTest: runNetworkTest,
 		downloadReportPDF: downloadReportPDF, sendReportEmail: sendReportEmail,
-		exportActivityLog: exportActivityLog, clearActivityLog: function () { clearActivityLog(); renderPhone(); }
+		exportActivityLog: exportActivityLog, clearActivityLog: function () { clearActivityLog(); renderPhone(); },
+		// Ticket system
+		openTicketReport: openTicketReport, closeTicketReport: closeTicketReport, submitTicketReport: submitTicketReport
 	};
 
 })();
