@@ -933,18 +933,18 @@
 	font-style: italic;
 }
 
-/* --- Report Issue Button (inline in history) --- */
+/* --- Report Issue Button (inline text in history) --- */
 .webrtc-history-report-btn {
 	background: none;
-	border: none;
+	border: 1px solid #e65100;
 	color: #e65100;
 	cursor: pointer;
-	padding: 3px;
-	border-radius: 50%;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	opacity: 0.5;
+	padding: 1px 5px;
+	border-radius: 3px;
+	font-size: 9px;
+	font-weight: 600;
+	white-space: nowrap;
+	opacity: 0.7;
 	transition: background 0.15s, opacity 0.15s;
 }
 
