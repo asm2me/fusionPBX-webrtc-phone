@@ -34,7 +34,7 @@ if ($domains_processed == 1) {
 	//default settings
 	$y = 0;
 
-	$array['default_settings'][$y]['default_setting_uuid'] = "b2c3d4e5-f6a7-8901-bcde-f12345678901";
+	$array['default_settings'][$y]['default_setting_uuid'] = "b2c3d4e5-f6a7-8901-bcde-f12345678902";
 	$array['default_settings'][$y]['default_setting_category'] = "webrtc_phone";
 	$array['default_settings'][$y]['default_setting_subcategory'] = "wss_port";
 	$array['default_settings'][$y]['default_setting_name'] = "text";

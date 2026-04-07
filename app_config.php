@@ -50,7 +50,7 @@
 
 	//default settings
 	$y = 0;
-	$apps[$x]['default_settings'][$y]['default_setting_uuid'] = "b2c3d4e5-f6a7-8901-bcde-f12345678901";
+	$apps[$x]['default_settings'][$y]['default_setting_uuid'] = "b2c3d4e5-f6a7-8901-bcde-f12345678902";
 	$apps[$x]['default_settings'][$y]['default_setting_category'] = "webrtc_phone";
 	$apps[$x]['default_settings'][$y]['default_setting_subcategory'] = "wss_port";
 	$apps[$x]['default_settings'][$y]['default_setting_name'] = "text";
