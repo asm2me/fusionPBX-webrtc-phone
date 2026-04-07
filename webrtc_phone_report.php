@@ -3,6 +3,7 @@
 /*
 	FusionPBX
 	Version: MPL 1.1
+	Copyright (c) VOIPEGYPT - https://voipegypt.com
 
 	WebRTC Phone - Network Report Email API
 	Receives network test report data and sends it via email.

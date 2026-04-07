@@ -1,7 +1,7 @@
 ﻿/*
-	FusionPBX WebRTC Phone
+	Webphone Standalone
 	Browser-based SIP softphone using JsSIP over WebSocket Secure (WSS).
-	Fetches the active user's extensions from FusionPBX and registers via WebRTC.
+	Completely standalone — no FusionPBX dependency. SIP credentials are entered in the Settings page.
 
 	Copyright (c) VOIPEGYPT - https://voipegypt.com
 	All rights reserved.
@@ -142,7 +142,29 @@ var WebRTCPhone = (function () {
 		// Last call status
 		remoteEndedCall: 'Remote party ended call',
 		youEndedCall: 'You ended call',
-		systemEndedCall: 'System ended call'
+		systemEndedCall: 'System ended call',
+		// SIP Settings (standalone)
+		sipSettings: 'SIP Settings',
+		sipServer: 'SIP Server',
+		wssPort: 'WSS Port',
+		extension: 'Extension',
+		password: 'Password',
+		displayName: 'Display Name',
+		stunTurn: 'STUN / TURN',
+		crmIntegration: 'CRM Integration',
+		crmWebhookUrl: 'Webhook URL',
+		crmScreenPopUrl: 'Screen Pop URL',
+		crmAgentLoginUrl: 'Agent Login URL',
+		crmAgentLogoutUrl: 'Agent Logout URL',
+		crmAutoLoginUrl: 'Auto-Login URL',
+		crmMethod: 'Method',
+		saveAndConnect: 'Save & Connect',
+		disconnectSip: 'Disconnect',
+		sipConnection: 'SIP Connection',
+		addExtension: 'Add Extension',
+		removeExtension: 'Remove',
+		callerIdNumber: 'Caller ID Number',
+		editSettings: 'Edit Settings'
 	};
 
 	function t(key) {
@@ -206,6 +228,7 @@ var WebRTCPhone = (function () {
 		previewTimeout: null,
 		// Agent queue status
 		agentLoggedIn: false,
+		showSIPSettings: false,
 		// Call history
 		callHistory: [],
 		showHistory: false,
@@ -333,7 +356,7 @@ var WebRTCPhone = (function () {
 	}
 
 	// --- Build Version ---
-	var BUILD_VERSION = '1.2.9-' + (function () {
+	var BUILD_VERSION = '1.2.8-' + (function () {
 		// Auto build ID from file content hash (changes on each deploy)
 		var d = new Date();
 		return d.getFullYear() + (d.getMonth() + 1 < 10 ? '0' : '') + (d.getMonth() + 1) + (d.getDate() < 10 ? '0' : '') + d.getDate();
@@ -509,8 +532,7 @@ var WebRTCPhone = (function () {
 
 		// Navigation guard: warn before leaving page or submitting forms during a call
 		window.addEventListener('beforeunload', handleBeforeUnload);
-		document.addEventListener('submit', handleFormSubmit, true);
-		document.addEventListener('click', handleLinkClick, true);
+		// Form/link interception not needed in standalone mode (single-page app)
 		installNavigationTrap();
 		installDeviceChangeListener();
 		installOnlineOfflineListeners();
@@ -3265,36 +3287,195 @@ var WebRTCPhone = (function () {
 		}, true);
 	}
 
-	function fetchConfig() {
-		var xhr = new XMLHttpRequest();
-		xhr.open('GET', '/app/web_phone2/webrtc_phone_api.php', true);
-		xhr.onreadystatechange = function () {
-			if (xhr.readyState === 4) {
-				if (xhr.status === 200) {
-					try {
-						var data = JSON.parse(xhr.responseText);
-						if (data.error) { renderError(data.error); return; }
-						state.config = data;
-						state.extensions = data.extensions || [];
-						fireCrmAutoLogin();
-						if (state.extensions.length === 0) {
-							renderError('No extensions assigned to your account.');
-						} else if (state.extensions.length === 1) {
-							state.selectedExtension = state.extensions[0];
-							renderPhone();
-							registerSIP();
-						} else {
-							renderExtensionSelector();
-						}
-					} catch (e) {
-						renderError('Failed to parse server response.');
-					}
-				} else {
-					renderError('Failed to load phone configuration.');
-				}
-			}
+	// --- Config file + localStorage merge (Standalone) ---
+
+	function getFileConfig() {
+		return (typeof OURFONE_CONFIG !== 'undefined') ? OURFONE_CONFIG : {};
+	}
+
+	function loadSIPConfig() {
+		var file = getFileConfig();
+		var stored = null;
+		try { var raw = localStorage.getItem('webrtc_standalone_config'); if (raw) stored = JSON.parse(raw); } catch (e) {}
+		var merged = {
+			domain: (stored && stored.domain) || file.domain || '',
+			wss_port: (stored && stored.wss_port) || file.wss_port || '7443',
+			stun_server: file.stun_server || (stored && stored.stun_server) || 'stun:stun.l.google.com:19302',
+			turn_server: file.turn_server || (stored && stored.turn_server) || '',
+			turn_username: file.turn_username || (stored && stored.turn_username) || '',
+			turn_password: file.turn_password || (stored && stored.turn_password) || '',
+			crm_url: file.crm_url || (stored && stored.crm_url) || '',
+			crm_method: file.crm_method || (stored && stored.crm_method) || 'GET',
+			crm_login_url: file.crm_login_url || (stored && stored.crm_login_url) || '',
+			crm_auto_login_url: file.crm_auto_login_url || (stored && stored.crm_auto_login_url) || '',
+			crm_agent_login_url: file.crm_agent_login_url || (stored && stored.crm_agent_login_url) || '',
+			crm_agent_logout_url: file.crm_agent_logout_url || (stored && stored.crm_agent_logout_url) || '',
+			extensions: []
 		};
-		xhr.send();
+		if (file.extensions && file.extensions.length > 0 && file.extensions[0].extension) {
+			merged.extensions = file.extensions;
+		} else if (stored && stored.extensions && stored.extensions.length > 0) {
+			merged.extensions = stored.extensions;
+		}
+		return merged;
+	}
+
+	function saveSIPConfig(config) {
+		try { localStorage.setItem('webrtc_standalone_config', JSON.stringify(config)); } catch (e) {}
+	}
+
+	function fetchConfig() {
+		var config = loadSIPConfig();
+		if (!config.domain) { state.showSIPSettings = true; renderSIPSettingsPage(true); return; }
+		if (!config.extensions || config.extensions.length === 0) { state.showSIPSettings = true; renderLoginPage(); return; }
+		state.config = config;
+		state.extensions = config.extensions;
+		fireCrmAutoLogin();
+		if (state.extensions.length === 1) { state.selectedExtension = state.extensions[0]; renderPhone(); registerSIP(); }
+		else { renderExtensionSelector(); }
+	}
+
+	function renderLoginPage() {
+		if (!state.mountEl) return;
+		var file = getFileConfig();
+		var stored = null;
+		try { var raw = localStorage.getItem('webrtc_standalone_config'); if (raw) stored = JSON.parse(raw); } catch (e) {}
+		var lastExt = (stored && stored.extensions && stored.extensions[0]) ? stored.extensions[0].extension : '';
+		var html = '<div class="webrtc-phone-inner"><div class="webrtc-phone-header"><span class="webrtc-phone-title">Login</span></div><div class="webrtc-phone-body">';
+		html += '<div style="text-align:center;margin-bottom:12px;"><div style="font-size:11px;color:#888;">Server: <strong>' + escapeHtml(file.domain || '') + '</strong></div></div>';
+		html += '<div class="webrtc-sip-field" style="margin-bottom:10px;"><label>' + t('extension') + '</label><input type="text" id="login-extension" class="webrtc-input" style="font-size:16px;letter-spacing:1px;" placeholder="1001" value="' + escapeHtml(lastExt) + '" autofocus></div>';
+		html += '<div class="webrtc-sip-field" style="margin-bottom:14px;"><label>' + t('password') + '</label><input type="password" id="login-password" class="webrtc-input" style="font-size:16px;" placeholder="Password" onkeydown="if(event.key===\'Enter\')WebRTCPhone.loginConnect()"></div>';
+		html += '<button class="webrtc-btn webrtc-btn-primary" onclick="WebRTCPhone.loginConnect()" style="width:100%;padding:12px;font-size:15px;">' + t('connect') + '</button>';
+		html += '</div></div>';
+		state.mountEl.innerHTML = html;
+		setTimeout(function () { var e = document.getElementById('login-extension'); var p = document.getElementById('login-password'); if (e && !e.value) e.focus(); else if (p) p.focus(); }, 100);
+	}
+
+	function loginConnectAction() {
+		var ext = (document.getElementById('login-extension') || {}).value || '';
+		var pass = (document.getElementById('login-password') || {}).value || '';
+		if (!ext.trim()) { alert('Extension is required.'); return; }
+		if (!pass) { alert('Password is required.'); return; }
+		var config = loadSIPConfig();
+		config.extensions = [{ extension: ext.trim(), password: pass, caller_id_name: ext.trim(), caller_id_number: ext.trim(), description: '', extension_uuid: 'standalone-0' }];
+		saveSIPConfig(config);
+		state.config = config; state.extensions = config.extensions; state.selectedExtension = state.extensions[0]; state.showSIPSettings = false;
+		renderPhone(); registerSIP(); fireCrmAutoLogin();
+	}
+
+	function renderSIPSettingsPage(showServer) {
+		if (!state.mountEl) return;
+		var cfg = loadSIPConfig();
+		var exts = (cfg.extensions && cfg.extensions.length > 0) ? cfg.extensions : [{ extension: '', password: '', caller_id_name: '', caller_id_number: '', description: '' }];
+		var html = '<div class="webrtc-phone-inner"><div class="webrtc-phone-header"><span class="webrtc-phone-title">' + t('sipSettings') + '</span>';
+		if (state.registered) html += '<span class="webrtc-status webrtc-status-registered">' + t('connected') + '</span>';
+		if (state.selectedExtension) html += '<button class="webrtc-close-btn" onclick="WebRTCPhone.closeSIPSettings()" title="Back">&times;</button>';
+		html += '</div><div class="webrtc-phone-body" style="max-height:500px;overflow-y:auto;">';
+		html += '<div class="webrtc-sip-section"><div class="webrtc-sip-section-title" onclick="WebRTCPhone.toggleSIPSection(\'sip-conn\')">' + t('sipConnection') + ' <span id="sip-conn-arrow" class="webrtc-sip-arrow">&#9660;</span></div><div id="sip-conn" class="webrtc-sip-section-body">';
+		html += '<div class="webrtc-sip-field"><label>' + t('sipServer') + ' *</label><input type="text" id="sip-domain" class="webrtc-input webrtc-input-sm" placeholder="pbx.example.com" value="' + escapeHtml(cfg.domain || '') + '"></div>';
+		html += '<div class="webrtc-sip-field"><label>' + t('wssPort') + '</label><input type="text" id="sip-wss-port" class="webrtc-input webrtc-input-sm" placeholder="7443" value="' + escapeHtml(cfg.wss_port || '7443') + '"></div>';
+		html += '<div class="webrtc-sip-extensions-header"><label>Extensions</label><button class="webrtc-btn webrtc-btn-sm webrtc-btn-secondary" onclick="WebRTCPhone.addExtensionField()">' + t('addExtension') + '</button></div><div id="sip-extensions">';
+		for (var i = 0; i < exts.length; i++) html += renderExtensionFieldset(i, exts[i]);
+		html += '</div></div></div>';
+		html += '<div class="webrtc-sip-section"><div class="webrtc-sip-section-title" onclick="WebRTCPhone.toggleSIPSection(\'sip-stun\')">' + t('stunTurn') + ' <span id="sip-stun-arrow" class="webrtc-sip-arrow">&#9654;</span></div><div id="sip-stun" class="webrtc-sip-section-body" style="display:none;">';
+		html += '<div class="webrtc-sip-field"><label>STUN</label><input type="text" id="sip-stun-server" class="webrtc-input webrtc-input-sm" value="' + escapeHtml(cfg.stun_server || 'stun:stun.l.google.com:19302') + '"></div>';
+		html += '<div class="webrtc-sip-field"><label>TURN</label><input type="text" id="sip-turn-server" class="webrtc-input webrtc-input-sm" value="' + escapeHtml(cfg.turn_server || '') + '"></div>';
+		html += '<div class="webrtc-sip-field"><label>TURN User</label><input type="text" id="sip-turn-user" class="webrtc-input webrtc-input-sm" value="' + escapeHtml(cfg.turn_username || '') + '"></div>';
+		html += '<div class="webrtc-sip-field"><label>TURN Pass</label><input type="password" id="sip-turn-pass" class="webrtc-input webrtc-input-sm" value="' + escapeHtml(cfg.turn_password || '') + '"></div></div></div>';
+		html += '<div class="webrtc-sip-section"><div class="webrtc-sip-section-title" onclick="WebRTCPhone.toggleSIPSection(\'sip-crm\')">' + t('crmIntegration') + ' <span id="sip-crm-arrow" class="webrtc-sip-arrow">&#9654;</span></div><div id="sip-crm" class="webrtc-sip-section-body" style="display:none;">';
+		html += '<div class="webrtc-sip-field"><label>' + t('crmWebhookUrl') + '</label><input type="text" id="sip-crm-url" class="webrtc-input webrtc-input-sm" value="' + escapeHtml(cfg.crm_url || '') + '"></div>';
+		html += '<div class="webrtc-sip-field"><label>' + t('crmMethod') + '</label><select id="sip-crm-method" class="webrtc-select webrtc-select-sm"><option value="GET"' + ((cfg.crm_method || 'GET') === 'GET' ? ' selected' : '') + '>GET</option><option value="POST"' + (cfg.crm_method === 'POST' ? ' selected' : '') + '>POST</option></select></div>';
+		html += '<div class="webrtc-sip-field"><label>' + t('crmScreenPopUrl') + '</label><input type="text" id="sip-crm-login-url" class="webrtc-input webrtc-input-sm" value="' + escapeHtml(cfg.crm_login_url || '') + '"></div>';
+		html += '<div class="webrtc-sip-field"><label>' + t('crmAutoLoginUrl') + '</label><input type="text" id="sip-crm-auto-login" class="webrtc-input webrtc-input-sm" value="' + escapeHtml(cfg.crm_auto_login_url || '') + '"></div>';
+		html += '<div class="webrtc-sip-field"><label>' + t('crmAgentLoginUrl') + '</label><input type="text" id="sip-crm-agent-login" class="webrtc-input webrtc-input-sm" value="' + escapeHtml(cfg.crm_agent_login_url || '') + '"></div>';
+		html += '<div class="webrtc-sip-field"><label>' + t('crmAgentLogoutUrl') + '</label><input type="text" id="sip-crm-agent-logout" class="webrtc-input webrtc-input-sm" value="' + escapeHtml(cfg.crm_agent_logout_url || '') + '"></div></div></div>';
+		html += '<div class="webrtc-sip-actions"><button class="webrtc-btn webrtc-btn-primary" onclick="WebRTCPhone.saveSIPSettings()" style="flex:1;">' + t('saveAndConnect') + '</button>';
+		if (state.registered) html += '<button class="webrtc-btn webrtc-btn-hangup" onclick="WebRTCPhone.disconnectSIP()" style="flex:1;">' + t('disconnectSip') + '</button>';
+		html += '</div></div></div>';
+		state.mountEl.innerHTML = html;
+	}
+
+	function renderExtensionFieldset(index, ext) {
+		ext = ext || {};
+		var html = '<div class="webrtc-sip-ext-block" id="sip-ext-' + index + '">';
+		if (index > 0) html += '<div class="webrtc-sip-ext-header"><span>Extension #' + (index + 1) + '</span><button class="webrtc-btn webrtc-btn-sm" style="color:#e53935;background:none;border:1px solid #e53935;padding:2px 8px;font-size:11px;" onclick="WebRTCPhone.removeExtensionField(' + index + ')">' + t('removeExtension') + '</button></div>';
+		html += '<div class="webrtc-sip-field"><label>' + t('extension') + ' *</label><input type="text" class="webrtc-input webrtc-input-sm sip-ext-number" placeholder="1001" value="' + escapeHtml(ext.extension || '') + '"></div>';
+		html += '<div class="webrtc-sip-field"><label>' + t('password') + ' *</label><input type="password" class="webrtc-input webrtc-input-sm sip-ext-password" value="' + escapeHtml(ext.password || '') + '"></div>';
+		html += '<div class="webrtc-sip-field"><label>' + t('displayName') + '</label><input type="text" class="webrtc-input webrtc-input-sm sip-ext-name" value="' + escapeHtml(ext.caller_id_name || '') + '"></div>';
+		html += '<div class="webrtc-sip-field"><label>' + t('callerIdNumber') + '</label><input type="text" class="webrtc-input webrtc-input-sm sip-ext-cid" value="' + escapeHtml(ext.caller_id_number || '') + '"></div>';
+		html += '<div class="webrtc-sip-field"><label>' + t('description') + '</label><input type="text" class="webrtc-input webrtc-input-sm sip-ext-desc" value="' + escapeHtml(ext.description || '') + '"></div></div>';
+		return html;
+	}
+
+	function collectSIPFormData() {
+		var exts = [], blocks = document.querySelectorAll('.webrtc-sip-ext-block');
+		for (var i = 0; i < blocks.length; i++) {
+			var n = (blocks[i].querySelector('.sip-ext-number') || {}).value || '';
+			if (n.trim()) exts.push({ extension: n.trim(), password: (blocks[i].querySelector('.sip-ext-password') || {}).value || '', caller_id_name: (blocks[i].querySelector('.sip-ext-name') || {}).value || n.trim(), caller_id_number: (blocks[i].querySelector('.sip-ext-cid') || {}).value || n.trim(), description: (blocks[i].querySelector('.sip-ext-desc') || {}).value || '', extension_uuid: 'standalone-' + i });
+		}
+		return { domain: ((document.getElementById('sip-domain') || {}).value || '').trim(), wss_port: ((document.getElementById('sip-wss-port') || {}).value || '7443').trim(), extensions: exts,
+			stun_server: (document.getElementById('sip-stun-server') || {}).value || 'stun:stun.l.google.com:19302', turn_server: (document.getElementById('sip-turn-server') || {}).value || '', turn_username: (document.getElementById('sip-turn-user') || {}).value || '', turn_password: (document.getElementById('sip-turn-pass') || {}).value || '',
+			crm_url: (document.getElementById('sip-crm-url') || {}).value || '', crm_method: (document.getElementById('sip-crm-method') || {}).value || 'GET', crm_login_url: (document.getElementById('sip-crm-login-url') || {}).value || '', crm_auto_login_url: (document.getElementById('sip-crm-auto-login') || {}).value || '', crm_agent_login_url: (document.getElementById('sip-crm-agent-login') || {}).value || '', crm_agent_logout_url: (document.getElementById('sip-crm-agent-logout') || {}).value || '' };
+	}
+
+	function saveSIPSettingsAction() {
+		var config = collectSIPFormData();
+		if (!config.domain) { alert('SIP Server is required.'); return; }
+		if (config.extensions.length === 0) { alert('At least one extension is required.'); return; }
+		saveSIPConfig(config);
+		if (state.ua) unregisterSIP();
+		state.config = config; state.extensions = config.extensions; state.showSIPSettings = false;
+		if (state.extensions.length === 1) { state.selectedExtension = state.extensions[0]; renderPhone(); registerSIP(); }
+		else { renderExtensionSelector(); }
+	}
+
+	function disconnectSIPAction() {
+		unregisterSIP();
+		try { localStorage.removeItem('webrtc_standalone_config'); } catch (e) {}
+		state.config = null; state.extensions = []; state.selectedExtension = null; state.showSIPSettings = true;
+		fetchConfig();
+	}
+
+	function closeSIPSettingsAction() { state.showSIPSettings = false; state.showSettings = false; renderPhone(); }
+	function addExtensionFieldAction() { var c = document.getElementById('sip-extensions'); if (!c) return; var n = c.querySelectorAll('.webrtc-sip-ext-block').length; var d = document.createElement('div'); d.innerHTML = renderExtensionFieldset(n, {}); c.appendChild(d.firstChild); }
+	function removeExtensionFieldAction(i) { var el = document.getElementById('sip-ext-' + i); if (el) el.remove(); }
+	function toggleSIPSectionAction(id) { var el = document.getElementById(id), a = document.getElementById(id + '-arrow'); if (!el) return; if (el.style.display === 'none') { el.style.display = ''; if (a) a.innerHTML = '&#9660;'; } else { el.style.display = 'none'; if (a) a.innerHTML = '&#9654;'; } }
+	function openSIPSettingsTab() { state.showSettings = false; state.showHistory = false; state.showNetworkTest = false; state.showSIPSettings = true; renderSIPSettingsPage(true); }
+
+	function renderSIPAccountSection() {
+		var file = getFileConfig();
+		var hasFileConfig = !!(file.domain);
+		var ext = state.selectedExtension || {};
+		var html = '<div class="webrtc-settings-section"><div class="webrtc-settings-title">&#128100; Account</div>';
+		if (state.registered) {
+			html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;"><span style="width:8px;height:8px;border-radius:50%;background:#4caf50;display:inline-block;"></span><span style="font-size:12px;color:#2e7d32;font-weight:600;">' + t('connected') + '</span></div>';
+			html += '<div style="font-size:12px;color:#444;margin-bottom:8px;"><strong>' + escapeHtml(ext.extension || '') + '</strong>' + (ext.caller_id_name && ext.caller_id_name !== ext.extension ? ' &mdash; ' + escapeHtml(ext.caller_id_name) : '') + '</div>';
+			html += '<button class="webrtc-btn webrtc-btn-sm" style="width:100%;background:#e53935;color:#fff;" onclick="WebRTCPhone.disconnectSIP()">' + t('disconnectSip') + '</button>';
+		} else {
+			html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;"><span style="width:8px;height:8px;border-radius:50%;background:#e53935;display:inline-block;"></span><span style="font-size:12px;color:#c62828;font-weight:600;">Not Connected</span></div>';
+			if (hasFileConfig) {
+				html += '<div class="webrtc-sip-field" style="margin-bottom:6px;"><label>' + t('extension') + '</label><input type="text" id="settings-login-ext" class="webrtc-input webrtc-input-sm" placeholder="1001"></div>';
+				html += '<div class="webrtc-sip-field" style="margin-bottom:8px;"><label>' + t('password') + '</label><input type="password" id="settings-login-pass" class="webrtc-input webrtc-input-sm" onkeydown="if(event.key===\'Enter\')WebRTCPhone.loginFromSettings()"></div>';
+				html += '<button class="webrtc-btn webrtc-btn-sm webrtc-btn-primary" onclick="WebRTCPhone.loginFromSettings()" style="width:100%;">' + t('connect') + '</button>';
+			} else {
+				html += '<button class="webrtc-btn webrtc-btn-sm webrtc-btn-primary" onclick="WebRTCPhone.openSIPSettings()" style="width:100%;">' + t('editSettings') + '</button>';
+			}
+		}
+		html += '</div>';
+		return html;
+	}
+
+	function loginFromSettingsAction() {
+		var ext = (document.getElementById('settings-login-ext') || {}).value || '';
+		var pass = (document.getElementById('settings-login-pass') || {}).value || '';
+		if (!ext.trim()) { alert('Extension is required.'); return; }
+		if (!pass) { alert('Password is required.'); return; }
+		var config = loadSIPConfig();
+		config.extensions = [{ extension: ext.trim(), password: pass, caller_id_name: ext.trim(), caller_id_number: ext.trim(), description: '', extension_uuid: 'standalone-0' }];
+		saveSIPConfig(config);
+		if (state.ua) unregisterSIP();
+		state.config = config; state.extensions = config.extensions; state.selectedExtension = state.extensions[0]; state.showSettings = false; state.showSIPSettings = false;
+		renderPhone(); registerSIP();
 	}
 
 	// --- SIP Registration with JsSIP ---
@@ -3322,7 +3503,7 @@ var WebRTCPhone = (function () {
 				display_name: ext.caller_id_name || ext.extension,
 				register: true,
 				session_timers: false,
-				user_agent: 'FusionPBX-WebRTC-Phone/1.0'
+				user_agent: 'Webphone-Standalone/1.0'
 			};
 
 			state.ua = new JsSIP.UA(configuration);
@@ -3427,24 +3608,10 @@ var WebRTCPhone = (function () {
 	function agentLogin() {
 		state.agentLoggedIn = true;
 		logActivity('agent_login', '');
-		console.log('WebRTC Phone: Agent logged into queue');
-		// Fire CRM agent login webhook via proxy
 		if (state.config && state.config.crm_agent_login_url) {
 			var placeholders = buildCrmPlaceholders({ direction: 'system' });
-			var params = [];
-			params.push('event=agent_login');
-			params.push('extension=' + encodeURIComponent(placeholders['{extension}']));
-			params.push('timestamp=' + encodeURIComponent(placeholders['{timestamp}']));
-			params.push('domain=' + encodeURIComponent(state.config.domain || ''));
-			var proxyUrl = '/app/web_phone2/crm_webhook_proxy.php?' + params.join('&');
-			try {
-				var xhr = new XMLHttpRequest();
-				xhr.open('GET', proxyUrl, true);
-				xhr.onload = function () {
-					try { var r = JSON.parse(xhr.responseText); if (!r.ok) console.warn('WebRTC Phone: Agent login webhook failed', r); } catch (e) {}
-				};
-				xhr.send();
-			} catch (e) {}
+			placeholders['{event}'] = 'agent_login';
+			fireCrmDirectRequest(replacePlaceholders(state.config.crm_agent_login_url, placeholders), 'GET');
 		}
 		renderPhone();
 	}
@@ -3452,24 +3619,10 @@ var WebRTCPhone = (function () {
 	function agentLogout() {
 		state.agentLoggedIn = false;
 		logActivity('agent_logout', '');
-		console.log('WebRTC Phone: Agent logged out of queue');
-		// Fire CRM agent logout webhook via proxy
 		if (state.config && state.config.crm_agent_logout_url) {
 			var placeholders = buildCrmPlaceholders({ direction: 'system' });
-			var params = [];
-			params.push('event=agent_logout');
-			params.push('extension=' + encodeURIComponent(placeholders['{extension}']));
-			params.push('timestamp=' + encodeURIComponent(placeholders['{timestamp}']));
-			params.push('domain=' + encodeURIComponent(state.config.domain || ''));
-			var proxyUrl = '/app/web_phone2/crm_webhook_proxy.php?' + params.join('&');
-			try {
-				var xhr = new XMLHttpRequest();
-				xhr.open('GET', proxyUrl, true);
-				xhr.onload = function () {
-					try { var r = JSON.parse(xhr.responseText); if (!r.ok) console.warn('WebRTC Phone: Agent logout webhook failed', r); } catch (e) {}
-				};
-				xhr.send();
-			} catch (e) {}
+			placeholders['{event}'] = 'agent_logout';
+			fireCrmDirectRequest(replacePlaceholders(state.config.crm_agent_logout_url, placeholders), 'GET');
 		}
 		renderPhone();
 	}
@@ -3509,36 +3662,23 @@ var WebRTCPhone = (function () {
 	function fireCrmEvent(eventName, extra) {
 		if (!state.config || !state.config.crm_url) return;
 		extra = extra || {};
-
 		var placeholders = buildCrmPlaceholders(extra);
 		placeholders['{event}'] = eventName;
+		var url = replacePlaceholders(state.config.crm_url, placeholders);
+		var method = (state.config.crm_method || 'GET').toUpperCase();
+		fireCrmDirectRequest(url, method, placeholders);
+	}
 
-		// Build query params for the local PHP proxy
-		var params = [];
-		for (var k in placeholders) {
-			var paramName = k.replace(/[{}]/g, '');
-			params.push(encodeURIComponent(paramName) + '=' + encodeURIComponent(placeholders[k]));
-		}
-		var proxyUrl = '/app/web_phone2/crm_webhook_proxy.php?' + params.join('&');
-
-		console.log('WebRTC Phone: CRM event', eventName, '(via proxy)');
-
+	function fireCrmDirectRequest(url, method, placeholders) {
 		try {
-			var xhr = new XMLHttpRequest();
-			xhr.open('GET', proxyUrl, true);
-			xhr.onload = function () {
-				try {
-					var resp = JSON.parse(xhr.responseText);
-					if (!resp.ok) console.warn('WebRTC Phone: CRM webhook failed', resp);
-				} catch (e) {}
-			};
-			xhr.onerror = function () {
-				console.warn('WebRTC Phone: CRM proxy request failed');
-			};
-			xhr.send();
-		} catch (e) {
-			console.warn('WebRTC Phone: CRM event error', e);
-		}
+			if (method === 'POST' && placeholders) {
+				var formData = new URLSearchParams();
+				for (var k in placeholders) { formData.append(k.replace(/[{}]/g, ''), placeholders[k]); }
+				fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: formData.toString(), mode: 'no-cors' }).catch(function () {});
+			} else {
+				fetch(url, { method: 'GET', mode: 'no-cors' }).catch(function () {});
+			}
+		} catch (e) {}
 	}
 
 	function preferCodec(sdp, codecName) {
@@ -4017,7 +4157,7 @@ var WebRTCPhone = (function () {
 		try {
 			state.incomingNotification = new Notification('Incoming Call', {
 				body: caller + (extLabel ? '\nTo: Extension ' + extLabel : ''),
-				icon: '/app/web_phone2/resources/images/phone-icon.svg',
+				icon: '',
 				tag: 'webrtc-incoming-call',
 				requireInteraction: true,
 				silent: false
@@ -4389,7 +4529,10 @@ var WebRTCPhone = (function () {
 		var ringVolPct = Math.round(as.ringVolume * 100);
 		var spkVolPct = Math.round(as.speakerVolume * 100);
 
-		var html = '<div class="webrtc-settings-panel">';
+		var html = '<div class="webrtc-settings-panel" style="max-height:420px;overflow-y:auto;">';
+
+		// --- SIP Account Section (standalone) ---
+		html += renderSIPAccountSection();
 
 		html += '<div class="webrtc-settings-section">';
 		html += '<div class="webrtc-settings-title">&#127925; ' + t('ringtone') + '</div>';
@@ -4704,7 +4847,7 @@ var WebRTCPhone = (function () {
 		if (!r) return '';
 		var ext = state.selectedExtension || {};
 		var lines = [];
-		lines.push('=== WebRTC Phone Network Quality Report ===');
+		lines.push('=== Webphone Standalone Network Quality Report ===');
 		lines.push('Date: ' + new Date().toLocaleString());
 		lines.push('Domain: ' + (state.config ? state.config.domain : 'N/A'));
 		lines.push('Extension: ' + (ext.extension || 'N/A') + (ext.caller_id_name ? ' (' + ext.caller_id_name + ')' : ''));
@@ -4822,7 +4965,7 @@ var WebRTCPhone = (function () {
 		}
 
 		lines.push('');
-		lines.push('--- Generated by FusionPBX WebRTC Phone ---');
+		lines.push('--- Generated by Webphone Standalone ---');
 		return lines.join('\n');
 	}
 
@@ -4864,7 +5007,7 @@ var WebRTCPhone = (function () {
 
 		// Header with info
 		h.push('<div class="header-row"><div>');
-		h.push('<h1>WebRTC Phone Network Quality Report</h1>');
+		h.push('<h1>Webphone Standalone Network Quality Report</h1>');
 		h.push('</div><div class="info" style="text-align:right;">');
 		h.push(new Date().toLocaleString() + '<br>');
 		h.push('<strong>' + escapeHtml(state.config ? state.config.domain : 'N/A') + '</strong> | Ext: ' + escapeHtml(ext.extension || 'N/A') + (ext.caller_id_name ? ' (' + escapeHtml(ext.caller_id_name) + ')' : ''));
@@ -5027,7 +5170,7 @@ var WebRTCPhone = (function () {
 		// End right column
 		h.push('</div></div>');
 
-		h.push('<div class="footer">Generated by FusionPBX WebRTC Phone</div>');
+		h.push('<div class="footer">Generated by Webphone Standalone</div>');
 		h.push('</body></html>');
 		return h.join('\n');
 	}
@@ -5046,38 +5189,7 @@ var WebRTCPhone = (function () {
 	}
 
 	function sendReportEmail() {
-		var reportText = buildReportText();
-		var reportHtml = buildReportHTML();
-		if (!reportText) return;
-		var ext = state.selectedExtension || {};
-		var btn = document.getElementById('webrtc-send-report-btn');
-		if (btn) { btn.disabled = true; btn.textContent = t('sending'); }
-
-		fetch('/app/web_phone2/webrtc_phone_report.php', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			credentials: 'same-origin',
-			body: JSON.stringify({
-				report: reportText,
-				report_html: reportHtml,
-				extension: ext.extension || ''
-			})
-		}).then(function (resp) {
-			if (!resp.ok) throw new Error('HTTP ' + resp.status);
-			return resp.json();
-		}).then(function (data) {
-			if (data.success) {
-				alert(t('reportSent'));
-			} else {
-				var msg = data.message || 'Unknown error';
-				if (data.smtp_host) msg += '\nSMTP: ' + data.smtp_host;
-				alert(t('reportFailed') + ':\n' + msg);
-			}
-		}).catch(function (err) {
-			alert(t('reportFailed') + ': ' + err.message);
-		}).finally(function () {
-			if (btn) { btn.disabled = false; btn.textContent = t('sendReport'); }
-		});
+		alert('Email report is not available in standalone mode. Please use "Download PDF" instead.');
 	}
 
 	// --- Public API ---
@@ -5096,6 +5208,12 @@ var WebRTCPhone = (function () {
 		clearHistory: clearHistory, dialFromHistory: dialFromHistory,
 		openNetworkTest: openNetworkTest, closeNetworkTest: closeNetworkTest, runNetworkTest: runNetworkTest,
 		downloadReportPDF: downloadReportPDF, sendReportEmail: sendReportEmail,
+		// Standalone SIP settings
+		saveSIPSettings: saveSIPSettingsAction, disconnectSIP: disconnectSIPAction,
+		openSIPSettings: openSIPSettingsTab, closeSIPSettings: closeSIPSettingsAction,
+		toggleSIPSection: toggleSIPSectionAction,
+		addExtensionField: addExtensionFieldAction, removeExtensionField: removeExtensionFieldAction,
+		loginConnect: loginConnectAction, loginFromSettings: loginFromSettingsAction,
 		exportActivityLog: exportActivityLog, clearActivityLog: function () { clearActivityLog(); renderPhone(); }
 	};
 

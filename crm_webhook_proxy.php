@@ -1,5 +1,11 @@
 <?php
 
+/*
+	FusionPBX - WebRTC Phone CRM Webhook Proxy
+	Copyright (c) VOIPEGYPT - https://voipegypt.com
+	License: MPL 1.1
+*/
+
 //includes
 require_once dirname(__DIR__, 2)."/resources/require.php";
 require_once "resources/check_auth.php";

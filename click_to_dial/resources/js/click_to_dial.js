@@ -1,5 +1,8 @@
 /*
 	FusionPBX Click-to-Dial Widget
+	Copyright (c) VOIPEGYPT - https://voipegypt.com
+	License: MPL 1.1
+
 	Embeddable JavaScript plugin for third-party websites.
 	Self-contained: includes CSS, JsSIP loader, SIP registration, and minimal phone UI.
 

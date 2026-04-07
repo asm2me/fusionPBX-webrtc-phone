@@ -3,6 +3,7 @@
 /*
 	FusionPBX
 	Version: MPL 1.1
+	Copyright (c) VOIPEGYPT - https://voipegypt.com
 
 	Click-to-Dial Setup Page
 	Admin page for creating/managing API tokens and generating embed code.

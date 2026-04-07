@@ -1,5 +1,11 @@
 <?php
 
+/*
+	FusionPBX - WebRTC Phone Languages
+	Copyright (c) VOIPEGYPT - https://voipegypt.com
+	License: MPL 1.1
+*/
+
 	// ===================== English (en-us) =====================
 	$text['title-webrtc_phone']['en-us'] = "WebRTC Phone";
 	$text['description-webrtc_phone']['en-us'] = "Browser-based SIP phone using WebRTC.";

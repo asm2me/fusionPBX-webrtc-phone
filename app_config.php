@@ -1,5 +1,11 @@
 <?php
 
+/*
+	FusionPBX - WebRTC Phone
+	Copyright (c) VOIPEGYPT - https://voipegypt.com
+	License: MPL 1.1
+*/
+
 	//application details
 	$apps[$x]['name'] = "WebRTC Phone";
 	$apps[$x]['uuid'] = "3c8f2e1a-9b4d-4f7e-a6c5-7d2b0f1e4c8b";
