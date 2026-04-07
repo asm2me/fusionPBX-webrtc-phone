@@ -4341,8 +4341,12 @@ var WebRTCPhone = (function () {
 			}
 
 			if (state.callState === 'idle') {
-				html += renderTabs();
-				html += state.showNetworkTest ? renderNetworkTestPanel() : (state.showHistory ? renderHistoryPanel() : renderDialPad());
+				if (state.showTicketReport) {
+					html += renderTicketReportPanel();
+				} else {
+					html += renderTabs();
+					html += state.showNetworkTest ? renderNetworkTestPanel() : (state.showHistory ? renderHistoryPanel() : renderDialPad());
+				}
 			} else if (state.callState === 'ringing_in') {
 				html += '<div class="webrtc-call-info">';
 				html += '<div class="webrtc-call-icon webrtc-call-icon-incoming">&#9742;</div>';
@@ -4569,25 +4573,22 @@ var WebRTCPhone = (function () {
 					html += '<div style="font-size:11px;color:' + _hcHist + ';font-weight:600;margin-top:2px;">' + escapeHtml(rec.hangupBy + ' ended' + (rec.hangupCause ? ' (' + rec.hangupCause + ')' : '')) + '</div>';
 				}
 				html += '</div>';
-				//ticket status badge
+				//ticket status badge (inline with meta)
 				var ticketInfo = state.ticketLinkedCalls[i];
 				if (ticketInfo) {
 					var tBadgeClass = (ticketInfo.status === 'resolved' || ticketInfo.status === 'closed') ? 'webrtc-history-ticket-resolved' : '';
-					html += '<div class="webrtc-history-ticket-badge ' + tBadgeClass + '">' + escapeHtml(ticketInfo.ticket_number) + ' - ' + escapeHtml(ticketInfo.status) + '</div>';
-					if (ticketInfo.resolved_note) {
-						html += '<div style="font-size:10px;color:#666;margin-top:1px;font-style:italic;">' + escapeHtml(ticketInfo.resolved_note) + '</div>';
-					}
+					html += '<span class="webrtc-history-ticket-badge ' + tBadgeClass + '">' + escapeHtml(ticketInfo.ticket_number) + '</span>';
 				}
 				html += '</div>';
-				html += '<div style="display:flex;flex-direction:column;gap:4px;align-items:center;">';
-				html += '<button class="webrtc-history-call-btn" onclick="event.stopPropagation();WebRTCPhone.dialFromHistory(' + i + ')" title="Dial">';
-				html += '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 00-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/></svg>';
-				html += '</button>';
+				html += '<div class="webrtc-history-actions">';
 				if (!ticketInfo) {
 					html += '<button class="webrtc-history-report-btn" onclick="event.stopPropagation();WebRTCPhone.openTicketReport(' + i + ')" title="' + escapeHtml(t('reportIssue')) + '">';
-					html += '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+					html += '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
 					html += '</button>';
 				}
+				html += '<button class="webrtc-history-call-btn" onclick="event.stopPropagation();WebRTCPhone.dialFromHistory(' + i + ')" title="Dial">';
+				html += '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 00-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.11-.56-2.3-.56-3.53 0-.54-.45-.99-.99-.99H4.19C3.65 3 3 3.24 3 3.99 3 13.28 10.73 21 20.01 21c.71 0 .99-.63.99-1.18v-3.45c0-.54-.45-.99-.99-.99z"/></svg>';
+				html += '</button>';
 				html += '</div>';
 				html += '</div>';
 			}
@@ -5130,26 +5131,23 @@ var WebRTCPhone = (function () {
 		if (!rec) return;
 		state.ticketReportIndex = historyIndex;
 		state.showTicketReport = true;
-		renderTicketReportModal(rec);
+		state.showHistory = false;
+		state.showNetworkTest = false;
+		state.showSettings = false;
 		logActivity('ticket_report_opened', rec.number || 'unknown');
+		renderPhone();
 	}
 
 	function closeTicketReport() {
 		state.showTicketReport = false;
 		state.ticketReportIndex = -1;
-		var overlay = document.getElementById('ticket-report-overlay');
-		if (overlay) overlay.remove();
+		state.showHistory = true;
+		renderPhone();
 	}
 
-	function renderTicketReportModal(rec) {
-		//remove existing
-		var existing = document.getElementById('ticket-report-overlay');
-		if (existing) existing.remove();
-
-		var overlay = document.createElement('div');
-		overlay.id = 'ticket-report-overlay';
-		overlay.className = 'ticket-report-overlay';
-		overlay.onclick = function (e) { if (e.target === overlay) closeTicketReport(); };
+	function renderTicketReportPanel() {
+		var rec = state.callHistory[state.ticketReportIndex];
+		if (!rec) { closeTicketReport(); return ''; }
 
 		var num = rec.number || 'Unknown';
 		var dir = rec.direction || '';
@@ -5158,38 +5156,48 @@ var WebRTCPhone = (function () {
 		var qualityStr = rec.quality ? rec.quality.rating + ' (MOS ' + rec.quality.mos.toFixed(1) + ')' : '-';
 		var issuesStr = (rec.quality && rec.quality.issues && rec.quality.issues.length > 0) ? rec.quality.issues.join(', ') : '-';
 
-		var html = '<div class="ticket-report-modal">';
-		html += '<h3>' + escapeHtml(t('reportCallIssue')) + '</h3>';
+		var html = '<div class="webrtc-ticket-report">';
+
+		//header with back button
+		html += '<div class="webrtc-ticket-report-header">';
+		html += '<button class="webrtc-ticket-back-btn" onclick="WebRTCPhone.closeTicketReport()">';
+		html += '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>';
+		html += '</button>';
+		html += '<span class="webrtc-ticket-report-title">' + escapeHtml(t('reportCallIssue')) + '</span>';
+		html += '</div>';
+
+		//scrollable content
+		html += '<div class="webrtc-ticket-report-body">';
 
 		//call info summary
-		html += '<div class="ticket-report-call-info">';
-		html += '<div class="info-row"><span class="info-label">Number</span><span class="info-value">' + escapeHtml(num) + '</span></div>';
-		html += '<div class="info-row"><span class="info-label">Direction</span><span class="info-value">' + escapeHtml(dir) + '</span></div>';
-		html += '<div class="info-row"><span class="info-label">Duration</span><span class="info-value">' + escapeHtml(durStr) + '</span></div>';
-		html += '<div class="info-row"><span class="info-label">Time</span><span class="info-value">' + escapeHtml(timeStr) + '</span></div>';
-		html += '<div class="info-row"><span class="info-label">Quality</span><span class="info-value">' + escapeHtml(qualityStr) + '</span></div>';
+		html += '<div class="webrtc-ticket-call-summary">';
+		html += '<div class="webrtc-ticket-call-row"><span class="webrtc-ticket-lbl">Number</span><span>' + escapeHtml(num) + '</span></div>';
+		html += '<div class="webrtc-ticket-call-row"><span class="webrtc-ticket-lbl">Direction</span><span>' + escapeHtml(dir) + '</span></div>';
+		html += '<div class="webrtc-ticket-call-row"><span class="webrtc-ticket-lbl">Duration</span><span>' + escapeHtml(durStr) + '</span></div>';
+		html += '<div class="webrtc-ticket-call-row"><span class="webrtc-ticket-lbl">Time</span><span>' + escapeHtml(timeStr) + '</span></div>';
+		html += '<div class="webrtc-ticket-call-row"><span class="webrtc-ticket-lbl">Quality</span><span>' + escapeHtml(qualityStr) + '</span></div>';
 		if (issuesStr !== '-') {
-			html += '<div class="info-row"><span class="info-label">Issues</span><span class="info-value" style="color:#c62828;">' + escapeHtml(issuesStr) + '</span></div>';
+			html += '<div class="webrtc-ticket-call-row"><span class="webrtc-ticket-lbl">Issues</span><span style="color:#c62828;">' + escapeHtml(issuesStr) + '</span></div>';
 		}
 		if (rec.hangupBy) {
-			html += '<div class="info-row"><span class="info-label">Hangup</span><span class="info-value">' + escapeHtml(rec.hangupBy + (rec.hangupCause ? ' (' + rec.hangupCause + ')' : '')) + '</span></div>';
+			html += '<div class="webrtc-ticket-call-row"><span class="webrtc-ticket-lbl">Hangup</span><span>' + escapeHtml(rec.hangupBy + (rec.hangupCause ? ' (' + rec.hangupCause + ')' : '')) + '</span></div>';
 		}
 		html += '</div>';
 
 		//form fields
-		html += '<div class="report-field">';
+		html += '<div class="webrtc-ticket-field">';
 		html += '<label>' + escapeHtml(t('issueSubject')) + '</label>';
-		html += '<input type="text" id="ticket-report-subject" value="Call issue: ' + escapeHtml(num) + ' (' + escapeHtml(dir) + ')" maxlength="255">';
+		html += '<input type="text" id="ticket-report-subject" class="webrtc-input" value="Call issue: ' + escapeHtml(num) + ' (' + escapeHtml(dir) + ')" maxlength="255">';
 		html += '</div>';
 
-		html += '<div class="report-field">';
+		html += '<div class="webrtc-ticket-field">';
 		html += '<label>' + escapeHtml(t('issueDescription')) + '</label>';
-		html += '<textarea id="ticket-report-description" placeholder="' + escapeHtml(t('issueDescription')) + '" rows="4"></textarea>';
+		html += '<textarea id="ticket-report-description" class="webrtc-input" placeholder="' + escapeHtml(t('issueDescription')) + '" rows="3"></textarea>';
 		html += '</div>';
 
-		html += '<div class="report-field">';
+		html += '<div class="webrtc-ticket-field">';
 		html += '<label>Priority</label>';
-		html += '<select id="ticket-report-priority">';
+		html += '<select id="ticket-report-priority" class="webrtc-select">';
 		html += '<option value="low">Low</option>';
 		html += '<option value="normal" selected>Normal</option>';
 		html += '<option value="high">High</option>';
@@ -5197,20 +5205,16 @@ var WebRTCPhone = (function () {
 		html += '</select>';
 		html += '</div>';
 
-		html += '<div class="ticket-report-actions">';
-		html += '<button type="button" class="ticket-report-btn-cancel" onclick="WebRTCPhone.closeTicketReport()">' + escapeHtml(t('cancelReport')) + '</button>';
-		html += '<button type="button" class="ticket-report-btn-submit" id="ticket-report-submit" onclick="WebRTCPhone.submitTicketReport()">' + escapeHtml(t('submitReport')) + '</button>';
+		html += '</div>'; //end body
+
+		//sticky footer actions
+		html += '<div class="webrtc-ticket-report-footer">';
+		html += '<button class="webrtc-btn webrtc-btn-sm" style="flex:1;" onclick="WebRTCPhone.closeTicketReport()">' + escapeHtml(t('cancelReport')) + '</button>';
+		html += '<button class="webrtc-btn webrtc-btn-call webrtc-btn-sm" style="flex:1;" id="ticket-report-submit" onclick="WebRTCPhone.submitTicketReport()">' + escapeHtml(t('submitReport')) + '</button>';
 		html += '</div>';
 
-		html += '</div>';
-		overlay.innerHTML = html;
-		document.body.appendChild(overlay);
-
-		//focus subject
-		setTimeout(function () {
-			var subj = document.getElementById('ticket-report-subject');
-			if (subj) subj.focus();
-		}, 100);
+		html += '</div>'; //end webrtc-ticket-report
+		return html;
 	}
 
 	function submitTicketReport() {

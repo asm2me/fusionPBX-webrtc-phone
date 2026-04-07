@@ -737,8 +737,8 @@
 .webrtc-history-item {
 	display: flex;
 	align-items: center;
-	gap: 10px;
-	padding: 7px 4px;
+	gap: 6px;
+	padding: 4px 4px;
 	border-radius: 6px;
 	cursor: pointer;
 	transition: background 0.1s;
@@ -749,12 +749,20 @@
 }
 
 .webrtc-history-icon {
-	font-size: 18px;
-	width: 22px;
+	font-size: 15px;
+	width: 18px;
 	text-align: center;
 	font-weight: 700;
 	flex-shrink: 0;
 	line-height: 1;
+}
+
+/* History action buttons row */
+.webrtc-history-actions {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	flex-shrink: 0;
 }
 
 /* Direction + status icon colors */
@@ -771,22 +779,25 @@
 }
 
 .webrtc-history-name {
-	font-size: 13px;
+	font-size: 12px;
 	font-weight: 600;
 	color: #222;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	line-height: 1.2;
 }
 
 .webrtc-history-number {
-	font-size: 11px;
+	font-size: 10px;
 	color: #666;
+	line-height: 1.2;
 }
 
 .webrtc-history-meta {
-	font-size: 11px;
+	font-size: 10px;
 	color: #999;
+	line-height: 1.2;
 }
 
 .webrtc-history-call-btn {
@@ -794,7 +805,7 @@
 	border: none;
 	color: #4caf50;
 	cursor: pointer;
-	padding: 5px;
+	padding: 3px;
 	border-radius: 50%;
 	display: flex;
 	align-items: center;
@@ -897,18 +908,18 @@
 
 /* --- History Quality Badge --- */
 .webrtc-history-quality {
-	display: flex;
+	display: inline-flex;
 	flex-wrap: wrap;
 	align-items: center;
-	gap: 4px;
-	margin-top: 2px;
+	gap: 3px;
+	margin-top: 0;
 }
 
 .webrtc-history-quality-badge {
-	font-size: 10px;
+	font-size: 9px;
 	font-weight: 600;
-	padding: 1px 6px;
-	border-radius: 8px;
+	padding: 0 4px;
+	border-radius: 6px;
 }
 
 .webrtc-history-quality-badge.webrtc-quality-excellent { background: rgba(76, 175, 80, 0.15); color: #2e7d32; }
@@ -920,6 +931,193 @@
 	font-size: 9px;
 	color: #999;
 	font-style: italic;
+}
+
+/* --- Report Issue Button (inline in history) --- */
+.webrtc-history-report-btn {
+	background: none;
+	border: none;
+	color: #e65100;
+	cursor: pointer;
+	padding: 3px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0.5;
+	transition: background 0.15s, opacity 0.15s;
+}
+
+.webrtc-history-report-btn:hover {
+	background: rgba(230, 81, 0, 0.1);
+	opacity: 1;
+}
+
+/* --- Ticket badge in history --- */
+.webrtc-history-ticket-badge {
+	display: inline-block;
+	background: #fff3e0;
+	color: #e65100;
+	padding: 0 4px;
+	border-radius: 3px;
+	font-size: 9px;
+	font-weight: 600;
+	line-height: 1.4;
+}
+
+.webrtc-history-ticket-resolved {
+	background: #e8f5e9;
+	color: #2e7d32;
+}
+
+/* --- Ticket Report Panel (inside dialer) --- */
+.webrtc-ticket-report {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.webrtc-ticket-report-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding-bottom: 8px;
+	border-bottom: 1px solid #eee;
+	margin-bottom: 8px;
+}
+
+.webrtc-ticket-back-btn {
+	background: none;
+	border: none;
+	cursor: pointer;
+	color: #1a73e8;
+	padding: 4px;
+	border-radius: 4px;
+	display: flex;
+	align-items: center;
+}
+
+.webrtc-ticket-back-btn:hover {
+	background: #e8f0fe;
+}
+
+.webrtc-ticket-report-title {
+	font-size: 13px;
+	font-weight: 700;
+	color: #333;
+}
+
+.webrtc-ticket-report-body {
+	flex: 1;
+	overflow-y: auto;
+	max-height: 280px;
+}
+
+.webrtc-ticket-call-summary {
+	background: #f8f9fa;
+	border-radius: 6px;
+	padding: 6px 8px;
+	margin-bottom: 8px;
+	font-size: 11px;
+}
+
+.webrtc-ticket-call-row {
+	display: flex;
+	justify-content: space-between;
+	padding: 1px 0;
+	color: #333;
+}
+
+.webrtc-ticket-lbl {
+	color: #888;
+	font-weight: 600;
+	font-size: 10px;
+}
+
+.webrtc-ticket-field {
+	margin-bottom: 6px;
+}
+
+.webrtc-ticket-field label {
+	display: block;
+	font-size: 10px;
+	font-weight: 600;
+	color: #666;
+	margin-bottom: 2px;
+	text-transform: uppercase;
+	letter-spacing: 0.3px;
+}
+
+.webrtc-ticket-report-footer {
+	display: flex;
+	gap: 6px;
+	padding-top: 8px;
+	border-top: 1px solid #eee;
+	margin-top: 4px;
+}
+
+/* --- Ticket Alert Popup (near FAB) --- */
+.webrtc-ticket-alert {
+	position: absolute;
+	bottom: 100%;
+	right: 0;
+	margin-bottom: 8px;
+	background: #fff;
+	border: 1px solid #e0e0e0;
+	border-radius: 10px;
+	box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+	padding: 10px;
+	width: 260px;
+	font-size: 12px;
+	animation: webrtcSlideUp 0.3s ease;
+	z-index: 100000;
+}
+
+@keyframes webrtcSlideUp {
+	from { opacity: 0; transform: translateY(8px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+
+.webrtc-ticket-alert-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 6px;
+}
+
+.webrtc-ticket-alert-title {
+	font-weight: 600;
+	font-size: 12px;
+	color: #333;
+}
+
+.webrtc-ticket-alert-close {
+	background: none;
+	border: none;
+	color: #999;
+	cursor: pointer;
+	font-size: 16px;
+	padding: 0;
+	line-height: 1;
+}
+
+.webrtc-ticket-alert-body {
+	font-size: 11px;
+	color: #666;
+	line-height: 1.3;
+}
+
+.webrtc-ticket-alert-link {
+	display: inline-block;
+	margin-top: 6px;
+	color: #1a73e8;
+	font-size: 11px;
+	font-weight: 600;
+	text-decoration: none;
+}
+
+.webrtc-ticket-alert-link:hover {
+	text-decoration: underline;
 }
 
 /* --- Network Quality Test --- */
