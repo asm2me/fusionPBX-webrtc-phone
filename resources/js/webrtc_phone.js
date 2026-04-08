@@ -3288,7 +3288,7 @@ var WebRTCPhone = (function () {
 
 	function fetchConfig() {
 		var xhr = new XMLHttpRequest();
-		xhr.open('GET', '/app/web_phone2/webrtc_phone_api.php', true);
+		xhr.open('GET', '/app/webrtc_phone/webrtc_phone_api.php', true);
 		xhr.onreadystatechange = function () {
 			if (xhr.readyState === 4) {
 				if (xhr.status === 200) {
@@ -3457,7 +3457,7 @@ var WebRTCPhone = (function () {
 			params.push('extension=' + encodeURIComponent(placeholders['{extension}']));
 			params.push('timestamp=' + encodeURIComponent(placeholders['{timestamp}']));
 			params.push('domain=' + encodeURIComponent(state.config.domain || ''));
-			var proxyUrl = '/app/web_phone2/crm_webhook_proxy.php?' + params.join('&');
+			var proxyUrl = '/app/webrtc_phone/crm_webhook_proxy.php?' + params.join('&');
 			try {
 				var xhr = new XMLHttpRequest();
 				xhr.open('GET', proxyUrl, true);
@@ -3482,7 +3482,7 @@ var WebRTCPhone = (function () {
 			params.push('extension=' + encodeURIComponent(placeholders['{extension}']));
 			params.push('timestamp=' + encodeURIComponent(placeholders['{timestamp}']));
 			params.push('domain=' + encodeURIComponent(state.config.domain || ''));
-			var proxyUrl = '/app/web_phone2/crm_webhook_proxy.php?' + params.join('&');
+			var proxyUrl = '/app/webrtc_phone/crm_webhook_proxy.php?' + params.join('&');
 			try {
 				var xhr = new XMLHttpRequest();
 				xhr.open('GET', proxyUrl, true);
@@ -3540,7 +3540,7 @@ var WebRTCPhone = (function () {
 			var paramName = k.replace(/[{}]/g, '');
 			params.push(encodeURIComponent(paramName) + '=' + encodeURIComponent(placeholders[k]));
 		}
-		var proxyUrl = '/app/web_phone2/crm_webhook_proxy.php?' + params.join('&');
+		var proxyUrl = '/app/webrtc_phone/crm_webhook_proxy.php?' + params.join('&');
 
 		console.log('WebRTC Phone: CRM event', eventName, '(via proxy)');
 
@@ -4038,7 +4038,7 @@ var WebRTCPhone = (function () {
 		try {
 			state.incomingNotification = new Notification('Incoming Call', {
 				body: caller + (extLabel ? '\nTo: Extension ' + extLabel : ''),
-				icon: '/app/web_phone2/resources/images/phone-icon.svg',
+				icon: '/app/webrtc_phone/resources/images/phone-icon.svg',
 				tag: 'webrtc-incoming-call',
 				requireInteraction: true,
 				silent: false
@@ -5090,7 +5090,7 @@ var WebRTCPhone = (function () {
 		var btn = document.getElementById('webrtc-send-report-btn');
 		if (btn) { btn.disabled = true; btn.textContent = t('sending'); }
 
-		fetch('/app/web_phone2/webrtc_phone_report.php', {
+		fetch('/app/webrtc_phone/webrtc_phone_report.php', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			credentials: 'same-origin',
@@ -5367,7 +5367,7 @@ var WebRTCPhone = (function () {
 		if ('Notification' in window && Notification.permission === 'granted') {
 			new Notification(t('ticketAlert') + ': ' + (update.ticket_number || ''), {
 				body: statusText + (update.call_number ? ' - ' + update.call_number : ''),
-				icon: '/app/web_phone2/resources/images/phone_icon.png'
+				icon: '/app/webrtc_phone/resources/images/phone_icon.png'
 			});
 		}
 

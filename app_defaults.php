@@ -23,9 +23,9 @@ if ($domains_processed == 1) {
 	foreach ($known_menu_uuids as $i => $u) { $params["uuid{$i}"] = $u; }
 	$sql = "DELETE FROM v_menu_items
 	        WHERE menu_item_link IN (
-	            '/app/web_phone2/webrtc_phone.php',
-	            '/app/web_phone2/click_to_dial/click_to_dial_setup.php',
-	            '/app/web_phone2/crm_settings.php'
+	            '/app/webrtc_phone/webrtc_phone.php',
+	            '/app/webrtc_phone/click_to_dial/click_to_dial_setup.php',
+	            '/app/webrtc_phone/crm_settings.php'
 	        )
 	        AND menu_item_uuid NOT IN ({$placeholders})";
 	$database->execute($sql, $params);

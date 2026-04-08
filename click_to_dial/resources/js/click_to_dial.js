@@ -14,7 +14,7 @@
 	5. Visitor's info is passed as Caller ID via SIP headers
 
 	Usage:
-	<script src="https://your-pbx.com/app/web_phone2/click_to_dial/resources/js/click_to_dial.js"
+	<script src="https://your-pbx.com/app/webrtc_phone/click_to_dial/resources/js/click_to_dial.js"
 		data-ctd-server="https://your-pbx.com"
 		data-ctd-token="YOUR_API_TOKEN">
 	</script>
@@ -379,9 +379,9 @@
 
 	function loadJsSIP(callback) {
 		if (window.JsSIP) { console.log('CTD: JsSIP already loaded'); state.jssipLoaded = true; callback(); return; }
-		console.log('CTD: Loading JsSIP from', CTD_SERVER + '/app/web_phone2/resources/js/jssip.min.js');
+		console.log('CTD: Loading JsSIP from', CTD_SERVER + '/app/webrtc_phone/resources/js/jssip.min.js');
 		var s = document.createElement('script');
-		s.src = CTD_SERVER + '/app/web_phone2/resources/js/jssip.min.js';
+		s.src = CTD_SERVER + '/app/webrtc_phone/resources/js/jssip.min.js';
 		s.onload = function () { console.log('CTD: JsSIP loaded successfully'); state.jssipLoaded = true; callback(); };
 		s.onerror = function () { console.error('CTD: Failed to load JsSIP'); renderStatus('Failed to load phone library.'); };
 		document.head.appendChild(s);
@@ -389,7 +389,7 @@
 
 	// --- Fetch Config ---
 	function fetchConfig(callback) {
-		var apiUrl = CTD_SERVER + '/app/web_phone2/click_to_dial/click_to_dial_api.php?token=' + encodeURIComponent(CTD_TOKEN);
+		var apiUrl = CTD_SERVER + '/app/webrtc_phone/click_to_dial/click_to_dial_api.php?token=' + encodeURIComponent(CTD_TOKEN);
 		console.log('CTD: Fetching config from', apiUrl);
 		var xhr = new XMLHttpRequest();
 		xhr.open('GET', apiUrl, true);

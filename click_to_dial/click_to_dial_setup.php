@@ -766,7 +766,7 @@ require_once $document_root."/resources/header.php";
 						</td>
 						<td>
 							<?php
-								$embed_code = '<script async data-cfasync="false" src="' . $base_url . '/app/web_phone2/click_to_dial/resources/js/click_to_dial.js"'
+						$embed_code = '<script async data-cfasync="false" src="' . $base_url . '/app/webrtc_phone/click_to_dial/resources/js/click_to_dial.js"'
 									. ' data-ctd-server="' . htmlspecialchars($base_url) . '"'
 									. ' data-ctd-token="' . htmlspecialchars($tok['api_token']) . '"'
 									. '></script>';

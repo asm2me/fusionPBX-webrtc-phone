@@ -12,7 +12,7 @@
 	$apps[$x]['menu'][$y]['parent_uuid'] = "b4750c3f-2a86-b00d-b7d0-345c14eca286"; //applications menu
 	$apps[$x]['menu'][$y]['category'] = "internal";
 	$apps[$x]['menu'][$y]['icon'] = "fa-solid fa-phone";
-	$apps[$x]['menu'][$y]['path'] = "/app/web_phone2/webrtc_phone.php";
+	$apps[$x]['menu'][$y]['path'] = "/app/webrtc_phone/webrtc_phone.php";
 	$apps[$x]['menu'][$y]['order'] = "";
 	$apps[$x]['menu'][$y]['groups'][] = "superadmin";
 	$apps[$x]['menu'][$y]['groups'][] = "admin";
@@ -24,7 +24,7 @@
 	$apps[$x]['menu'][$y]['parent_uuid'] = "b4750c3f-2a86-b00d-b7d0-345c14eca286"; //applications menu
 	$apps[$x]['menu'][$y]['category'] = "internal";
 	$apps[$x]['menu'][$y]['icon'] = "fa-solid fa-computer-mouse";
-	$apps[$x]['menu'][$y]['path'] = "/app/web_phone2/click_to_dial/click_to_dial_setup.php";
+	$apps[$x]['menu'][$y]['path'] = "/app/webrtc_phone/click_to_dial/click_to_dial_setup.php";
 	$apps[$x]['menu'][$y]['order'] = "";
 	$apps[$x]['menu'][$y]['groups'][] = "superadmin";
 	$apps[$x]['menu'][$y]['groups'][] = "admin";
@@ -35,7 +35,7 @@
 	$apps[$x]['menu'][$y]['parent_uuid'] = "b4750c3f-2a86-b00d-b7d0-345c14eca286"; //applications menu
 	$apps[$x]['menu'][$y]['category'] = "internal";
 	$apps[$x]['menu'][$y]['icon'] = "fa-solid fa-handshake";
-	$apps[$x]['menu'][$y]['path'] = "/app/web_phone2/crm_settings.php";
+	$apps[$x]['menu'][$y]['path'] = "/app/webrtc_phone/crm_settings.php";
 	$apps[$x]['menu'][$y]['order'] = "";
 	$apps[$x]['menu'][$y]['groups'][] = "superadmin";
 	$apps[$x]['menu'][$y]['groups'][] = "admin";
