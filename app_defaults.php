@@ -43,7 +43,7 @@ if ($domains_processed == 1) {
 	$array['default_settings'][$y]['default_setting_description'] = "WebSocket Secure port for SIP over WSS.";
 	$y++;
 
-	$array['default_settings'][$y]['default_setting_uuid'] = "c3d4e5f6-a7b8-9012-cdef-123456789012";
+	$array['default_settings'][$y]['default_setting_uuid'] = "3c8f2e1a-0001-0002-0001-7d2b0f1e4c8b";
 	$array['default_settings'][$y]['default_setting_category'] = "webrtc_phone";
 	$array['default_settings'][$y]['default_setting_subcategory'] = "enabled";
 	$array['default_settings'][$y]['default_setting_name'] = "boolean";
