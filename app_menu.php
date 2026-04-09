@@ -38,7 +38,6 @@
 	$apps[$x]['menu'][$y]['icon'] = "fa-solid fa-computer-mouse";
 	$apps[$x]['menu'][$y]['path'] = "/app/webrtc_phone/click_to_dial/click_to_dial_setup.php";
 	$apps[$x]['menu'][$y]['order'] = "";
-	$apps[$x]['menu'][$y]['groups'][] = "superadmin";
 	$apps[$x]['menu'][$y]['groups'][] = "admin";
 	$y++;
 
@@ -49,7 +48,6 @@
 	$apps[$x]['menu'][$y]['icon'] = "fa-solid fa-handshake";
 	$apps[$x]['menu'][$y]['path'] = "/app/webrtc_phone/crm_settings.php";
 	$apps[$x]['menu'][$y]['order'] = "";
-	$apps[$x]['menu'][$y]['groups'][] = "superadmin";
 	$apps[$x]['menu'][$y]['groups'][] = "admin";
 
 ?>
