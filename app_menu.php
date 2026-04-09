@@ -12,6 +12,18 @@
 	$apps[$x]['menu'][$y]['parent_uuid'] = "594d99c5-6128-9c88-ca35-4b33392cec0f"; //advanced
 	$apps[$x]['menu'][$y]['category'] = "internal";
 	$apps[$x]['menu'][$y]['icon'] = "fa-solid fa-phone";
+	$apps[$x]['menu'][$y]['path'] = "";
+	$apps[$x]['menu'][$y]['order'] = "";
+	$apps[$x]['menu'][$y]['groups'][] = "superadmin";
+	$apps[$x]['menu'][$y]['groups'][] = "admin";
+	$apps[$x]['menu'][$y]['groups'][] = "user";
+	$y++;
+
+	$apps[$x]['menu'][$y]['title']['en-us'] = "Phone";
+	$apps[$x]['menu'][$y]['uuid'] = "e5f6a7b8-c9d0-1234-efab-345678901235";
+	$apps[$x]['menu'][$y]['parent_uuid'] = "e5f6a7b8-c9d0-1234-efab-345678901234"; //webrtc phone
+	$apps[$x]['menu'][$y]['category'] = "internal";
+	$apps[$x]['menu'][$y]['icon'] = "fa-solid fa-phone";
 	$apps[$x]['menu'][$y]['path'] = "/app/webrtc_phone/webrtc_phone.php";
 	$apps[$x]['menu'][$y]['order'] = "";
 	$apps[$x]['menu'][$y]['groups'][] = "superadmin";
